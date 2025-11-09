@@ -1,5 +1,6 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
     Alert,
     Modal,
@@ -21,7 +22,12 @@ export default function SettingsScreen() {
     const [phone, setPhone] = useState('081234567890');
     const [email, setEmail] = useState('info@example.com');
     const [address, setAddress] = useState('Jl. Contoh No.1, Kota');
+    const [location, setLocation] = useState(''); // human-readable location storage (used with map)
     const [modalVisible, setModalVisible] = useState(false);
+    // new bank account state
+    const [bankAccount, setBankAccount] = useState('');
+    // dynamic payment methods: phone number + provider (e.g. 0899.. - OVO)
+    const [paymentMethods, setPaymentMethods] = useState<Array<{ id: string; number: string; provider: string }>>([]);
 
     // NEW: coordinates state + map modal
     const [latitude, setLatitude] = useState<number | null>(null);
@@ -48,6 +54,40 @@ export default function SettingsScreen() {
         }
     }
 
+    // load saved settings (including bank account) on mount
+    useEffect(() => {
+        (async () => {
+            try {
+                const raw = await AsyncStorage.getItem('settings');
+                if (raw) {
+                    const s = JSON.parse(raw);
+                    if (s.bankAccount) setBankAccount(s.bankAccount);
+                    if (Array.isArray(s.paymentMethods)) setPaymentMethods(s.paymentMethods);
+                    if (s.location) setLocation(s.location);
+                    if (s.address) setAddress(s.address);
+                }
+            } catch {
+                // ignore
+            }
+        })();
+    }, []);
+
+    // persist paymentMethods whenever it changes (merge into settings)
+    useEffect(() => {
+        (async () => {
+            try {
+                const raw = await AsyncStorage.getItem('settings');
+                const base = raw ? JSON.parse(raw) : {};
+                base.paymentMethods = paymentMethods;
+                // keep bankAccount if present
+                if (!base.bankAccount && bankAccount) base.bankAccount = bankAccount;
+                await AsyncStorage.setItem('settings', JSON.stringify(base));
+            } catch {
+                // ignore save errors
+            }
+        })();
+    }, [paymentMethods]);
+
     function save() {
         if (!appName.trim()) {
             Alert.alert('Error', 'App name wajib diisi');
@@ -58,6 +98,33 @@ export default function SettingsScreen() {
         setLongitude((lng) => lng ?? tmpLng);
         // nilai disimpan di state lokal; tambahkan persistence jika diperlukan
         setModalVisible(false);
+    }
+
+    async function saveSettings() {
+        try {
+            // additionally persist bank account into same settings key
+            const raw = await AsyncStorage.getItem('settings');
+            const base = raw ? JSON.parse(raw) : {};
+            const merged = { ...base, bankAccount, location, address };
+            await AsyncStorage.setItem('settings', JSON.stringify(merged));
+        } catch {
+            // optionally show error
+        }
+        // commit tmp coords if map modal still open values were edited
+        setLatitude((lat) => lat ?? tmpLat);
+        setLongitude((lng) => lng ?? tmpLng);
+        // nilai disimpan di state lokal; tambahkan persistence jika diperlukan
+        setModalVisible(false);
+    }
+
+    function addPaymentMethod() {
+        setPaymentMethods((p) => [...p, { id: Date.now().toString(), number: '', provider: '' }]);
+    }
+    function updatePaymentMethod(id: string, field: 'number' | 'provider', value: string) {
+        setPaymentMethods((p) => p.map((m) => (m.id === id ? { ...m, [field]: value } : m)));
+    }
+    function removePaymentMethod(id: string) {
+        setPaymentMethods((p) => p.filter((m) => m.id !== id));
     }
 
     return (
@@ -75,10 +142,11 @@ export default function SettingsScreen() {
                     {/* Coordinates preview */}
                     <View style={{ marginTop: 10 }}>
                         <Text style={{ color: '#374151', fontSize: 12 }}>Coordinates</Text>
-                        <Text style={{ color: '#111827', marginTop: 4 }}>
-                            {latitude !== null && longitude !== null ? `${latitude.toFixed(6)} , ${longitude.toFixed(6)}` : 'Not set'}
+                        <Text style={{ color: '#6B7280', fontSize: 12, marginTop: 8 }}>
+                            {latitude !== null && longitude !== null ? `${latitude.toFixed(6)}, ${longitude.toFixed(6)}` : 'Not set'}
                         </Text>
                     </View>
+                    {/* end location display */}
 
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 12 }}>
                         <View>
@@ -139,6 +207,42 @@ export default function SettingsScreen() {
                                 <TextInput value={address} onChangeText={setAddress} placeholder="Address" multiline numberOfLines={4} style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 10, marginTop: 6, textAlignVertical: 'top', height: 120 }} />
                             )}
 
+                            <Text style={{ color: '#374151', marginTop: 12 }}>No. Rekening</Text>
+                            <TextInput
+                                value={bankAccount}
+                                onChangeText={setBankAccount}
+                                placeholder="Contoh: 1234567890 (Nama Bank - Nama Rekening)"
+                                style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 10, marginTop: 6 }}
+                            />
+
+                            {/* dynamic payment methods */}
+                            <Text style={{ color: '#374151', marginTop: 12, marginBottom: 6 }}>Payment Methods</Text>
+                            {paymentMethods.map((pm) => (
+                                <View key={pm.id} style={{ marginBottom: 8, borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 8 }}>
+                                    <TextInput
+                                        value={pm.number}
+                                        onChangeText={(v) => updatePaymentMethod(pm.id, 'number', v)}
+                                        placeholder="Phone number (e.g. 0899xxxxxx)"
+                                        keyboardType="phone-pad"
+                                        style={{ borderWidth: 0, paddingVertical: 6 }}
+                                    />
+                                    <TextInput
+                                        value={pm.provider}
+                                        onChangeText={(v) => updatePaymentMethod(pm.id, 'provider', v)}
+                                        placeholder="Provider (e.g. OVO / GoPay / Dana)"
+                                        style={{ borderWidth: 0, paddingVertical: 6, marginTop: 4 }}
+                                    />
+                                    <View style={{ flexDirection: 'row', justifyContent: 'flex-end' }}>
+                                        <TouchableOpacity onPress={() => removePaymentMethod(pm.id)} style={{ padding: 6 }}>
+                                            <Text style={{ color: '#EF4444', fontWeight: '600' }}>Remove</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                </View>
+                            ))}
+                            <TouchableOpacity onPress={addPaymentMethod} style={{ marginTop: 6, paddingVertical: 10 }}>
+                                <Text style={{ color: '#06B6D4', fontWeight: '700' }}>+ Add payment method</Text>
+                            </TouchableOpacity>
+
                             <View style={{ paddingHorizontal: 16, marginTop: 12 }}>
                                 <Text style={{ color: '#374151', marginTop: 8 }}>Location Coordinates</Text>
                                 {Platform.OS === 'web' ? (
@@ -160,7 +264,7 @@ export default function SettingsScreen() {
                                 <TouchableOpacity onPress={() => setModalVisible(false)} style={{ padding: 10 }}>
                                     <Text style={{ color: '#6B7280' }}>Cancel</Text>
                                 </TouchableOpacity>
-                                <TouchableOpacity onPress={save} style={{ padding: 10 }}>
+                                <TouchableOpacity onPress={saveSettings} style={{ padding: 10 }}>
                                     <Text style={{ color: '#4fc3f7', fontWeight: '700' }}>Save</Text>
                                 </TouchableOpacity>
                             </View>
@@ -199,61 +303,83 @@ export default function SettingsScreen() {
                                     </TouchableOpacity>
                                     <TouchableOpacity
                                         onPress={async () => {
-                                            // reverse geocode tmp coords and set address
                                             if (tmpLat != null && tmpLng != null) {
-                                                const addr = await reverseGeocode(tmpLat, tmpLng);
-                                                if (addr) {
-                                                    setAddress(addr);
-                                                } else {
-                                                    setAddress(`${tmpLat.toFixed(6)}, ${tmpLng.toFixed(6)}`);
+                                                // reverse geocode tmp coords and set address
+                                                try {
+                                                    const addr = await reverseGeocode(tmpLat, tmpLng);
+                                                    const coordLabel = `${tmpLat.toFixed(6)}, ${tmpLng.toFixed(6)}`;
+                                                    setLatitude(tmpLat);
+                                                    setLongitude(tmpLng);
+                                                    setAddress(addr ?? coordLabel);
+                                                    setLocation(addr ?? coordLabel);
+                                                } catch {
+                                                    // fallback to coords
+                                                    const coordLabel = `${tmpLat.toFixed(6)}, ${tmpLng.toFixed(6)}`;
+                                                    setLatitude(tmpLat);
+                                                    setLongitude(tmpLng);
+                                                    setAddress(coordLabel);
+                                                    setLocation(coordLabel);
                                                 }
-                                                setLatitude(tmpLat);
-                                                setLongitude(tmpLng);
                                             }
                                             setMapModalVisible(false);
-                                            setModalVisible(false);
                                         }}
-                                        style={{ padding: 10 }}
                                     >
-                                        <Text style={{ color: '#4fc3f7', fontWeight: '700' }}>Use this location</Text>
+                                        <Text style={{ color: '#4fc3f7', fontWeight: '700' }}>Pilih</Text>
                                     </TouchableOpacity>
                                 </View>
                             </View>
                         ) : (
-                            <ScrollView>
-                                <Text style={{ color: '#374151' }}>Enter coordinates (web)</Text>
-                                <TextInput value={tmpLat !== null ? String(tmpLat) : ''} onChangeText={(v) => setTmpLat(v ? Number(v) : null)} placeholder="Latitude" keyboardType="numeric" style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 10, marginTop: 6 }} />
-                                <TextInput value={tmpLng !== null ? String(tmpLng) : ''} onChangeText={(v) => setTmpLng(v ? Number(v) : null)} placeholder="Longitude" keyboardType="numeric" style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 10, marginTop: 6 }} />
-                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 12 }}>
-                                    <TouchableOpacity onPress={() => setMapModalVisible(false)} style={{ padding: 10 }}>
-                                        <Text style={{ color: '#6B7280' }}>Cancel</Text>
-                                    </TouchableOpacity>
-                                    <TouchableOpacity
-                                        onPress={async () => {
-                                            if (tmpLat != null && tmpLng != null) {
+                            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                                <Text style={{ color: '#374151', textAlign: 'center', marginBottom: 12 }}>
+                                    Untuk memilih lokasi, gunakan peta di bawah ini atau masukkan koordinat secara manual.
+                                </Text>
+                                <View style={{ flexDirection: 'row', width: '100%', marginBottom: 12 }}>
+                                    <TextInput
+                                        value={tmpLat !== null ? String(tmpLat) : ''}
+                                        onChangeText={(v) => setTmpLat(v ? Number(v) : null)}
+                                        placeholder="Latitude"
+                                        keyboardType="numeric"
+                                        style={{ flex: 1, borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 10, marginRight: 8 }}
+                                    />
+                                    <TextInput
+                                        value={tmpLng !== null ? String(tmpLng) : ''}
+                                        onChangeText={(v) => setTmpLng(v ? Number(v) : null)}
+                                        placeholder="Longitude"
+                                        keyboardType="numeric"
+                                        style={{ flex: 1, borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 10 }}
+                                    />
+                                </View>
+                                <TouchableOpacity
+                                    onPress={async () => {
+                                        if (tmpLat != null && tmpLng != null) {
+                                            // reverse geocode tmp coords and set address
+                                            try {
                                                 const addr = await reverseGeocode(tmpLat, tmpLng);
-                                                if (addr) {
-                                                    setAddress(addr);
-                                                } else {
-                                                    setAddress(`${tmpLat.toFixed(6)}, ${tmpLng.toFixed(6)}`);
-                                                }
+                                                const coordLabel = `${tmpLat.toFixed(6)}, ${tmpLng.toFixed(6)}`;
                                                 setLatitude(tmpLat);
                                                 setLongitude(tmpLng);
+                                                setAddress(addr ?? coordLabel);
+                                                setLocation(addr ?? coordLabel);
+                                            } catch {
+                                                // fallback to coords
+                                                const coordLabel = `${tmpLat.toFixed(6)}, ${tmpLng.toFixed(6)}`;
+                                                setLatitude(tmpLat);
+                                                setLongitude(tmpLng);
+                                                setAddress(coordLabel);
+                                                setLocation(coordLabel);
                                             }
-                                            setMapModalVisible(false);
-                                            setModalVisible(false);
-                                        }}
-                                        style={{ padding: 10 }}
-                                    >
-                                        <Text style={{ color: '#4fc3f7', fontWeight: '700' }}>Use coordinates</Text>
-                                    </TouchableOpacity>
-                                </View>
-                            </ScrollView>
+                                        }
+                                        setMapModalVisible(false);
+                                    }}
+                                    style={{ marginTop: 12, paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8, backgroundColor: '#4fc3f7' }}
+                                >
+                                    <Text style={{ color: '#fff', fontWeight: '700' }}>Pilih lokasi ini</Text>
+                                </TouchableOpacity>
+                            </View>
                         )}
                     </View>
                 </View>
             </Modal>
-
         </SafeAreaView>
     );
 }
