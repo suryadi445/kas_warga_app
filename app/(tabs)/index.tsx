@@ -10,6 +10,7 @@ const MENU_ITEMS = [
     { id: 'announcements', label: 'Announcements', icon: '📢' },
     { id: 'activities', label: 'Activities', icon: '🗓️' },
     { id: 'scheduler', label: 'Scheduler', icon: '📅' },
+    { id: 'documentation', label: 'Documentation', icon: '📸' },
     { id: 'organization', label: 'Organization', icon: '🏛️' }, // struktur organisasi
     { id: 'settings', label: 'Settings', icon: '⚙️' }, // settings
 ];
@@ -45,6 +46,9 @@ export default function TabsIndex() {
                         }
                         if (item.id === 'scheduler') {
                             router.push('/(tabs)/scheduler');
+                        }
+                        if (item.id === 'documentation') {
+                            router.push('/(tabs)/documentation');
                         }
                         if (item.id === 'organization') {
                             router.push('/(tabs)/organization');
