@@ -1,7 +1,7 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
-import { FlatList, SafeAreaView, StatusBar, Text, TouchableOpacity, View } from 'react-native';
+import { FlatList, Platform, SafeAreaView, StatusBar, Text, TouchableOpacity, View } from 'react-native';
 
 const MENU_ITEMS = [
     { id: 'dashboard', label: 'Dashboard', icon: '🏠' },
@@ -26,6 +26,9 @@ export default function TabsIndex() {
                     activeOpacity={0.85}
                     onPress={() => {
                         setSelected(item.id);
+                        if (item.id === 'dashboard') {
+                            router.push('/(tabs)/dashboard');
+                        }
                         // navigasi ke layar users atau cash_reports bila dipilih
                         if (item.id === 'users') {
                             router.push('/(tabs)/users');
@@ -97,9 +100,15 @@ export default function TabsIndex() {
 
     return (
         <SafeAreaView className="flex-1 bg-white">
-            <StatusBar barStyle="dark-content" />
+            <StatusBar barStyle="dark-content" translucent backgroundColor="transparent" />
             {/* Header - selaras dengan form login */}
-            <View className="px-6 pt-6 pb-4 items-center" style={{ position: 'relative' }}>
+            <View
+                className="px-6 pt-6 pb-4 items-center"
+                style={{
+                    position: 'relative',
+                    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) + 24 : 24,
+                }}
+            >
                 <View
                     className="w-20 h-20 bg-[#4fc3f7] rounded-full items-center justify-center mb-3 shadow-lg"
                     style={{ elevation: 4 }}
@@ -112,8 +121,13 @@ export default function TabsIndex() {
                 {/* profile icon top-right - navigate to profile page */}
                 <TouchableOpacity
                     onPress={() => router.push('/(tabs)/profile')}
-                    style={{ position: 'absolute', top: 18, right: 16 }}
                     accessibilityLabel="Open profile"
+                    style={{
+                        position: 'absolute',
+                        right: 16,
+                        // use StatusBar height on Android to avoid overlapping the system bar
+                        top: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) + 8 : 8,
+                    }}
                 >
                     <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', elevation: 4 }}>
                         <Text style={{ fontSize: 18 }}>👤</Text>

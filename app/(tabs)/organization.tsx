@@ -9,6 +9,7 @@ import {
     Platform,
     SafeAreaView,
     ScrollView,
+    StatusBar,
     Text,
     TextInput,
     TouchableOpacity,
@@ -189,7 +190,8 @@ export default function OrganizationScreen() {
     };
 
     return (
-        <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
+        <SafeAreaView style={{ flex: 1, backgroundColor: '#fff', paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0 }}>
+            <StatusBar barStyle="dark-content" translucent backgroundColor="transparent" />
             <View style={{ padding: 16, alignItems: 'center' }}>
                 <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: '#4fc3f7', alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
                     <Text style={{ color: '#fff', fontSize: 24 }}>🏛️</Text>
@@ -208,7 +210,7 @@ export default function OrganizationScreen() {
 
             <FlatList data={sortedItems} keyExtractor={(i) => i.id} renderItem={renderItem} contentContainerStyle={{ paddingBottom: 32 }} />
 
-            <Modal visible={modalVisible} animationType="slide" transparent>
+            <Modal visible={modalVisible} animationType="slide" transparent onRequestClose={() => setModalVisible(false)}>
                 <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.3)' }}>
                     <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 18, borderTopRightRadius: 18, padding: 16, maxHeight: '85%' }}>
                         <ScrollView>

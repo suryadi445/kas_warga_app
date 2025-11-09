@@ -13,6 +13,7 @@ import {
     View,
 } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
+import HeaderCard from '../components/HeaderCard';
 
 export default function SettingsScreen() {
     const [appName, setAppName] = useState('Kas Warga');
@@ -60,14 +61,10 @@ export default function SettingsScreen() {
     }
 
     return (
-        <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
-            <StatusBar barStyle="dark-content" />
+        <SafeAreaView style={{ flex: 1, backgroundColor: '#fff', paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0 }}>
+            <StatusBar barStyle="dark-content" translucent backgroundColor="transparent" />
             <View style={{ padding: 16, alignItems: 'center' }}>
-                <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: '#4fc3f7', alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
-                    <Text style={{ color: '#fff', fontSize: 24 }}>⚙️</Text>
-                </View>
-                <Text style={{ color: '#4fc3f7', fontSize: 20, fontWeight: '700' }}>Settings</Text>
-                <Text style={{ color: '#6B7280', marginTop: 4 }}>Application & business details</Text>
+                <HeaderCard icon="⚙️" title="Settings" subtitle="Application & business details" buttonLabel="Edit" onButtonPress={() => setModalVisible(true)} />
             </View>
 
             <View style={{ paddingHorizontal: 16 }}>
@@ -115,7 +112,7 @@ export default function SettingsScreen() {
             </View>
 
             {/* existing Edit modal */}
-            <Modal visible={modalVisible} animationType="slide" transparent>
+            <Modal visible={modalVisible} animationType="slide" transparent onRequestClose={() => setModalVisible(false)}>
                 <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.3)' }}>
                     <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 18, borderTopRightRadius: 18, padding: 16, maxHeight: '85%' }}>
                         <ScrollView>
@@ -173,7 +170,7 @@ export default function SettingsScreen() {
             </Modal>
 
             {/* Map picker modal (mobile: MapView, web: cannot render MapView reliably - show instructions and allow numeric input) */}
-            <Modal visible={mapModalVisible} animationType="slide" transparent>
+            <Modal visible={mapModalVisible} animationType="slide" transparent onRequestClose={() => setMapModalVisible(false)}>
                 <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.3)' }}>
                     <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 18, borderTopRightRadius: 18, padding: 12, height: Platform.OS === 'web' ? 420 : 480 }}>
                         <Text style={{ fontWeight: '700', fontSize: 16, marginBottom: 8 }}>Pick location</Text>

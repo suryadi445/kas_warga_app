@@ -135,8 +135,8 @@ export default function UsersScreen() {
     };
 
     return (
-        <SafeAreaView className="flex-1 bg-white">
-            <StatusBar barStyle="dark-content" />
+        <SafeAreaView style={{ flex: 1, backgroundColor: '#fff', paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0 }}>
+            <StatusBar barStyle="dark-content" translucent backgroundColor="transparent" />
             {/* Header */}
             <View className="px-6 pt-6 pb-4 items-center">
                 <View
@@ -174,7 +174,7 @@ export default function UsersScreen() {
             />
 
             {/* Modal Form */}
-            <Modal visible={modalVisible} animationType="slide" transparent>
+            <Modal visible={modalVisible} animationType="slide" transparent onRequestClose={() => setModalVisible(false)}>
                 <View className="flex-1 justify-end bg-black/30">
                     <View className="bg-white rounded-t-3xl p-6">
                         <Text className="text-xl font-semibold mb-4">{editingId ? 'Edit User' : 'Tambah User'}</Text>

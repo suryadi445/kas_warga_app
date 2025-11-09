@@ -14,6 +14,7 @@ import {
     View,
 } from 'react-native';
 import DateTimePickerModal from 'react-native-modal-datetime-picker';
+import HeaderCard from '../components/HeaderCard';
 
 type Activity = {
     id: string;
@@ -155,14 +156,16 @@ export default function ActivitiesScreen() {
     };
 
     return (
-        <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
-            <StatusBar barStyle="dark-content" />
+        <SafeAreaView style={{ flex: 1, backgroundColor: '#fff', paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0 }}>
+            <StatusBar barStyle="dark-content" translucent backgroundColor="transparent" />
             <View style={{ padding: 16, alignItems: 'center' }}>
-                <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: '#4fc3f7', alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
-                    <Text style={{ color: '#fff', fontSize: 24 }}>🎯</Text>
-                </View>
-                <Text style={{ color: '#4fc3f7', fontSize: 20, fontWeight: '700' }}>Activities</Text>
-                <Text style={{ color: '#6B7280', marginTop: 4 }}>Kelola kegiatan warga</Text>
+                {/* header */}
+                <HeaderCard
+                    icon="🎯"
+                    title="Activities"
+                    subtitle="Kelola kegiatan warga"
+                    onButtonPress={openAdd}
+                />
             </View>
 
             <View style={{ paddingHorizontal: 16, marginBottom: 12 }}>
@@ -175,7 +178,7 @@ export default function ActivitiesScreen() {
 
             <FlatList data={items} keyExtractor={(i) => i.id} renderItem={renderItem} contentContainerStyle={{ paddingBottom: 32 }} />
 
-            <Modal visible={modalVisible} animationType="slide" transparent>
+            <Modal visible={modalVisible} animationType="slide" transparent onRequestClose={() => setModalVisible(false)}>
                 <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.3)' }}>
                     <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 18, borderTopRightRadius: 18, padding: 16, maxHeight: '85%' }}>
                         <ScrollView>

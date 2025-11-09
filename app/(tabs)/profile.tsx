@@ -3,6 +3,7 @@ import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { Alert, Platform, SafeAreaView, ScrollView, StatusBar, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import DateTimePickerModal from 'react-native-modal-datetime-picker';
+import HeaderCard from '../components/HeaderCard';
 
 /**
  * Simple profile page.
@@ -127,11 +128,9 @@ export default function ProfilePage() {
     }
 
     return (
-        <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
-            <StatusBar barStyle="dark-content" />
-            <View style={{ padding: 16, borderBottomWidth: 1, borderColor: '#E5E7EB' }}>
-                <Text style={{ fontSize: 18, fontWeight: '700' }}>Profile</Text>
-            </View>
+        <SafeAreaView style={{ flex: 1, backgroundColor: '#fff', paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0 }}>
+            <StatusBar barStyle="dark-content" translucent backgroundColor="transparent" />
+            <HeaderCard icon="👤" title="Profile" subtitle="Edit informasi pengguna" />
 
             <ScrollView style={{ padding: 16 }}>
                 <Text style={{ color: '#374151' }}>Name</Text>
@@ -248,6 +247,7 @@ export default function ProfilePage() {
                 mode="date"
                 onConfirm={(d: Date) => onDateConfirm(d)}
                 onCancel={onDateCancel}
+            // DateTimePickerModal sudah handle back secara default, tidak perlu diubah
             />
         </SafeAreaView>
     );
