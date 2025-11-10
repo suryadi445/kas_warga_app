@@ -3,7 +3,9 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { FlatList, Platform, SafeAreaView, StatusBar, Text, TouchableOpacity, View } from 'react-native';
+import { FlatList, Platform, StatusBar, Text, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
 
 const MENU_ITEMS = [
     { id: 'dashboard', label: 'Dashboard', icon: '🏠' },
@@ -13,9 +15,10 @@ const MENU_ITEMS = [
     { id: 'activities', label: 'Activities', icon: '🗓️' },
     { id: 'scheduler', label: 'Scheduler', icon: '📅' },
     { id: 'documentation', label: 'Documentation', icon: '📸' },
-    { id: 'organization', label: 'Organization', icon: '🏛️' }, // struktur organisasi
-    { id: 'settings', label: 'Settings', icon: '⚙️' }, // settings
-    { id: 'prayer', label: 'Prayer', icon: '🕋' }, // added prayer menu
+    { id: 'organization', label: 'Organization', icon: '🏛️' },
+    { id: 'settings', label: 'Settings', icon: '⚙️' },
+    { id: 'prayer', label: 'Prayer', icon: '🕋' },
+    { id: 'developer', label: 'Developer', icon: '🧑‍💻' },
 ];
 
 export default function TabsIndex() {
@@ -79,6 +82,9 @@ export default function TabsIndex() {
                         }
                         if (item.id === 'prayer') {
                             router.push('/(tabs)/prayer');
+                        }
+                        if (item.id === 'developer') {
+                            router.push('/(tabs)/developer');
                         }
                         // router.push(`/(tabs)/${item.id}`); // contoh navigasi untuk item lain
                     }}
@@ -145,10 +151,13 @@ export default function TabsIndex() {
                     className="w-20 h-20 bg-[#4fc3f7] rounded-full items-center justify-center mb-3 shadow-lg"
                     style={{ elevation: 4 }}
                 >
-                    <Text className="text-white text-2xl">💰</Text>
+                    <Text className="text-white text-3xl">🕌</Text>
                 </View>
-                <Text className="text-[#4fc3f7] text-2xl font-bold">Kas Warga</Text>
-                <Text className="text-gray-500 text-sm">Pilih modul untuk mulai</Text>
+                <Text className="text-[#4fc3f7] text-2xl font-bold">Kas Masjid Ar Rahman</Text>
+                <Text className="text-gray-500 text-sm" style={{ textAlign: 'center', marginTop: 4 }}>
+                    Aplikasi manajemen kas, kegiatan, dan informasi masjid maupun komunitas warga.
+                    Gunakan menu di bawah untuk mengakses fitur kas, jadwal, pengumuman, dokumentasi, dan lainnya.
+                </Text>
 
                 {/* profile icon top-right - navigate to profile page */}
                 <TouchableOpacity
