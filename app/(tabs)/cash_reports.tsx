@@ -5,13 +5,13 @@ import {
     FlatList,
     Modal,
     Platform,
-    SafeAreaView,
     StatusBar,
     Text,
     TextInput,
     TouchableOpacity,
     View
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 type Report = {
     id: string;
@@ -206,15 +206,14 @@ export default function CashReportsScreen() {
         <SafeAreaView style={{ flex: 1, backgroundColor: '#fff', paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0 }}>
             <StatusBar barStyle="dark-content" translucent backgroundColor="transparent" />
             {/* Header */}
-            <View className="px-6 pt-6 pb-4 items-center">
-                <View
-                    className="w-20 h-20 bg-[#4fc3f7] rounded-full items-center justify-center mb-3 shadow-lg"
-                    style={{ elevation: 4 }}
-                >
-                    <Text className="text-white text-2xl">💰</Text>
+            <View style={{ padding: 16, alignItems: 'center' }}>
+                <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: '#6366f1', alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
+                    <Text style={{ color: '#fff', fontSize: 32 }}>💰</Text>
                 </View>
-                <Text className="text-[#4fc3f7] text-2xl font-bold">Cash Reports</Text>
-                <Text className="text-gray-500 text-sm">Kelola pemasukan dan pengeluaran</Text>
+                <Text style={{ color: '#6366f1', fontSize: 20, fontWeight: '700' }}>Laporan Kas</Text>
+                <Text style={{ color: '#6B7280', marginTop: 4, textAlign: 'center' }}>
+                    Kelola pemasukan, pengeluaran, dan saldo kas warga.
+                </Text>
             </View>
 
             {/* Saldo Sekarang */}

@@ -4,7 +4,6 @@ import {
     FlatList,
     Modal,
     Platform,
-    SafeAreaView,
     ScrollView,
     StatusBar,
     Text,
@@ -12,7 +11,7 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
-import HeaderCard from '../components/HeaderCard';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 type Schedule = {
     id: string;
@@ -134,7 +133,18 @@ export default function SchedulerScreen() {
         <SafeAreaView style={{ flex: 1, backgroundColor: '#fff', paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0 }}>
             <StatusBar barStyle="dark-content" translucent backgroundColor="transparent" />
 
-            <HeaderCard icon="📅" title="Scheduler" subtitle="Kelola jadwal terjadwal" buttonLabel="+ Tambah Schedule" onButtonPress={openAdd} />
+            <View style={{ padding: 16, alignItems: 'center' }}>
+                <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: '#6366f1', alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
+                    <Text style={{ color: '#fff', fontSize: 32 }}>📅</Text>
+                </View>
+                <Text style={{ color: '#6366f1', fontSize: 20, fontWeight: '700' }}>Jadwal Kegiatan</Text>
+                <Text style={{ color: '#6B7280', marginTop: 4, textAlign: 'center' }}>
+                    Kelola jadwal kegiatan rutin dan insidental warga.
+                </Text>
+                <TouchableOpacity onPress={openAdd} style={{ marginTop: 10 }}>
+                    <Text style={{ color: '#6366f1', fontWeight: '700', fontSize: 16 }}>+ Tambah Schedule</Text>
+                </TouchableOpacity>
+            </View>
 
             <FlatList data={items} keyExtractor={(i) => i.id} renderItem={renderItem} contentContainerStyle={{ paddingBottom: 32 }} />
 

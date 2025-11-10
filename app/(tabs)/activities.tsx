@@ -5,7 +5,6 @@ import {
     FlatList,
     Modal,
     Platform,
-    SafeAreaView,
     ScrollView,
     StatusBar,
     Text,
@@ -14,7 +13,7 @@ import {
     View,
 } from 'react-native';
 import DateTimePickerModal from 'react-native-modal-datetime-picker';
-import HeaderCard from '../components/HeaderCard';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 type Activity = {
     id: string;
@@ -159,13 +158,16 @@ export default function ActivitiesScreen() {
         <SafeAreaView style={{ flex: 1, backgroundColor: '#fff', paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0 }}>
             <StatusBar barStyle="dark-content" translucent backgroundColor="transparent" />
             <View style={{ padding: 16, alignItems: 'center' }}>
-                {/* header */}
-                <HeaderCard
-                    icon="🎯"
-                    title="Activities"
-                    subtitle="Kelola kegiatan warga"
-                    onButtonPress={openAdd}
-                />
+                <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: '#6366f1', alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
+                    <Text style={{ color: '#fff', fontSize: 32 }}>🎯</Text>
+                </View>
+                <Text style={{ color: '#6366f1', fontSize: 20, fontWeight: '700' }}>Kegiatan Warga</Text>
+                <Text style={{ color: '#6B7280', marginTop: 4, textAlign: 'center' }}>
+                    Kelola dan dokumentasikan kegiatan warga.
+                </Text>
+                <TouchableOpacity onPress={openAdd} style={{ marginTop: 10 }}>
+                    <Text style={{ color: '#6366f1', fontWeight: '700', fontSize: 16 }}>+ Tambah Activity</Text>
+                </TouchableOpacity>
             </View>
 
             <View style={{ paddingHorizontal: 16, marginBottom: 12 }}>

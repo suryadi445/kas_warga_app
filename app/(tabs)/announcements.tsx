@@ -6,7 +6,6 @@ import {
     Image,
     Modal,
     Platform,
-    SafeAreaView,
     ScrollView,
     StatusBar,
     Text,
@@ -14,6 +13,7 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 // try import image picker (optional)
 import * as ImagePicker from 'expo-image-picker';
 import DateTimePickerModal from 'react-native-modal-datetime-picker';
@@ -341,11 +341,13 @@ export default function AnnouncementsScreen() {
         <SafeAreaView style={{ flex: 1, backgroundColor: '#fff', paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0 }}>
             <StatusBar barStyle="dark-content" translucent backgroundColor="transparent" />
             <View style={{ padding: 16, alignItems: 'center' }}>
-                <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: '#4fc3f7', alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
-                    <Text style={{ color: '#fff', fontSize: 24 }}>📣</Text>
+                <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: '#6366f1', alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
+                    <Text style={{ color: '#fff', fontSize: 32 }}>📢</Text>
                 </View>
-                <Text style={{ color: '#4fc3f7', fontSize: 20, fontWeight: '700' }}>Announcements</Text>
-                <Text style={{ color: '#6B7280', marginTop: 4 }}>Kelola pengumuman</Text>
+                <Text style={{ color: '#6366f1', fontSize: 20, fontWeight: '700' }}>Pengumuman Warga</Text>
+                <Text style={{ color: '#6B7280', marginTop: 4, textAlign: 'center' }}>
+                    Kelola pengumuman dan informasi penting untuk warga.
+                </Text>
             </View>
 
             <View style={{ paddingHorizontal: 16, marginBottom: 12 }}>

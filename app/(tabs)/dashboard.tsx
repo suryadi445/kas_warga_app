@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { Modal, Platform, SafeAreaView, ScrollView, StatusBar, Text, TouchableOpacity, View } from 'react-native';
-import HeaderCard from '../components/HeaderCard';
+import { Modal, Platform, ScrollView, StatusBar, Text, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 /**
  * Dashboard simple:
@@ -188,7 +188,15 @@ export default function DashboardPage() {
             <StatusBar barStyle="dark-content" translucent backgroundColor="transparent" />
             <ScrollView contentContainerStyle={{ padding: 16 }}>
                 {/* header (example style) */}
-                <HeaderCard icon="📊" title="Dashboard" subtitle="Ringkasan kegiatan & kas" />
+                <View style={{ padding: 16, alignItems: 'center' }}>
+                    <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: '#6366f1', alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
+                        <Text style={{ color: '#fff', fontSize: 32 }}>📊</Text>
+                    </View>
+                    <Text style={{ color: '#6366f1', fontSize: 20, fontWeight: '700' }}>Dashboard</Text>
+                    <Text style={{ color: '#6B7280', marginTop: 4, textAlign: 'center' }}>
+                        Ringkasan kas, kegiatan, dan pengumuman warga.
+                    </Text>
+                </View>
 
                 {/* filters */}
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>

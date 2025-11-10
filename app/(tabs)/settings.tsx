@@ -5,7 +5,6 @@ import {
     Alert,
     Modal,
     Platform,
-    SafeAreaView,
     ScrollView,
     StatusBar,
     Text,
@@ -14,7 +13,7 @@ import {
     View,
 } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
-import HeaderCard from '../components/HeaderCard';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function SettingsScreen() {
     const [appName, setAppName] = useState('Kas Warga');
@@ -131,7 +130,16 @@ export default function SettingsScreen() {
         <SafeAreaView style={{ flex: 1, backgroundColor: '#fff', paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0 }}>
             <StatusBar barStyle="dark-content" translucent backgroundColor="transparent" />
             <View style={{ padding: 16, alignItems: 'center' }}>
-                <HeaderCard icon="⚙️" title="Settings" subtitle="Application & business details" buttonLabel="Edit" onButtonPress={() => setModalVisible(true)} />
+                <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: '#6366f1', alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
+                    <Text style={{ color: '#fff', fontSize: 32 }}>⚙️</Text>
+                </View>
+                <Text style={{ color: '#6366f1', fontSize: 20, fontWeight: '700' }}>Pengaturan Aplikasi</Text>
+                <Text style={{ color: '#6B7280', marginTop: 4, textAlign: 'center' }}>
+                    Ubah detail aplikasi, alamat, dan metode pembayaran.
+                </Text>
+                <TouchableOpacity onPress={() => setModalVisible(true)} style={{ marginTop: 10 }}>
+                    <Text style={{ color: '#6366f1', fontWeight: '700', fontSize: 16 }}>Edit</Text>
+                </TouchableOpacity>
             </View>
 
             <View style={{ paddingHorizontal: 16 }}>

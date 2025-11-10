@@ -1,9 +1,9 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { Alert, Platform, SafeAreaView, ScrollView, StatusBar, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, Platform, ScrollView, StatusBar, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import DateTimePickerModal from 'react-native-modal-datetime-picker';
-import HeaderCard from '../components/HeaderCard';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 /**
  * Simple profile page.
@@ -130,7 +130,15 @@ export default function ProfilePage() {
     return (
         <SafeAreaView style={{ flex: 1, backgroundColor: '#fff', paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0 }}>
             <StatusBar barStyle="dark-content" translucent backgroundColor="transparent" />
-            <HeaderCard icon="👤" title="Profile" subtitle="Edit informasi pengguna" />
+            <View style={{ padding: 16, alignItems: 'center' }}>
+                <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: '#6366f1', alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
+                    <Text style={{ color: '#fff', fontSize: 32 }}>👤</Text>
+                </View>
+                <Text style={{ color: '#6366f1', fontSize: 20, fontWeight: '700' }}>Profil Pengguna</Text>
+                <Text style={{ color: '#6B7280', marginTop: 4, textAlign: 'center' }}>
+                    Edit dan simpan data profil Anda.
+                </Text>
+            </View>
 
             <ScrollView style={{ padding: 16 }}>
                 <Text style={{ color: '#374151' }}>Name</Text>
