@@ -1,6 +1,8 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as Location from 'expo-location';
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { FlatList, Platform, SafeAreaView, StatusBar, Text, TouchableOpacity, View } from 'react-native';
 
 const MENU_ITEMS = [
@@ -13,11 +15,30 @@ const MENU_ITEMS = [
     { id: 'documentation', label: 'Documentation', icon: '📸' },
     { id: 'organization', label: 'Organization', icon: '🏛️' }, // struktur organisasi
     { id: 'settings', label: 'Settings', icon: '⚙️' }, // settings
+    { id: 'prayer', label: 'Prayer', icon: '🕋' }, // added prayer menu
 ];
 
 export default function TabsIndex() {
     const router = useRouter();
     const [selected, setSelected] = useState('cash_reports'); // default selected
+
+    // get device location once and store for other pages (e.g. Prayer)
+    useEffect(() => {
+        let mounted = true;
+        (async () => {
+            try {
+                const { status } = await Location.requestForegroundPermissionsAsync();
+                if (status !== 'granted') return;
+                const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+                if (!mounted || !pos?.coords) return;
+                const loc = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+                await AsyncStorage.setItem('deviceLocation', JSON.stringify(loc));
+            } catch {
+                // ignore errors
+            }
+        })();
+        return () => { mounted = false; };
+    }, []);
 
     const renderItem = ({ item }: { item: { id: string; label: string; icon?: string } }) => {
         const isSelected = item.id === selected;
@@ -55,6 +76,9 @@ export default function TabsIndex() {
                         }
                         if (item.id === 'settings') {
                             router.push('/(tabs)/settings');
+                        }
+                        if (item.id === 'prayer') {
+                            router.push('/(tabs)/prayer');
                         }
                         // router.push(`/(tabs)/${item.id}`); // contoh navigasi untuk item lain
                     }}
