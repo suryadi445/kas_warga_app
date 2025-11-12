@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
+    ActivityIndicator,
     Alert,
     FlatList,
     Modal,
@@ -12,6 +13,8 @@ import {
     View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { addDoc, collection, deleteDoc, doc, onSnapshot, orderBy, query, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { db } from '../../src/firebaseConfig';
 
 type Schedule = {
     id: string;
@@ -36,9 +39,11 @@ const SAMPLE_SCHEDULES: Schedule[] = [
 ];
 
 export default function SchedulerScreen() {
-    const [items, setItems] = useState<Schedule[]>(SAMPLE_SCHEDULES);
+    const [items, setItems] = useState<Schedule[]>([]); // now loaded from Firestore
     const [modalVisible, setModalVisible] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
+    const [loadingSchedules, setLoadingSchedules] = useState(true);
+    const [operationLoading, setOperationLoading] = useState(false);
 
     const [activityName, setActivityName] = useState('');
     const [time, setTime] = useState('09:00');
@@ -46,6 +51,31 @@ export default function SchedulerScreen() {
     const [location, setLocation] = useState('');
     const [description, setDescription] = useState('');
     const [frequencyOpen, setFrequencyOpen] = useState(false);
+
+    // realtime listener for schedules collection
+    useEffect(() => {
+        setLoadingSchedules(true);
+        const q = query(collection(db, 'schedules'), orderBy('createdAt', 'desc'));
+        const unsub = onSnapshot(q, (snap) => {
+            const rows: Schedule[] = snap.docs.map(d => {
+                const data = d.data() as any;
+                return {
+                    id: d.id,
+                    activityName: data.activityName || '',
+                    time: data.time || '',
+                    frequency: data.frequency || 'monthly',
+                    location: data.location || '',
+                    description: data.description || '',
+                };
+            });
+            setItems(rows);
+            setLoadingSchedules(false);
+        }, (err) => {
+            console.error('schedules snapshot error', err);
+            setLoadingSchedules(false);
+        });
+        return () => unsub();
+    }, []);
 
     function openAdd() {
         setEditingId(null);
@@ -67,31 +97,44 @@ export default function SchedulerScreen() {
         setModalVisible(true);
     }
 
-    function save() {
+    async function save() {
         if (!activityName.trim()) {
             Alert.alert('Error', 'Activity name is required');
             return;
         }
-        const payload: Schedule = {
-            id: editingId ?? Date.now().toString(),
-            activityName,
-            time,
-            frequency,
-            location,
-            description,
-        };
-        if (editingId) {
-            setItems((p) => p.map((i) => (i.id === editingId ? payload : i)));
-        } else {
-            setItems((p) => [payload, ...p]);
+        setOperationLoading(true);
+        try {
+            if (editingId) {
+                const ref = doc(db, 'schedules', editingId);
+                await updateDoc(ref, { activityName, time, frequency, location, description, updatedAt: serverTimestamp() });
+            } else {
+                await addDoc(collection(db, 'schedules'), { activityName, time, frequency, location, description, createdAt: serverTimestamp() });
+            }
+            setModalVisible(false);
+        } catch (e) {
+            console.error('schedule save error', e);
+            Alert.alert('Error', 'Failed to save schedule');
+        } finally {
+            setOperationLoading(false);
         }
-        setModalVisible(false);
     }
 
     function remove(id: string) {
         Alert.alert('Confirm', 'Delete this schedule?', [
             { text: 'Cancel', style: 'cancel' },
-            { text: 'Delete', style: 'destructive', onPress: () => setItems((p) => p.filter((i) => i.id !== id)) },
+            {
+                text: 'Delete', style: 'destructive', onPress: async () => {
+                    setOperationLoading(true);
+                    try {
+                        await deleteDoc(doc(db, 'schedules', id));
+                    } catch (e) {
+                        console.error('delete schedule error', e);
+                        Alert.alert('Error', 'Failed to delete schedule');
+                    } finally {
+                        setOperationLoading(false);
+                    }
+                }
+            },
         ]);
     }
 
@@ -141,12 +184,18 @@ export default function SchedulerScreen() {
                 <Text style={{ color: '#6B7280', marginTop: 4, textAlign: 'center' }}>
                     Manage routine and incidental community activities schedule.
                 </Text>
-                <TouchableOpacity onPress={openAdd} style={{ marginTop: 10 }}>
+                <TouchableOpacity disabled={operationLoading} onPress={openAdd} style={{ marginTop: 10 }}>
                     <Text style={{ color: '#6366f1', fontWeight: '700', fontSize: 16 }}>+ Add Schedule</Text>
                 </TouchableOpacity>
             </View>
 
-            <FlatList data={items} keyExtractor={(i) => i.id} renderItem={renderItem} contentContainerStyle={{ paddingBottom: 32 }} />
+            {loadingSchedules ? (
+                <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 40 }}>
+                    <ActivityIndicator size="small" color="#6366f1" />
+                </View>
+            ) : (
+                <FlatList data={items} keyExtractor={(i) => i.id} renderItem={renderItem} contentContainerStyle={{ paddingBottom: 32 }} />
+            )}
 
             {/* Modal Form */}
             <Modal visible={modalVisible} animationType="slide" transparent onRequestClose={() => setModalVisible(false)}>
@@ -189,11 +238,11 @@ export default function SchedulerScreen() {
                             <TextInput value={description} onChangeText={setDescription} placeholder="Description (optional)" multiline numberOfLines={4} style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 10, marginTop: 6, textAlignVertical: 'top', minHeight: 100 }} />
 
                             <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 16 }}>
-                                <TouchableOpacity onPress={() => setModalVisible(false)} style={{ padding: 10 }}>
+                                <TouchableOpacity onPress={() => !operationLoading && setModalVisible(false)} disabled={operationLoading} style={{ padding: 10, opacity: operationLoading ? 0.6 : 1 }}>
                                     <Text style={{ color: '#6B7280' }}>Cancel</Text>
                                 </TouchableOpacity>
-                                <TouchableOpacity onPress={save} style={{ padding: 10 }}>
-                                    <Text style={{ color: '#4fc3f7', fontWeight: '700' }}>{editingId ? 'Save' : 'Add'}</Text>
+                                <TouchableOpacity onPress={save} disabled={operationLoading} style={{ padding: 10 }}>
+                                    {operationLoading ? <ActivityIndicator size="small" color="#4fc3f7" /> : <Text style={{ color: '#4fc3f7', fontWeight: '700' }}>{editingId ? 'Save' : 'Add'}</Text>}
                                 </TouchableOpacity>
                             </View>
                         </ScrollView>
