@@ -1,6 +1,8 @@
 import { LinearGradient } from 'expo-linear-gradient';
-import React, { useState } from 'react';
+import { addDoc, collection, deleteDoc, doc, onSnapshot, orderBy, query, serverTimestamp, updateDoc } from 'firebase/firestore';
+import React, { useEffect, useState } from 'react';
 import {
+    ActivityIndicator,
     Alert,
     FlatList,
     Modal,
@@ -13,6 +15,7 @@ import {
     View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { db } from '../../src/firebaseConfig';
 
 type Announcement = {
     id: string;
@@ -28,19 +31,40 @@ const PRIORITIES = [
     { value: 'high', label: 'High', color: '#EF4444' },
 ];
 
-const SAMPLE: Announcement[] = [
-    { id: 'a1', title: 'Rapat RW', content: 'Rapat bulanan RW akan diadakan...', priority: 'high', date: '2024-11-20' },
-];
-
 export default function AnnouncementsScreen() {
-    const [items, setItems] = useState<Announcement[]>(SAMPLE);
+    const [items, setItems] = useState<Announcement[]>([]);
     const [modalVisible, setModalVisible] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
-
     const [title, setTitle] = useState('');
     const [content, setContent] = useState('');
     const [priority, setPriority] = useState<'low' | 'medium' | 'high'>('medium');
     const [priorityOpen, setPriorityOpen] = useState(false);
+    const [loadingAnnouncements, setLoadingAnnouncements] = useState(true);
+    const [operationLoading, setOperationLoading] = useState(false);
+
+    // realtime listener
+    useEffect(() => {
+        setLoadingAnnouncements(true);
+        const q = query(collection(db, 'announcements'), orderBy('date', 'desc'));
+        const unsub = onSnapshot(q, (snap) => {
+            const rows: Announcement[] = snap.docs.map(d => {
+                const data = d.data() as any;
+                return {
+                    id: d.id,
+                    title: data.title || '',
+                    content: data.content || '',
+                    priority: data.priority || 'medium',
+                    date: data.date || (data.createdAt ? new Date(data.createdAt.seconds * 1000).toISOString().split('T')[0] : ''),
+                };
+            });
+            setItems(rows);
+            setLoadingAnnouncements(false);
+        }, (err) => {
+            console.error('announcements snapshot error', err);
+            setLoadingAnnouncements(false);
+        });
+        return () => unsub();
+    }, []);
 
     function openAdd() {
         setEditingId(null);
@@ -58,30 +82,50 @@ export default function AnnouncementsScreen() {
         setModalVisible(true);
     }
 
-    function save() {
+    async function save() {
         if (!title.trim()) {
             Alert.alert('Error', 'Title is required');
             return;
         }
-        const payload: Announcement = {
-            id: editingId ?? Date.now().toString(),
-            title,
-            content,
-            priority,
-            date: new Date().toISOString().split('T')[0],
-        };
-        if (editingId) {
-            setItems((p) => p.map((i) => (i.id === editingId ? payload : i)));
-        } else {
-            setItems((p) => [payload, ...p]);
+        setOperationLoading(true);
+        try {
+            if (editingId) {
+                const ref = doc(db, 'announcements', editingId);
+                await updateDoc(ref, { title, content, priority, date: new Date().toISOString().split('T')[0] });
+            } else {
+                await addDoc(collection(db, 'announcements'), {
+                    title,
+                    content,
+                    priority,
+                    date: new Date().toISOString().split('T')[0],
+                    createdAt: serverTimestamp(),
+                });
+            }
+            setModalVisible(false);
+        } catch (e) {
+            console.error('announcement save error', e);
+            Alert.alert('Error', 'Failed to save announcement');
+        } finally {
+            setOperationLoading(false);
         }
-        setModalVisible(false);
     }
 
-    function remove(id: string) {
+    async function remove(id: string) {
         Alert.alert('Confirm', 'Delete this announcement?', [
             { text: 'Cancel', style: 'cancel' },
-            { text: 'Delete', style: 'destructive', onPress: () => setItems((p) => p.filter((i) => i.id !== id)) },
+            {
+                text: 'Delete', style: 'destructive', onPress: async () => {
+                    setOperationLoading(true);
+                    try {
+                        await deleteDoc(doc(db, 'announcements', id));
+                    } catch (e) {
+                        console.error('delete announcement error', e);
+                        Alert.alert('Error', 'Failed to delete announcement');
+                    } finally {
+                        setOperationLoading(false);
+                    }
+                }
+            },
         ]);
     }
 
@@ -101,10 +145,10 @@ export default function AnnouncementsScreen() {
                         </View>
 
                         <View style={{ marginLeft: 8, alignItems: 'flex-end' }}>
-                            <TouchableOpacity onPress={() => openEdit(item)} style={{ marginBottom: 8 }}>
+                            <TouchableOpacity disabled={operationLoading} onPress={() => openEdit(item)} style={{ marginBottom: 8 }}>
                                 <Text style={{ color: '#06B6D4', fontWeight: '600' }}>Edit</Text>
                             </TouchableOpacity>
-                            <TouchableOpacity onPress={() => remove(item.id)}>
+                            <TouchableOpacity disabled={operationLoading} onPress={() => remove(item.id)}>
                                 <Text style={{ color: '#EF4444', fontWeight: '600' }}>Delete</Text>
                             </TouchableOpacity>
                         </View>
@@ -131,14 +175,20 @@ export default function AnnouncementsScreen() {
 
             {/* Add button */}
             <View style={{ paddingHorizontal: 16, marginBottom: 12 }}>
-                <TouchableOpacity onPress={openAdd}>
+                <TouchableOpacity disabled={operationLoading} onPress={openAdd}>
                     <LinearGradient colors={['#6366f1', '#8b5cf6']} style={{ paddingVertical: 12, borderRadius: 999, alignItems: 'center' }}>
                         <Text style={{ color: '#fff', fontWeight: '700' }}>+ Add Announcement</Text>
                     </LinearGradient>
                 </TouchableOpacity>
             </View>
 
-            <FlatList data={items} keyExtractor={(i) => i.id} renderItem={renderItem} contentContainerStyle={{ paddingBottom: 32 }} />
+            {loadingAnnouncements ? (
+                <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+                    <ActivityIndicator size="small" color="#6366f1" />
+                </View>
+            ) : (
+                <FlatList data={items} keyExtractor={(i) => i.id} renderItem={renderItem} contentContainerStyle={{ paddingBottom: 32 }} />
+            )}
 
             <Modal visible={modalVisible} animationType="slide" transparent onRequestClose={() => setModalVisible(false)}>
                 <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.3)' }}>
@@ -171,8 +221,8 @@ export default function AnnouncementsScreen() {
                                 <TouchableOpacity onPress={() => setModalVisible(false)} style={{ padding: 10 }}>
                                     <Text style={{ color: '#6B7280' }}>Cancel</Text>
                                 </TouchableOpacity>
-                                <TouchableOpacity onPress={save} style={{ padding: 10 }}>
-                                    <Text style={{ color: '#4fc3f7', fontWeight: '700' }}>{editingId ? 'Save' : 'Add'}</Text>
+                                <TouchableOpacity disabled={operationLoading} onPress={save} style={{ padding: 10 }}>
+                                    <Text style={{ color: '#4fc3f7', fontWeight: '700' }}>{operationLoading ? 'Saving...' : (editingId ? 'Save' : 'Add')}</Text>
                                 </TouchableOpacity>
                             </View>
                         </ScrollView>
