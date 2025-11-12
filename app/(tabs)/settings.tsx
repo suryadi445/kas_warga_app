@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
+import { doc, onSnapshot, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
 import React, { useEffect, useState } from 'react';
 import {
     Alert,
@@ -14,6 +15,7 @@ import {
 } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { db } from '../../src/firebaseConfig';
 
 const MONTHS = [
     'January',
@@ -68,36 +70,63 @@ export default function SettingsScreen() {
         }
     }
 
-    // load saved settings (including bank account) on mount
+    // load settings from Firestore (real-time) with AsyncStorage fallback
     useEffect(() => {
+        let unsub: (() => void) | null = null;
         (async () => {
             try {
-                const raw = await AsyncStorage.getItem('settings');
-                if (raw) {
-                    const s = JSON.parse(raw);
+                const ref = doc(db, 'settings', 'app');
+                unsub = onSnapshot(ref, (snap) => {
+                    if (!snap.exists()) return;
+                    const s = snap.data() as any;
+                    if (s.appName) setAppName(s.appName);
+                    if (s.businessType) setBusinessType(s.businessType);
+                    if (s.phone) setPhone(s.phone);
+                    if (s.email) setEmail(s.email);
+                    if (s.address) setAddress(s.address);
                     if (s.bankAccount) setBankAccount(s.bankAccount);
                     if (Array.isArray(s.paymentMethods)) setPaymentMethods(s.paymentMethods);
                     if (s.location) setLocation(s.location);
-                    if (s.address) setAddress(s.address);
-                }
-            } catch {
-                // ignore
+                    if (s.latitude != null) setLatitude(s.latitude);
+                    if (s.longitude != null) setLongitude(s.longitude);
+                }, (err) => {
+                    console.warn('settings onSnapshot error', err);
+                });
+            } catch (e) {
+                // fallback to AsyncStorage if Firestore unavailable
+                try {
+                    const raw = await AsyncStorage.getItem('settings');
+                    if (raw) {
+                        const s = JSON.parse(raw);
+                        if (s.bankAccount) setBankAccount(s.bankAccount);
+                        if (Array.isArray(s.paymentMethods)) setPaymentMethods(s.paymentMethods);
+                        if (s.location) setLocation(s.location);
+                        if (s.address) setAddress(s.address);
+                    }
+                } catch { /* ignore */ }
             }
         })();
+        return () => { if (unsub) unsub(); };
     }, []);
 
-    // persist paymentMethods whenever it changes (merge into settings)
+    // persist paymentMethods whenever it changes (write to Firestore + AsyncStorage fallback)
     useEffect(() => {
         (async () => {
             try {
-                const raw = await AsyncStorage.getItem('settings');
-                const base = raw ? JSON.parse(raw) : {};
-                base.paymentMethods = paymentMethods;
-                // keep bankAccount if present
-                if (!base.bankAccount && bankAccount) base.bankAccount = bankAccount;
-                await AsyncStorage.setItem('settings', JSON.stringify(base));
+                const ref = doc(db, 'settings', 'app');
+                // updateDoc does not accept merge option; call updateDoc normally
+                await updateDoc(ref, { paymentMethods }).catch(async () => {
+                    // if update fails (doc may not exist), use setDoc with merge
+                    await setDoc(ref, { paymentMethods }, { merge: true });
+                });
             } catch {
-                // ignore save errors
+                // fallback to AsyncStorage
+                try {
+                    const raw = await AsyncStorage.getItem('settings');
+                    const base = raw ? JSON.parse(raw) : {};
+                    base.paymentMethods = paymentMethods;
+                    await AsyncStorage.setItem('settings', JSON.stringify(base));
+                } catch { /* ignore */ }
             }
         })();
     }, [paymentMethods]);
@@ -110,25 +139,54 @@ export default function SettingsScreen() {
         // commit tmp coords if map modal still open values were edited
         setLatitude((lat) => lat ?? tmpLat);
         setLongitude((lng) => lng ?? tmpLng);
-        // nilai disimpan di state lokal; tambahkan persistence jika diperlukan
         setModalVisible(false);
     }
 
     async function saveSettings() {
-        try {
-            // additionally persist bank account into same settings key
-            const raw = await AsyncStorage.getItem('settings');
-            const base = raw ? JSON.parse(raw) : {};
-            const merged = { ...base, bankAccount, location, address };
-            await AsyncStorage.setItem('settings', JSON.stringify(merged));
-        } catch {
-            // optionally show error
-        }
         // commit tmp coords if map modal still open values were edited
+        const finalLat = (latitude ?? tmpLat) ?? null;
+        const finalLng = (longitude ?? tmpLng) ?? null;
         setLatitude((lat) => lat ?? tmpLat);
         setLongitude((lng) => lng ?? tmpLng);
-        // nilai disimpan di state lokal; tambahkan persistence jika diperlukan
-        setModalVisible(false);
+
+        const payload: any = {
+            appName,
+            businessType,
+            phone,
+            email,
+            address,
+            bankAccount,
+            paymentMethods,
+            location,
+            latitude: finalLat,
+            longitude: finalLng,
+            updatedAt: serverTimestamp(),
+        };
+
+        try {
+            const ref = doc(db, 'settings', 'app');
+            // try update (merge)
+            await updateDoc(ref, payload).catch(async () => {
+                // if update fails, set doc
+                await setDoc(ref, payload, { merge: true });
+            });
+            // also mirror to AsyncStorage for offline
+            try {
+                await AsyncStorage.setItem('settings', JSON.stringify(payload));
+            } catch { /* ignore */ }
+            Alert.alert('Saved', 'Settings saved to cloud');
+        } catch (e) {
+            console.error('saveSettings error', e);
+            // fallback to AsyncStorage only
+            try {
+                await AsyncStorage.setItem('settings', JSON.stringify(payload));
+                Alert.alert('Saved', 'Settings saved locally (no network)');
+            } catch {
+                Alert.alert('Error', 'Failed to save settings');
+            }
+        } finally {
+            setModalVisible(false);
+        }
     }
 
     function addPaymentMethod() {
