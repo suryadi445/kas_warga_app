@@ -1,6 +1,8 @@
 import { LinearGradient } from 'expo-linear-gradient';
-import React, { useState } from 'react';
+import { addDoc, collection, deleteDoc, doc, onSnapshot, orderBy, query, serverTimestamp, updateDoc } from 'firebase/firestore';
+import React, { useEffect, useState } from 'react';
 import {
+    ActivityIndicator,
     Alert,
     FlatList,
     Modal,
@@ -14,6 +16,7 @@ import {
 } from 'react-native';
 import DateTimePickerModal from 'react-native-modal-datetime-picker';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { db } from '../../src/firebaseConfig';
 
 type Activity = {
     id: string;
@@ -29,9 +32,12 @@ const SAMPLE_ACTIVITIES: Activity[] = [
 ];
 
 export default function ActivitiesScreen() {
-    const [items, setItems] = useState<Activity[]>(SAMPLE_ACTIVITIES);
+    // data comes from Firestore
+    const [items, setItems] = useState<Activity[]>([]);
     const [modalVisible, setModalVisible] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
+    const [loadingActivities, setLoadingActivities] = useState(true);
+    const [operationLoading, setOperationLoading] = useState(false);
 
     const [title, setTitle] = useState('');
     const [location, setLocation] = useState('');
@@ -67,6 +73,30 @@ export default function ActivitiesScreen() {
         return d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
     }
 
+    useEffect(() => {
+        setLoadingActivities(true);
+        const q = query(collection(db, 'activities'), orderBy('date', 'desc'));
+        const unsub = onSnapshot(q, (snap) => {
+            const rows: Activity[] = snap.docs.map(d => {
+                const data = d.data() as any;
+                return {
+                    id: d.id,
+                    title: data.title || '',
+                    location: data.location || '',
+                    date: data.date || '',
+                    time: data.time || '',
+                    description: data.description || '',
+                };
+            });
+            setItems(rows);
+            setLoadingActivities(false);
+        }, (err) => {
+            console.error('activities snapshot error', err);
+            setLoadingActivities(false);
+        });
+        return () => unsub();
+    }, []);
+
     function openAdd() {
         setEditingId(null);
         setTitle('');
@@ -89,31 +119,44 @@ export default function ActivitiesScreen() {
         setModalVisible(true);
     }
 
-    function save() {
+    async function save() {
         if (!title.trim()) {
             Alert.alert('Error', 'Title is required');
             return;
         }
-        const payload: Activity = {
-            id: editingId ?? Date.now().toString(),
-            title,
-            location,
-            date,
-            time,
-            description,
-        };
-        if (editingId) {
-            setItems((p) => p.map((it) => (it.id === editingId ? payload : it)));
-        } else {
-            setItems((p) => [payload, ...p]);
+        setOperationLoading(true);
+        try {
+            if (editingId) {
+                const ref = doc(db, 'activities', editingId);
+                await updateDoc(ref, { title, location, date, time, description, updatedAt: serverTimestamp() });
+            } else {
+                await addDoc(collection(db, 'activities'), { title, location, date, time, description, createdAt: serverTimestamp() });
+            }
+            setModalVisible(false);
+        } catch (e) {
+            console.error('activity save error', e);
+            Alert.alert('Error', 'Failed to save activity');
+        } finally {
+            setOperationLoading(false);
         }
-        setModalVisible(false);
     }
 
     function remove(id: string) {
         Alert.alert('Confirm', 'Delete this activity?', [
             { text: 'Cancel', style: 'cancel' },
-            { text: 'Delete', style: 'destructive', onPress: () => setItems((p) => p.filter((i) => i.id !== id)) },
+            {
+                text: 'Delete', style: 'destructive', onPress: async () => {
+                    setOperationLoading(true);
+                    try {
+                        await deleteDoc(doc(db, 'activities', id));
+                    } catch (e) {
+                        console.error('delete activity error', e);
+                        Alert.alert('Error', 'Failed to delete activity');
+                    } finally {
+                        setOperationLoading(false);
+                    }
+                }
+            },
         ]);
     }
 
@@ -167,14 +210,20 @@ export default function ActivitiesScreen() {
             </View>
 
             <View style={{ paddingHorizontal: 16, marginBottom: 12 }}>
-                <TouchableOpacity onPress={openAdd}>
+                <TouchableOpacity disabled={operationLoading} onPress={openAdd}>
                     <LinearGradient colors={['#6366f1', '#8b5cf6']} style={{ paddingVertical: 12, borderRadius: 999, alignItems: 'center' }}>
                         <Text style={{ color: '#fff', fontWeight: '700' }}>+ Add Activity</Text>
                     </LinearGradient>
                 </TouchableOpacity>
             </View>
 
-            <FlatList data={items} keyExtractor={(i) => i.id} renderItem={renderItem} contentContainerStyle={{ paddingBottom: 32 }} />
+            {loadingActivities ? (
+                <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+                    <ActivityIndicator size="small" color="#6366f1" />
+                </View>
+            ) : (
+                <FlatList data={items} keyExtractor={(i) => i.id} renderItem={renderItem} contentContainerStyle={{ paddingBottom: 32 }} />
+            )}
 
             <Modal visible={modalVisible} animationType="slide" transparent onRequestClose={() => setModalVisible(false)}>
                 <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.3)' }}>
@@ -278,11 +327,11 @@ export default function ActivitiesScreen() {
                             )}
 
                             <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 16 }}>
-                                <TouchableOpacity onPress={() => setModalVisible(false)} style={{ padding: 10 }}>
+                                <TouchableOpacity onPress={() => !operationLoading && setModalVisible(false)} disabled={operationLoading} style={{ padding: 10, opacity: operationLoading ? 0.6 : 1 }}>
                                     <Text style={{ color: '#6B7280' }}>Cancel</Text>
                                 </TouchableOpacity>
-                                <TouchableOpacity onPress={save} style={{ padding: 10 }}>
-                                    <Text style={{ color: '#4fc3f7', fontWeight: '700' }}>{editingId ? 'Save' : 'Add'}</Text>
+                                <TouchableOpacity onPress={save} disabled={operationLoading} style={{ padding: 10 }}>
+                                    {operationLoading ? <ActivityIndicator size="small" color="#4fc3f7" /> : <Text style={{ color: '#4fc3f7', fontWeight: '700' }}>{editingId ? 'Save' : 'Add'}</Text>}
                                 </TouchableOpacity>
                             </View>
                         </ScrollView>
