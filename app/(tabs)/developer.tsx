@@ -151,14 +151,14 @@ export default function DeveloperScreen() {
                         marginBottom: 4,
                         textAlign: 'center',
                     }}>
-                        Terima kasih telah menggunakan aplikasi ini!
+                        Thank you for using this application!
                     </Text>
                     <Text style={{
                         color: '#374151',
                         fontSize: 15,
                         textAlign: 'center',
                     }}>
-                        Untuk support, kerjasama, atau donasi, silakan hubungi kontak di atas.
+                        For support, collaboration, or donations, please contact the above contact information.
                     </Text>
                 </View>
             </ScrollView>

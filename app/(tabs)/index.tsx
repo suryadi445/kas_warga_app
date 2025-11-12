@@ -139,7 +139,6 @@ export default function TabsIndex() {
     return (
         <SafeAreaView className="flex-1 bg-white">
             <StatusBar barStyle="dark-content" translucent backgroundColor="transparent" />
-            {/* Header - selaras dengan form login */}
             <View
                 className="px-6 pt-6 pb-4 items-center"
                 style={{
@@ -155,8 +154,8 @@ export default function TabsIndex() {
                 </View>
                 <Text className="text-[#4fc3f7] text-2xl font-bold">Kas Masjid Ar Rahman</Text>
                 <Text className="text-gray-500 text-sm" style={{ textAlign: 'center', marginTop: 4 }}>
-                    Aplikasi manajemen kas, kegiatan, dan informasi masjid maupun komunitas warga.
-                    Gunakan menu di bawah untuk mengakses fitur kas, jadwal, pengumuman, dokumentasi, dan lainnya.
+                    Management application for cash, activities, and mosque or community information.
+                    Use the menu below to access cash, schedule, announcements, documentation, and more.
                 </Text>
 
                 {/* profile icon top-right - navigate to profile page */}

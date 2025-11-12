@@ -62,7 +62,7 @@ export default function UsersScreen() {
 
     function save() {
         if (!name.trim() || !email.trim()) {
-            Alert.alert('Error', 'Nama dan email wajib diisi');
+            Alert.alert('Error', 'Name and email are required');
             return;
         }
         if (editingId) {
@@ -82,9 +82,9 @@ export default function UsersScreen() {
     }
 
     function remove(id: string) {
-        Alert.alert('Konfirmasi', 'Hapus user ini?', [
-            { text: 'Batal', style: 'cancel' },
-            { text: 'Hapus', style: 'destructive', onPress: () => setUsers((p) => p.filter((i) => i.id !== id)) },
+        Alert.alert('Confirm', 'Delete this user?', [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Delete', style: 'destructive', onPress: () => setUsers((p) => p.filter((i) => i.id !== id)) },
         ]);
     }
 
@@ -142,9 +142,9 @@ export default function UsersScreen() {
                 <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: '#6366f1', alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
                     <Text style={{ color: '#fff', fontSize: 32 }}>👤</Text>
                 </View>
-                <Text style={{ color: '#6366f1', fontSize: 20, fontWeight: '700' }}>Manajemen Pengguna</Text>
+                <Text style={{ color: '#6366f1', fontSize: 20, fontWeight: '700' }}>User Management</Text>
                 <Text style={{ color: '#6B7280', marginTop: 4, textAlign: 'center' }}>
-                    Kelola akun, peran, dan data pengguna aplikasi.
+                    Manage accounts, roles, and user data.
                 </Text>
             </View>
 
@@ -158,7 +158,7 @@ export default function UsersScreen() {
                         className="rounded-full py-3 items-center"
                         style={{ elevation: 3 }}
                     >
-                        <Text className="text-white font-semibold">+ Tambah User</Text>
+                        <Text className="text-white font-semibold">+ Add User</Text>
                     </LinearGradient>
                 </TouchableOpacity>
             </View>
@@ -176,13 +176,13 @@ export default function UsersScreen() {
             <Modal visible={modalVisible} animationType="slide" transparent onRequestClose={() => setModalVisible(false)}>
                 <View className="flex-1 justify-end bg-black/30">
                     <View className="bg-white rounded-t-3xl p-6">
-                        <Text className="text-xl font-semibold mb-4">{editingId ? 'Edit User' : 'Tambah User'}</Text>
+                        <Text className="text-xl font-semibold mb-4">{editingId ? 'Edit User' : 'Add User'}</Text>
 
-                        <Text className="text-sm text-gray-600 mb-1">Nama</Text>
+                        <Text className="text-sm text-gray-600 mb-1">Name</Text>
                         <TextInput
                             value={name}
                             onChangeText={setName}
-                            placeholder="Nama lengkap"
+                            placeholder="Full name"
                             className="border rounded-lg px-4 py-3 mb-3"
                         />
 
@@ -190,13 +190,13 @@ export default function UsersScreen() {
                         <TextInput
                             value={email}
                             onChangeText={setEmail}
-                            placeholder="email@contoh.com"
+                            placeholder="email@example.com"
                             keyboardType="email-address"
                             className="border rounded-lg px-4 py-3 mb-3"
                             autoCapitalize="none"
                         />
 
-                        <Text className="text-sm text-gray-600 mb-1">No HP</Text>
+                        <Text className="text-sm text-gray-600 mb-1">Phone</Text>
                         <TextInput
                             value={phone}
                             onChangeText={setPhone}
@@ -249,10 +249,10 @@ export default function UsersScreen() {
 
                         <View className="flex-row justify-between mt-2">
                             <TouchableOpacity onPress={() => setModalVisible(false)} className="px-4 py-3">
-                                <Text className="text-gray-600">Batal</Text>
+                                <Text className="text-gray-600">Cancel</Text>
                             </TouchableOpacity>
                             <TouchableOpacity onPress={save} className="px-4 py-3">
-                                <Text className="text-[#4fc3f7] font-semibold">{editingId ? 'Simpan' : 'Tambah'}</Text>
+                                <Text className="text-[#4fc3f7] font-semibold">{editingId ? 'Save' : 'Add'}</Text>
                             </TouchableOpacity>
                         </View>
                     </View>

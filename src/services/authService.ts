@@ -31,21 +31,21 @@ type AuthResult = {
 function mapAuthError(code?: string | null, message?: string) {
     switch (code) {
         case 'auth/email-already-in-use':
-            return 'Email sudah terdaftar. Silakan login atau gunakan email lain.';
+            return 'Email already registered. Please login or use another email.';
         case 'auth/invalid-email':
-            return 'Format email tidak valid.';
+            return 'Invalid email format.';
         case 'auth/weak-password':
-            return 'Password terlalu lemah. Gunakan minimal 6 karakter.';
+            return 'Password is too weak. Use at least 6 characters.';
         case 'auth/user-not-found':
-            return 'User tidak ditemukan. Periksa email Anda atau daftar dulu.';
+            return 'User not found. Please check your email or register first.';
         case 'auth/wrong-password':
-            return 'Password salah. Silakan coba lagi.';
+            return 'Wrong password. Please try again.';
         case 'auth/invalid-credential':
-            return 'Email atau password salah. Periksa kembali dan coba lagi.';
+            return 'Invalid email or password. Please check and try again.';
         case 'auth/configuration-not-found':
-            return 'Konfigurasi autentikasi tidak ditemukan. Periksa pengaturan Firebase (Identity Toolkit API).';
+            return 'Authentication configuration not found. Check Firebase settings (Identity Toolkit API).';
         default:
-            return message || 'Terjadi kesalahan saat memproses permintaan.';
+            return message || 'An error occurred while processing your request.';
     }
 };
 
@@ -59,11 +59,13 @@ export const signUp = async (email: string, password: string, nama: string, phon
         await setDoc(doc(db, 'users', user.uid), {
             uid: user.uid,
             email: user.email,
-            nama,
+            nama, // pastikan ini ada
             phone,
             role: 'Member',
             createdAt: serverTimestamp(),
         });
+
+        console.log('User registered with nama:', nama); // debug log
 
         return { success: true, user: { uid: user.uid, email: user.email } };
     } catch (err: any) {
@@ -78,34 +80,54 @@ export const signUp = async (email: string, password: string, nama: string, phon
     }
 };
 
+// Helper: retry getDoc with timeout
+async function getDocWithRetry(docRef: any, maxRetries = 3, timeoutMs = 10000) {
+    for (let i = 0; i < maxRetries; i++) {
+        try {
+            const promise = getDoc(docRef);
+            const timeoutPromise = new Promise((_, reject) =>
+                setTimeout(() => reject(new Error('Timeout')), timeoutMs)
+            );
+
+            const snap = await Promise.race([promise, timeoutPromise]);
+            return snap;
+        } catch (err: any) {
+            console.warn(`getDoc attempt ${i + 1} failed:`, err.message);
+            if (i === maxRetries - 1) throw err;
+            // Wait before retry (exponential backoff)
+            await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)));
+        }
+    }
+    throw new Error('Max retries exceeded');
+}
+
 // Sign in: menggunakan email & password
 export const signIn = async (email: string, password: string): Promise<AuthResult> => {
     try {
         const credential = await signInWithEmailAndPassword(auth, email, password);
         const user = credential.user;
 
-        // Try to read profile from Firestore, but handle offline/network errors gracefully
+        // Try to read profile from Firestore with retry
         let profile = null;
         let isOffline = false;
 
         try {
             const docRef = doc(db, 'users', user.uid);
-            const snap = await getDoc(docRef);
+            const snap = await getDocWithRetry(docRef);
             profile = snap.exists() ? snap.data() : null;
         } catch (fireErr: any) {
-            // Detect offline/network condition more robustly
             const msg = (fireErr?.message || '').toLowerCase();
             const code = fireErr?.code || '';
 
-            // Common offline error codes/messages
             isOffline =
                 code === 'unavailable' ||
                 code === 'failed-precondition' ||
                 msg.includes('client is offline') ||
                 msg.includes('network') ||
+                msg.includes('timeout') ||
                 msg.includes('failed to get document');
 
-            console.warn('signIn: firestore read failed, treating as offline', {
+            console.warn('signIn: firestore read failed after retries', {
                 code,
                 message: fireErr?.message,
                 isOffline

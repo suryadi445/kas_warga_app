@@ -38,19 +38,23 @@ try {
     }
 }
 
-// Initialize Firestore with RN-friendly settings
+// Initialize Firestore with proper error handling
 let db: Firestore;
 try {
     db = initializeFirestore(app, {
         experimentalForceLongPolling: true,
     });
+    console.log('Firestore initialized successfully');
 } catch (e: any) {
     if (e?.code === 'firestore/already-initialized' || e?.message?.includes('already initialized')) {
         console.warn('Firestore already initialized, using existing instance');
         const { getFirestore } = require('firebase/firestore');
         db = getFirestore(app);
     } else {
-        throw e;
+        // Log error but create instance anyway - will fail on first operation if DB not created
+        console.error('Firestore initialization warning:', e.message);
+        const { getFirestore } = require('firebase/firestore');
+        db = getFirestore(app);
     }
 }
 

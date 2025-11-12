@@ -165,7 +165,7 @@ export default function DocumentationScreen() {
         <SafeAreaView style={{ flex: 1, backgroundColor: '#fff', paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0 }}>
             <StatusBar barStyle="dark-content" translucent backgroundColor="transparent" />
 
-            <HeaderCard icon="📸" title="Documentation" subtitle="Upload foto kegiatan warga" buttonLabel="+ Add Documentation" onButtonPress={openAdd} />
+            <HeaderCard icon="📸" title="Documentation" subtitle="Upload photos of community activities" buttonLabel="+ Add Documentation" onButtonPress={openAdd} />
 
             <FlatList data={items} keyExtractor={(i) => i.id} renderItem={renderItem} contentContainerStyle={{ paddingBottom: 32 }} />
 

@@ -238,7 +238,7 @@ export default function PrayerPage() {
                 {/* List nama hari libur di bulan ini */}
                 {holidaysInMonth.length > 0 && (
                     <View style={{ marginTop: 6, alignItems: 'center' }}>
-                        <Text style={{ color: '#ef4444', fontWeight: '700', marginBottom: 2 }}>Hari Libur Nasional:</Text>
+                        <Text style={{ color: '#ef4444', fontWeight: '700', marginBottom: 2 }}>National Holidays:</Text>
                         {holidaysInMonth.map(date => (
                             <Text key={date} style={{ color: '#ef4444', fontSize: 13 }}>
                                 {date} - {holidaysInfo[date] || ''}
@@ -261,9 +261,9 @@ export default function PrayerPage() {
                 <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: '#6366f1', alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
                     <Text style={{ color: '#fff', fontSize: 32 }}>🕌</Text>
                 </View>
-                <Text style={{ color: '#6366f1', fontSize: 20, fontWeight: '700' }}>Jadwal Sholat & Kalender</Text>
+                <Text style={{ color: '#6366f1', fontSize: 20, fontWeight: '700' }}>Prayer Schedule & Calendar</Text>
                 <Text style={{ color: '#6B7280', marginTop: 4, textAlign: 'center' }}>
-                    Lihat jadwal sholat, arah kiblat, dan kalender hijriah serta libur nasional Indonesia.
+                    View prayer times, qibla direction, and Hijri calendar with Indonesian national holidays.
                 </Text>
             </View>
             <ScrollView contentContainerStyle={{ padding: 16 }}>

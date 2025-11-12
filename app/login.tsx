@@ -13,7 +13,7 @@ export default function LoginScreen() {
 
     const handleLogin = async () => {
         if (!username.trim() || !password) {
-            Alert.alert('Error', 'Email dan password harus diisi');
+            Alert.alert('Error', 'Email and password are required');
             return;
         }
 
@@ -25,16 +25,16 @@ export default function LoginScreen() {
             if (res.offline) {
                 Alert.alert(
                     'Login (offline)',
-                    'Login berhasil, tetapi data profil tidak dapat diambil karena koneksi Firestore sedang offline. Aplikasi akan tetap berfungsi secara terbatas.',
-                    [{ text: 'Lanjut', onPress: () => router.replace('/(tabs)') }]
+                    'Login successful, but profile data could not be retrieved because Firestore connection is offline. The app will function with limited features.',
+                    [{ text: 'Continue', onPress: () => router.replace('/(tabs)') }]
                 );
             } else {
-                Alert.alert('Sukses', 'Login berhasil', [
+                Alert.alert('Success', 'Login successful', [
                     { text: 'OK', onPress: () => router.replace('/(tabs)') }
                 ]);
             }
         } else {
-            const message = res.error || 'Login gagal';
+            const message = res.error || 'Login failed';
             Alert.alert('Error', message);
         }
     };
@@ -97,12 +97,10 @@ export default function LoginScreen() {
                     behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                     className="flex-1 justify-center px-8"
                 >
-                    {/* Title */}
                     <Text className="text-[#4fc3f7] text-3xl font-bold mb-12 text-center">LOGIN</Text>
 
-                    {/* Username Input */}
                     <View className="mb-6">
-                        <Text className="text-[#4fc3f7] text-sm mb-2">Username</Text>
+                        <Text className="text-[#4fc3f7] text-sm mb-2">Email</Text>
                         <TextInput
                             className="border-b-2 border-[#4fc3f7] py-3 text-gray-800 text-base"
                             placeholder="example@email.com"
@@ -114,11 +112,9 @@ export default function LoginScreen() {
                         />
                     </View>
 
-                    {/* Password Input */}
                     <View className="mb-2">
                         <Text className="text-[#4fc3f7] text-sm mb-2">Password</Text>
 
-                        {/* changed: use row layout so icon aligns vertically with input */}
                         <View style={{ flexDirection: 'row', alignItems: 'center', borderBottomWidth: 2, borderBottomColor: '#4fc3f7', paddingVertical: 6 }}>
                             <TextInput
                                 style={{ flex: 1, color: '#111827', fontSize: 16, paddingVertical: 6 }}
@@ -135,12 +131,10 @@ export default function LoginScreen() {
                         </View>
                     </View>
 
-                    {/* Forgot Password Link */}
                     <TouchableOpacity className="self-end mb-8">
                         <Text className="text-[#4fc3f7] text-sm">Forgot your password</Text>
                     </TouchableOpacity>
 
-                    {/* Login Button */}
                     <TouchableOpacity
                         activeOpacity={0.8}
                         onPress={handleLogin}
@@ -155,19 +149,11 @@ export default function LoginScreen() {
                         )}
                     </TouchableOpacity>
 
-                    {/* Sign Up Link */}
                     <View className="flex-row justify-center">
                         <Text className="text-gray-600 text-sm">Don't have an account? </Text>
                         <TouchableOpacity onPress={() => router.push('/register')}>
                             <Text className="text-[#4fc3f7] text-sm font-semibold">Sign up</Text>
                         </TouchableOpacity>
-                    </View>
-
-                    {/* Demo Info - Optional */}
-                    <View className="mt-12 bg-blue-50 p-3 rounded-lg">
-                        <Text className="text-center text-blue-600 text-xs">
-                            Demo: <Text className="font-bold">admin</Text> / <Text className="font-bold">admin</Text>
-                        </Text>
                     </View>
                 </KeyboardAvoidingView>
             </View>

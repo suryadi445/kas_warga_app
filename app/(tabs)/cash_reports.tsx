@@ -92,7 +92,7 @@ export default function CashReportsScreen() {
 
     function save() {
         if (!date.trim() || !amount.trim()) {
-            Alert.alert('Error', 'Date dan nominal wajib diisi');
+            Alert.alert('Error', 'Date and amount are required');
             return;
         }
         const amt = parseCurrency(amount);
@@ -113,9 +113,9 @@ export default function CashReportsScreen() {
     }
 
     function remove(id: string) {
-        Alert.alert('Konfirmasi', 'Hapus laporan kas ini?', [
-            { text: 'Batal', style: 'cancel' },
-            { text: 'Hapus', style: 'destructive', onPress: () => setReports((p) => p.filter((i) => i.id !== id)) },
+        Alert.alert('Confirm', 'Delete this cash report?', [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Delete', style: 'destructive', onPress: () => setReports((p) => p.filter((i) => i.id !== id)) },
         ]);
     }
 
@@ -193,7 +193,7 @@ export default function CashReportsScreen() {
                                 <Text style={{ color: '#06B6D4', fontWeight: '600' }}>Edit</Text>
                             </TouchableOpacity>
                             <TouchableOpacity onPress={() => remove(item.id)}>
-                                <Text style={{ color: '#EF4444', fontWeight: '600' }}>Hapus</Text>
+                                <Text style={{ color: '#EF4444', fontWeight: '600' }}>Delete</Text>
                             </TouchableOpacity>
                         </View>
                     </View>
@@ -205,14 +205,13 @@ export default function CashReportsScreen() {
     return (
         <SafeAreaView style={{ flex: 1, backgroundColor: '#fff', paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0 }}>
             <StatusBar barStyle="dark-content" translucent backgroundColor="transparent" />
-            {/* Header */}
             <View style={{ padding: 16, alignItems: 'center' }}>
                 <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: '#6366f1', alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
                     <Text style={{ color: '#fff', fontSize: 32 }}>💰</Text>
                 </View>
-                <Text style={{ color: '#6366f1', fontSize: 20, fontWeight: '700' }}>Laporan Kas</Text>
+                <Text style={{ color: '#6366f1', fontSize: 20, fontWeight: '700' }}>Cash Report</Text>
                 <Text style={{ color: '#6B7280', marginTop: 4, textAlign: 'center' }}>
-                    Kelola pemasukan, pengeluaran, dan saldo kas warga.
+                    Manage income, expenses, and cash balance.
                 </Text>
             </View>
 
@@ -230,13 +229,13 @@ export default function CashReportsScreen() {
                 >
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                         <View>
-                            <Text style={{ color: '#6B7280', fontSize: 12 }}>Saldo Sekarang</Text>
+                            <Text style={{ color: '#6B7280', fontSize: 12 }}>Current Balance</Text>
                             <Text style={{ fontSize: 20, fontWeight: '700', marginTop: 6, color: totalFilteredSaldo >= 0 ? '#065F46' : '#7F1D1D' }}>
                                 {formatAmount(totalFilteredSaldo)}
                             </Text>
                         </View>
                         <View style={{ backgroundColor: '#F3F4F6', paddingVertical: 6, paddingHorizontal: 12, borderRadius: 999 }}>
-                            <Text style={{ color: '#374151', fontWeight: '600' }}>{filteredReports.length} transaksi</Text>
+                            <Text style={{ color: '#374151', fontWeight: '600' }}>{filteredReports.length} transactions</Text>
                         </View>
                     </View>
                 </LinearGradient>
@@ -371,7 +370,7 @@ export default function CashReportsScreen() {
                         className="rounded-full py-3 items-center"
                         style={{ elevation: 3 }}
                     >
-                        <Text className="text-white font-semibold">+ Tambah Laporan</Text>
+                        <Text className="text-white font-semibold">+ Add Report</Text>
                     </LinearGradient>
                 </TouchableOpacity>
             </View>
@@ -389,7 +388,7 @@ export default function CashReportsScreen() {
             <Modal visible={modalVisible} animationType="slide" transparent onRequestClose={() => setModalVisible(false)}>
                 <View className="flex-1 justify-end bg-black/30">
                     <View className="bg-white rounded-t-3xl p-6">
-                        <Text className="text-xl font-semibold mb-4">{editingId ? 'Edit Laporan' : 'Tambah Laporan'}</Text>
+                        <Text className="text-xl font-semibold mb-4">{editingId ? 'Edit Report' : 'Add Report'}</Text>
 
                         <Text className="text-sm text-gray-600 mb-1">Type</Text>
                         <View className="flex-row mb-3">
@@ -429,19 +428,19 @@ export default function CashReportsScreen() {
                         <TextInput
                             value={category}
                             onChangeText={setCategory}
-                            placeholder="Kategori (opsional)"
+                            placeholder="Category (optional)"
                             className="border rounded-lg px-4 py-3 mb-3"
                         />
 
                         <Text className="text-sm text-gray-600 mb-1">Description</Text>
-                        <TextInput value={description} onChangeText={setDescription} placeholder="Deskripsi (opsional)" className="border rounded-lg px-4 py-3 mb-3" />
+                        <TextInput value={description} onChangeText={setDescription} placeholder="Description (optional)" className="border rounded-lg px-4 py-3 mb-3" />
 
                         <View className="flex-row justify-between mt-2">
                             <TouchableOpacity onPress={() => setModalVisible(false)} className="px-4 py-3">
-                                <Text className="text-gray-600">Batal</Text>
+                                <Text className="text-gray-600">Cancel</Text>
                             </TouchableOpacity>
                             <TouchableOpacity onPress={save} className="px-4 py-3">
-                                <Text className="text-[#4fc3f7] font-semibold">{editingId ? 'Simpan' : 'Tambah'}</Text>
+                                <Text className="text-[#4fc3f7] font-semibold">{editingId ? 'Save' : 'Add'}</Text>
                             </TouchableOpacity>
                         </View>
                     </View>

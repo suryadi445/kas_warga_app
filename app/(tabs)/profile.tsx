@@ -1,29 +1,28 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
-import { Alert, Platform, ScrollView, StatusBar, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import React, { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, Alert, Platform, ScrollView, StatusBar, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import DateTimePickerModal from 'react-native-modal-datetime-picker';
 import { SafeAreaView } from 'react-native-safe-area-context';
-
-/**
- * Simple profile page.
- * - Loads data from AsyncStorage key "profile"
- * - Allows update/save back to AsyncStorage
- */
+import { db } from '../../src/firebaseConfig';
+import { getCurrentUser } from '../../src/services/authService';
 
 export default function ProfilePage() {
     const router = useRouter();
+    const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
+    const [uid, setUid] = useState<string | null>(null);
+
+    // profile fields
     const [name, setName] = useState('');
     const [role, setRole] = useState('');
     const [email, setEmail] = useState('');
     const [phone, setPhone] = useState('');
-
-    // new fields
-    const [gender, setGender] = useState(''); // e.g. Male/Female/Other
-    const [birthday, setBirthday] = useState(''); // YYYY-MM-DD
+    const [gender, setGender] = useState('');
+    const [birthday, setBirthday] = useState('');
     const [religion, setReligion] = useState('');
-    const [maritalStatus, setMaritalStatus] = useState('single'); // single, married, divorced, widowed
-    const [spouseName, setSpouseName] = useState(''); // only when married
+    const [maritalStatus, setMaritalStatus] = useState('single');
+    const [spouseName, setSpouseName] = useState('');
     const [children, setChildren] = useState<Array<{ name: string; birthDate: string; placeOfBirth: string }>>([]);
 
     // date picker modal: context can be 'birthday' or { type: 'child', index: number }
@@ -31,39 +30,85 @@ export default function ProfilePage() {
     const [datePickerContext, setDatePickerContext] = useState<{ kind: 'birthday' } | { kind: 'child'; index: number } | null>(null);
 
     useEffect(() => {
-        (async () => {
-            try {
-                const raw = await AsyncStorage.getItem('profile');
-                if (raw) {
-                    const p = JSON.parse(raw);
-                    setName(p.name || '');
-                    setRole(p.role || '');
-                    setEmail(p.email || '');
-                    setPhone(p.phone || '');
-                    setGender(p.gender || '');
-                    setBirthday(p.birthday || '');
-                    setReligion(p.religion || '');
-                    setMaritalStatus(p.maritalStatus || 'single');
-                    setSpouseName(p.spouseName || '');
-                    setChildren(p.children || []);
-                } else {
-                    // defaults
-                    setName('Admin User');
-                    setRole('Administrator');
-                    setEmail('admin@example.com');
-                    setPhone('08123456789');
-                    setGender('');
-                    setBirthday('');
-                    setReligion('');
-                    setMaritalStatus('single');
-                    setSpouseName('');
-                    setChildren([]);
-                }
-            } catch {
-                // ignore load errors
-            }
-        })();
+        loadUserProfile();
     }, []);
+
+    // Reload profile setiap kali tab difocus
+    useFocusEffect(
+        useCallback(() => {
+            loadUserProfile();
+        }, [])
+    );
+
+    async function loadUserProfile() {
+        try {
+            setLoading(true);
+            const currentUser = getCurrentUser();
+
+            if (!currentUser) {
+                Alert.alert('Error', 'User tidak login', [
+                    { text: 'Login', onPress: () => router.replace('/login') }
+                ]);
+                return;
+            }
+
+            setUid(currentUser.uid);
+            setEmail(currentUser.email || '');
+
+            // Load data dari Firestore with retry
+            let retries = 3;
+            let lastError = null;
+
+            for (let i = 0; i < retries; i++) {
+                try {
+                    const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
+
+                    if (userDoc.exists()) {
+                        const data = userDoc.data();
+                        setName(data.nama || '');
+                        setRole(data.role || 'Member');
+                        setPhone(data.phone || '');
+                        setGender(data.gender || '');
+                        setBirthday(data.birthday || '');
+                        setReligion(data.religion || '');
+                        setMaritalStatus(data.maritalStatus || 'single');
+                        setSpouseName(data.spouseName || '');
+                        setChildren(data.children || []);
+                    }
+
+                    return; // Success
+                } catch (err: any) {
+                    lastError = err;
+                    console.warn(`Load profile attempt ${i + 1} failed:`, err.message);
+
+                    // Check if it's a "database not created" error
+                    if (err.message?.includes('unavailable') || err.message?.includes('not found')) {
+                        throw new Error('Firestore database belum dibuat di Firebase Console. Buat database terlebih dahulu.');
+                    }
+
+                    if (i < retries - 1) {
+                        await new Promise(resolve => setTimeout(resolve, 1500 * (i + 1)));
+                    }
+                }
+            }
+
+            throw lastError;
+
+        } catch (error: any) {
+            console.error('Load profile error:', error);
+
+            const message = error.message?.includes('database belum dibuat')
+                ? error.message
+                : 'Gagal memuat profil. Pastikan:\n1. Firestore database sudah dibuat\n2. Koneksi internet aktif\n3. Rules Firestore sudah diset';
+
+            Alert.alert('Error', message, [
+                { text: 'Retry', onPress: () => loadUserProfile() },
+                { text: 'Cancel', style: 'cancel' }
+            ]);
+        } finally {
+            setLoading(false);
+        }
+    }
 
     function addChild() {
         setChildren((c) => [...c, { name: '', birthDate: '', placeOfBirth: '' }]);
@@ -104,27 +149,47 @@ export default function ProfilePage() {
 
     async function handleSave() {
         if (!name.trim()) {
-            Alert.alert('Validation', 'Name is required');
+            Alert.alert('Validation', 'Nama wajib diisi');
             return;
         }
-        const payload = { name, role, email, phone };
-        // include new fields
-        const fullPayload = {
-            ...payload,
-            gender,
-            birthday,
-            religion,
-            maritalStatus,
-            spouseName,
-            children,
-        };
-        try {
-            await AsyncStorage.setItem('profile', JSON.stringify(fullPayload));
-            Alert.alert('Success', 'Profile updated');
-            router.back();
-        } catch {
-            Alert.alert('Error', 'Failed to save profile');
+
+        if (!uid) {
+            Alert.alert('Error', 'User ID tidak ditemukan');
+            return;
         }
+
+        try {
+            setSaving(true);
+
+            // Update ke Firestore
+            await updateDoc(doc(db, 'users', uid), {
+                nama: name,
+                phone,
+                gender,
+                birthday,
+                religion,
+                maritalStatus,
+                spouseName: maritalStatus === 'married' ? spouseName : '',
+                children: (maritalStatus === 'married' || maritalStatus === 'divorced' || maritalStatus === 'widowed') ? children : [],
+            });
+
+            Alert.alert('Sukses', 'Profil berhasil diperbarui');
+            router.back();
+        } catch (error: any) {
+            console.error('Save profile error:', error);
+            Alert.alert('Error', 'Gagal menyimpan: ' + (error.message || 'Unknown error'));
+        } finally {
+            setSaving(false);
+        }
+    }
+
+    if (loading) {
+        return (
+            <SafeAreaView style={{ flex: 1, backgroundColor: '#fff', justifyContent: 'center', alignItems: 'center' }}>
+                <ActivityIndicator size="large" color="#6366f1" />
+                <Text style={{ marginTop: 12, color: '#6B7280' }}>Loading profile...</Text>
+            </SafeAreaView>
+        );
     }
 
     return (
@@ -134,9 +199,9 @@ export default function ProfilePage() {
                 <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: '#6366f1', alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
                     <Text style={{ color: '#fff', fontSize: 32 }}>👤</Text>
                 </View>
-                <Text style={{ color: '#6366f1', fontSize: 20, fontWeight: '700' }}>Profil Pengguna</Text>
+                <Text style={{ color: '#6366f1', fontSize: 20, fontWeight: '700' }}>User Profile</Text>
                 <Text style={{ color: '#6B7280', marginTop: 4, textAlign: 'center' }}>
-                    Edit dan simpan data profil Anda.
+                    Edit and save your profile data.
                 </Text>
             </View>
 
@@ -145,7 +210,7 @@ export default function ProfilePage() {
                 <TextInput value={name} onChangeText={setName} placeholder="Full name" style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 10, marginTop: 8 }} />
 
                 <Text style={{ color: '#374151', marginTop: 12 }}>Role</Text>
-                <TextInput value={role} onChangeText={setRole} placeholder="Role" style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 10, marginTop: 8 }} />
+                <TextInput value={role} onChangeText={setRole} placeholder="Role" editable={false} style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 10, marginTop: 8, backgroundColor: '#F9FAFB' }} />
 
                 <Text style={{ color: '#374151', marginTop: 12 }}>Gender</Text>
                 <TextInput value={gender} onChangeText={setGender} placeholder="Male / Female / Other" style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 10, marginTop: 8 }} />
@@ -160,7 +225,7 @@ export default function ProfilePage() {
                 )}
 
                 <Text style={{ color: '#374151', marginTop: 12 }}>Email</Text>
-                <TextInput value={email} onChangeText={setEmail} placeholder="email@example.com" keyboardType="email-address" autoCapitalize="none" style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 10, marginTop: 8 }} />
+                <TextInput value={email} editable={false} placeholder="email@example.com" style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 10, marginTop: 8, backgroundColor: '#F9FAFB' }} />
 
                 <Text style={{ color: '#374151', marginTop: 12 }}>Religion</Text>
                 <TextInput value={religion} onChangeText={setReligion} placeholder="Religion" style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 10, marginTop: 8 }} />
@@ -239,12 +304,20 @@ export default function ProfilePage() {
                     </View>
                 )}
 
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 24 }}>
-                    <TouchableOpacity onPress={() => router.back()} style={{ padding: 10 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 24, marginBottom: 24 }}>
+                    <TouchableOpacity onPress={() => router.back()} style={{ padding: 10 }} disabled={saving}>
                         <Text style={{ color: '#6B7280' }}>Cancel</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity onPress={handleSave} style={{ backgroundColor: '#6366f1', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8 }}>
-                        <Text style={{ color: '#fff', fontWeight: '700' }}>Save</Text>
+                    <TouchableOpacity
+                        onPress={handleSave}
+                        style={{ backgroundColor: '#6366f1', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8, opacity: saving ? 0.7 : 1 }}
+                        disabled={saving}
+                    >
+                        {saving ? (
+                            <ActivityIndicator color="#fff" />
+                        ) : (
+                            <Text style={{ color: '#fff', fontWeight: '700' }}>Save</Text>
+                        )}
                     </TouchableOpacity>
                 </View>
             </ScrollView>
@@ -253,9 +326,8 @@ export default function ProfilePage() {
             <DateTimePickerModal
                 isVisible={datePickerVisible}
                 mode="date"
-                onConfirm={(d: Date) => onDateConfirm(d)}
+                onConfirm={onDateConfirm}
                 onCancel={onDateCancel}
-            // DateTimePickerModal sudah handle back secara default, tidak perlu diubah
             />
         </SafeAreaView>
     );

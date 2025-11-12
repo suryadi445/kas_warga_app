@@ -187,14 +187,13 @@ export default function DashboardPage() {
         <SafeAreaView style={{ flex: 1, backgroundColor: '#fff', paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0 }}>
             <StatusBar barStyle="dark-content" translucent backgroundColor="transparent" />
             <ScrollView contentContainerStyle={{ padding: 16 }}>
-                {/* header (example style) */}
                 <View style={{ padding: 16, alignItems: 'center' }}>
                     <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: '#6366f1', alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
                         <Text style={{ color: '#fff', fontSize: 32 }}>📊</Text>
                     </View>
                     <Text style={{ color: '#6366f1', fontSize: 20, fontWeight: '700' }}>Dashboard</Text>
                     <Text style={{ color: '#6B7280', marginTop: 4, textAlign: 'center' }}>
-                        Ringkasan kas, kegiatan, dan pengumuman warga.
+                        Summary of cash, activities, and community announcements.
                     </Text>
                 </View>
 

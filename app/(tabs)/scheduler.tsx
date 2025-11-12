@@ -137,12 +137,12 @@ export default function SchedulerScreen() {
                 <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: '#6366f1', alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
                     <Text style={{ color: '#fff', fontSize: 32 }}>📅</Text>
                 </View>
-                <Text style={{ color: '#6366f1', fontSize: 20, fontWeight: '700' }}>Jadwal Kegiatan</Text>
+                <Text style={{ color: '#6366f1', fontSize: 20, fontWeight: '700' }}>Activity Schedule</Text>
                 <Text style={{ color: '#6B7280', marginTop: 4, textAlign: 'center' }}>
-                    Kelola jadwal kegiatan rutin dan insidental warga.
+                    Manage routine and incidental community activities schedule.
                 </Text>
                 <TouchableOpacity onPress={openAdd} style={{ marginTop: 10 }}>
-                    <Text style={{ color: '#6366f1', fontWeight: '700', fontSize: 16 }}>+ Tambah Schedule</Text>
+                    <Text style={{ color: '#6366f1', fontWeight: '700', fontSize: 16 }}>+ Add Schedule</Text>
                 </TouchableOpacity>
             </View>
 

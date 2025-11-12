@@ -72,15 +72,15 @@ export default function RegisterScreen() {
 
     const handleRegister = async () => {
         if (!nama.trim() || !email.trim() || !password) {
-            Alert.alert('Error', 'Nama, email, dan password wajib diisi');
+            Alert.alert('Error', 'Name, email, and password are required');
             return;
         }
         if (password.length < 8) {
-            Alert.alert('Error', 'Password minimal 8 karakter');
+            Alert.alert('Error', 'Password must be at least 8 characters');
             return;
         }
         if (password !== confirmPassword) {
-            Alert.alert('Error', 'Password dan konfirmasi tidak cocok');
+            Alert.alert('Error', 'Password and confirmation do not match');
             return;
         }
 
@@ -89,16 +89,16 @@ export default function RegisterScreen() {
         setLoading(false);
 
         if (res.success) {
-            Alert.alert('Sukses', 'Registrasi berhasil', [{ text: 'OK', onPress: () => router.replace('/(tabs)') }]);
+            Alert.alert('Success', 'Registration successful', [{ text: 'OK', onPress: () => router.replace('/(tabs)') }]);
         } else {
-            // Jika email sudah dipakai, tawarkan untuk pergi ke login
+            // If email already used, offer to go to login
             if (res.code === 'auth/email-already-in-use') {
-                Alert.alert('Error', res.error || 'Email sudah terdaftar', [
+                Alert.alert('Error', res.error || 'Email already registered', [
                     { text: 'Login', onPress: () => router.push('/login') },
                     { text: 'OK' }
                 ]);
             } else {
-                const msg = res.error || 'Registrasi gagal';
+                const msg = res.error || 'Registration failed';
                 Alert.alert('Error', msg);
             }
         }
@@ -115,7 +115,7 @@ export default function RegisterScreen() {
                     <Text className="text-[#4fc3f7] text-3xl font-bold mb-8 text-center">REGISTER</Text>
 
                     <View className="mb-4">
-                        <Text className="text-[#4fc3f7] text-sm mb-2">Nama</Text>
+                        <Text className="text-[#4fc3f7] text-sm mb-2">Name</Text>
                         <TextInput
                             className="border-b-2 border-[#4fc3f7] py-3 text-gray-800 text-base"
                             placeholder="Nama lengkap"
@@ -196,7 +196,7 @@ export default function RegisterScreen() {
                         className="bg-[#4fc3f7] rounded-full py-4 items-center mb-4 shadow-lg"
                         disabled={loading}
                     >
-                        {loading ? <ActivityIndicator color="#fff" /> : <Text className="text-white font-bold text-base">DAFTAR</Text>}
+                        {loading ? <ActivityIndicator color="#fff" /> : <Text className="text-white font-bold text-base">REGISTER</Text>}
                     </TouchableOpacity>
 
                     <View className="flex-row justify-center">

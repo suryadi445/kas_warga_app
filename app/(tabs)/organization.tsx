@@ -66,7 +66,7 @@ export default function OrganizationScreen() {
 
     function save() {
         if (!name.trim() || !phone.trim()) {
-            Alert.alert('Error', 'Name dan phone wajib diisi');
+            Alert.alert('Error', 'Name and phone are required');
             return;
         }
         const payload: Org = {
@@ -86,9 +86,9 @@ export default function OrganizationScreen() {
     }
 
     function remove(id: string) {
-        Alert.alert('Konfirmasi', 'Hapus anggota ini?', [
-            { text: 'Batal', style: 'cancel' },
-            { text: 'Hapus', style: 'destructive', onPress: () => setItems((p) => p.filter((i) => i.id !== id)) },
+        Alert.alert('Confirm', 'Delete this member?', [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Delete', style: 'destructive', onPress: () => setItems((p) => p.filter((i) => i.id !== id)) },
         ]);
     }
 
@@ -105,7 +105,7 @@ export default function OrganizationScreen() {
         try {
             const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
             if (!perm.granted) {
-                Alert.alert('Permission', 'Izin akses galeri diperlukan');
+                Alert.alert('Permission', 'Gallery access permission required');
                 return;
             }
             const res = await ImagePicker.launchImageLibraryAsync({ quality: 0.7, base64: false });
@@ -127,7 +127,7 @@ export default function OrganizationScreen() {
         const file = maybeFiles && maybeFiles[0];
         if (!file) return;
         if (!file.type?.startsWith?.('image/')) {
-            Alert.alert('File tidak valid', 'Pilih file gambar');
+            Alert.alert('Invalid file', 'Please select an image file');
             return;
         }
         revokePreviousImage();
@@ -147,7 +147,7 @@ export default function OrganizationScreen() {
                 setImage(url);
                 setImageUrlInput('');
             } catch {
-                Alert.alert('Error', 'Gagal memproses file gambar.');
+                Alert.alert('Error', 'Failed to process image file.');
             }
         }
     }
@@ -181,7 +181,7 @@ export default function OrganizationScreen() {
                             <Text style={{ color: '#06B6D4', fontWeight: '600' }}>Edit</Text>
                         </TouchableOpacity>
                         <TouchableOpacity onPress={() => remove(item.id)}>
-                            <Text style={{ color: '#EF4444', fontWeight: '600' }}>Hapus</Text>
+                            <Text style={{ color: '#EF4444', fontWeight: '600' }}>Delete</Text>
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -196,16 +196,16 @@ export default function OrganizationScreen() {
                 <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: '#6366f1', alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
                     <Text style={{ color: '#fff', fontSize: 32 }}>👥</Text>
                 </View>
-                <Text style={{ color: '#6366f1', fontSize: 20, fontWeight: '700' }}>Struktur Organisasi</Text>
+                <Text style={{ color: '#6366f1', fontSize: 20, fontWeight: '700' }}>Organization Structure</Text>
                 <Text style={{ color: '#6B7280', marginTop: 4, textAlign: 'center' }}>
-                    Kelola anggota dan jabatan dalam organisasi lingkungan Anda.
+                    Manage members and positions in your community organization.
                 </Text>
             </View>
 
             <View style={{ paddingHorizontal: 16, marginBottom: 12 }}>
                 <TouchableOpacity onPress={openAdd}>
                     <LinearGradient colors={['#6366f1', '#8b5cf6']} style={{ paddingVertical: 12, borderRadius: 999, alignItems: 'center' }}>
-                        <Text style={{ color: '#fff', fontWeight: '700' }}>+ Tambah Anggota</Text>
+                        <Text style={{ color: '#fff', fontWeight: '700' }}>+ Add Member</Text>
                     </LinearGradient>
                 </TouchableOpacity>
             </View>
@@ -216,13 +216,13 @@ export default function OrganizationScreen() {
                 <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.3)' }}>
                     <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 18, borderTopRightRadius: 18, padding: 16, maxHeight: '85%' }}>
                         <ScrollView>
-                            <Text style={{ fontSize: 18, fontWeight: '700', marginBottom: 8 }}>{editingId ? 'Edit Anggota' : 'Tambah Anggota'}</Text>
+                            <Text style={{ fontSize: 18, fontWeight: '700', marginBottom: 8 }}>{editingId ? 'Edit Member' : 'Add Member'}</Text>
 
                             <Text style={{ color: '#374151', marginTop: 8 }}>Title</Text>
-                            <TextInput value={title} onChangeText={setTitle} placeholder="Jabatan / Title" style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 10, marginTop: 6 }} />
+                            <TextInput value={title} onChangeText={setTitle} placeholder="Position / Title" style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 10, marginTop: 6 }} />
 
                             <Text style={{ color: '#374151', marginTop: 8 }}>Name</Text>
-                            <TextInput value={name} onChangeText={setName} placeholder="Nama lengkap" style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 10, marginTop: 6 }} />
+                            <TextInput value={name} onChangeText={setName} placeholder="Full name" style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 10, marginTop: 6 }} />
 
                             <Text style={{ color: '#374151', marginTop: 8 }}>Phone</Text>
                             <TextInput value={phone} onChangeText={setPhone} placeholder="08xxxxxxxx" keyboardType="phone-pad" style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 10, marginTop: 6 }} />
@@ -258,10 +258,10 @@ export default function OrganizationScreen() {
 
                             <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 16 }}>
                                 <TouchableOpacity onPress={() => setModalVisible(false)} style={{ padding: 10 }}>
-                                    <Text style={{ color: '#6B7280' }}>Batal</Text>
+                                    <Text style={{ color: '#6B7280' }}>Cancel</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity onPress={save} style={{ padding: 10 }}>
-                                    <Text style={{ color: '#4fc3f7', fontWeight: '700' }}>{editingId ? 'Simpan' : 'Tambah'}</Text>
+                                    <Text style={{ color: '#4fc3f7', fontWeight: '700' }}>{editingId ? 'Save' : 'Add'}</Text>
                                 </TouchableOpacity>
                             </View>
                         </ScrollView>

@@ -15,6 +15,21 @@ import {
 import MapView, { Marker } from 'react-native-maps';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+const MONTHS = [
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December',
+];
+
 export default function SettingsScreen() {
     const [appName, setAppName] = useState('Kas Warga');
     const [businessType, setBusinessType] = useState('Community Service');
@@ -89,7 +104,7 @@ export default function SettingsScreen() {
 
     function save() {
         if (!appName.trim()) {
-            Alert.alert('Error', 'App name wajib diisi');
+            Alert.alert('Error', 'App name is required');
             return;
         }
         // commit tmp coords if map modal still open values were edited
@@ -133,9 +148,9 @@ export default function SettingsScreen() {
                 <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: '#6366f1', alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
                     <Text style={{ color: '#fff', fontSize: 32 }}>⚙️</Text>
                 </View>
-                <Text style={{ color: '#6366f1', fontSize: 20, fontWeight: '700' }}>Pengaturan Aplikasi</Text>
+                <Text style={{ color: '#6366f1', fontSize: 20, fontWeight: '700' }}>App Settings</Text>
                 <Text style={{ color: '#6B7280', marginTop: 4, textAlign: 'center' }}>
-                    Ubah detail aplikasi, alamat, dan metode pembayaran.
+                    Update app details, address, and payment methods.
                 </Text>
                 <TouchableOpacity onPress={() => setModalVisible(true)} style={{ marginTop: 10 }}>
                     <Text style={{ color: '#6366f1', fontWeight: '700', fontSize: 16 }}>Edit</Text>
@@ -215,11 +230,11 @@ export default function SettingsScreen() {
                                 <TextInput value={address} onChangeText={setAddress} placeholder="Address" multiline numberOfLines={4} style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 10, marginTop: 6, textAlignVertical: 'top', height: 120 }} />
                             )}
 
-                            <Text style={{ color: '#374151', marginTop: 12 }}>No. Rekening</Text>
+                            <Text style={{ color: '#374151', marginTop: 12 }}>Bank Account</Text>
                             <TextInput
                                 value={bankAccount}
                                 onChangeText={setBankAccount}
-                                placeholder="Contoh: 1234567890 (Nama Bank - Nama Rekening)"
+                                placeholder="Example: 1234567890 (Bank Name - Account Name)"
                                 style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 10, marginTop: 6 }}
                             />
 
@@ -281,7 +296,7 @@ export default function SettingsScreen() {
                 </View>
             </Modal>
 
-            {/* Map picker modal (mobile: MapView, web: cannot render MapView reliably - show instructions and allow numeric input) */}
+            {/* Map picker modal */}
             <Modal visible={mapModalVisible} animationType="slide" transparent onRequestClose={() => setMapModalVisible(false)}>
                 <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.3)' }}>
                     <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 18, borderTopRightRadius: 18, padding: 12, height: Platform.OS === 'web' ? 420 : 480 }}>
@@ -332,14 +347,14 @@ export default function SettingsScreen() {
                                             setMapModalVisible(false);
                                         }}
                                     >
-                                        <Text style={{ color: '#4fc3f7', fontWeight: '700' }}>Pilih</Text>
+                                        <Text style={{ color: '#4fc3f7', fontWeight: '700' }}>Select</Text>
                                     </TouchableOpacity>
                                 </View>
                             </View>
                         ) : (
                             <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
                                 <Text style={{ color: '#374151', textAlign: 'center', marginBottom: 12 }}>
-                                    Untuk memilih lokasi, gunakan peta di bawah ini atau masukkan koordinat secara manual.
+                                    To select a location, use the map below or enter coordinates manually.
                                 </Text>
                                 <View style={{ flexDirection: 'row', width: '100%', marginBottom: 12 }}>
                                     <TextInput
@@ -381,7 +396,7 @@ export default function SettingsScreen() {
                                     }}
                                     style={{ marginTop: 12, paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8, backgroundColor: '#4fc3f7' }}
                                 >
-                                    <Text style={{ color: '#fff', fontWeight: '700' }}>Pilih lokasi ini</Text>
+                                    <Text style={{ color: '#fff', fontWeight: '700' }}>Select this location</Text>
                                 </TouchableOpacity>
                             </View>
                         )}
