@@ -1,17 +1,10 @@
+import * as FileSystem from 'expo-file-system/legacy'; // use legacy API so writeAsStringAsync is available
 import { LinearGradient } from 'expo-linear-gradient';
-import React, { useState } from 'react';
-import {
-    Alert,
-    FlatList,
-    Modal,
-    Platform,
-    StatusBar,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
-} from 'react-native';
+import { addDoc, collection, doc, getDocs, orderBy, query, updateDoc } from 'firebase/firestore';
+import React, { useEffect, useState } from 'react';
+import { ActivityIndicator, Alert, FlatList, Modal, PermissionsAndroid, Platform, StatusBar, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { db } from '../../src/firebaseConfig';
 
 type Report = {
     id: string;
@@ -29,9 +22,65 @@ const sampleData: Report[] = [
 ];
 
 export default function CashReportsScreen() {
-    const [reports, setReports] = useState<Report[]>(sampleData);
+    const [reports, setReports] = useState<Report[]>([]);
+    const [loadingReports, setLoadingReports] = useState(false);
+    const [operationLoading, setOperationLoading] = useState(false); // for save/delete ops
+    const [exporting, setExporting] = useState(false); // NEW: exporting state
+    const [savingSAF, setSavingSAF] = useState(false); // NEW: saving via SAF state (separate spinner for "Share / Save to...")
+
+    // ADDED: modal & editing state (used by openAdd/openEdit/save)
     const [modalVisible, setModalVisible] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
+
+    // ADDED: filter state and pickers
+    const [filterType, setFilterType] = useState<'all' | 'in' | 'out'>('all');
+    const [filterMonth, setFilterMonth] = useState<number | null>(null); // 1..12 or null
+    const [filterYear, setFilterYear] = useState<number | null>(null);
+    const [monthPickerVisible, setMonthPickerVisible] = useState(false);
+    const [yearPickerVisible, setYearPickerVisible] = useState(false);
+
+    // ADDED: months & years helpers
+    const MONTHS = ['All', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const currentYear = new Date().getFullYear();
+    const YEARS = Array.from({ length: 6 }).map((_, i) => currentYear - i); // last 6 years
+
+    // reusable loader
+    async function loadReports() {
+        setLoadingReports(true);
+        try {
+            const q = query(collection(db, 'cash_reports'), orderBy('date', 'desc'));
+            const snaps = await getDocs(q);
+            const rows: Report[] = [];
+            snaps.docs.forEach(d => {
+                const data = d.data() as any;
+                // skip soft-deleted documents
+                if (data?.deleted) return;
+                rows.push({
+                    id: d.id,
+                    type: data.type || 'in',
+                    date: data.date || defaultDate,
+                    amount: Number(data.amount) || 0,
+                    category: data.category || '',
+                    description: data.description || '',
+                });
+            });
+            setReports(rows);
+        } catch (err) {
+            console.error('Failed to load reports:', err);
+            Alert.alert('Error', 'Failed to load cash reports');
+        } finally {
+            setLoadingReports(false);
+        }
+    }
+
+    // load on mount
+    useEffect(() => {
+        let mounted = true;
+        (async () => {
+            if (mounted) await loadReports();
+        })();
+        return () => { mounted = false; };
+    }, []);
 
     const today = new Date();
     const pad = (n: number) => (n < 10 ? `0${n}` : `${n}`);
@@ -70,6 +119,20 @@ export default function CashReportsScreen() {
     // hitung total saldo sekarang (in +, out -)
     const totalSaldo = reports.reduce((acc, r) => acc + (r.type === 'in' ? r.amount : -r.amount), 0);
 
+    // ADDED: compute filteredReports and totalFilteredSaldo used by UI
+    const filteredReports = reports.filter((r) => {
+        // guard if date missing or invalid
+        if (!r.date) return false;
+        const d = new Date(r.date);
+        if (filterType !== 'all' && r.type !== filterType) return false;
+        if (filterMonth && (d.getMonth() + 1) !== filterMonth) return false;
+        if (filterYear && d.getFullYear() !== filterYear) return false;
+        return true;
+    });
+
+    // ADDED: total of filtered reports (in = +, out = -)
+    const totalFilteredSaldo = filteredReports.reduce((acc, r) => acc + (r.type === 'in' ? r.amount : -r.amount), 0);
+
     function openAdd() {
         setEditingId(null);
         setType('in');
@@ -96,54 +159,295 @@ export default function CashReportsScreen() {
             return;
         }
         const amt = parseCurrency(amount);
-        if (editingId) {
-            setReports((prev) => prev.map((p) => (p.id === editingId ? { ...p, type, date, amount: amt, category, description } : p)));
-        } else {
-            const newReport: Report = {
-                id: Date.now().toString(),
-                type,
-                date,
-                amount: amt,
-                category,
-                description,
-            };
-            setReports((prev) => [newReport, ...prev]);
-        }
-        setModalVisible(false);
+        (async () => {
+            setOperationLoading(true);
+            try {
+                if (editingId) {
+                    const ref = doc(db, 'cash_reports', editingId);
+                    await updateDoc(ref, { type, date, amount: amt, category, description });
+                } else {
+                    // create with deleted flag = false
+                    await addDoc(collection(db, 'cash_reports'), { type, date, amount: amt, category, description, createdAt: new Date(), deleted: false });
+                }
+                // reload via shared loader
+                await loadReports();
+                // make saved entry visible by setting filters to its date (optional)
+                try {
+                    const [yStr, mStr] = date.split('-');
+                    setFilterYear(Number(yStr));
+                    setFilterMonth(Number(mStr));
+                } catch { /* ignore parse errors */ }
+                setModalVisible(false);
+            } catch (err) {
+                console.error('Save error:', err);
+                Alert.alert('Error', 'Failed to save report');
+            } finally {
+                setOperationLoading(false);
+            }
+        })();
     }
 
     function remove(id: string) {
         Alert.alert('Confirm', 'Delete this cash report?', [
             { text: 'Cancel', style: 'cancel' },
-            { text: 'Delete', style: 'destructive', onPress: () => setReports((p) => p.filter((i) => i.id !== id)) },
+            {
+                text: 'Delete', style: 'destructive', onPress: async () => {
+                    // soft-delete: set deleted flag and timestamp
+                    setOperationLoading(true);
+                    try {
+                        const ref = doc(db, 'cash_reports', id);
+                        await updateDoc(ref, { deleted: true, deletedAt: new Date() });
+                        await loadReports();
+                    } catch (err) {
+                        console.error('Soft-delete error:', err);
+                        Alert.alert('Error', 'Failed to delete report');
+                    } finally {
+                        setOperationLoading(false);
+                    }
+                }
+            },
         ]);
     }
 
-    // NEW: filter state
-    const [filterType, setFilterType] = useState<'all' | 'in' | 'out'>('all');
-    const [filterMonth, setFilterMonth] = useState<number | null>(null); // 1-12 or null = all
-    const [filterYear, setFilterYear] = useState<number | null>(null); // year or null = all
+    // NEW: CSV helper & export function
+    function escapeCsvCell(v: any) {
+        if (v === null || v === undefined) return '';
+        const s = String(v);
+        if (s.includes('"') || s.includes(',') || s.includes('\n')) {
+            return `"${s.replace(/"/g, '""')}"`;
+        }
+        return s;
+    }
 
-    // NEW: picker modal visibility
-    const [monthPickerVisible, setMonthPickerVisible] = useState(false);
-    const [yearPickerVisible, setYearPickerVisible] = useState(false);
+    // ADD: helper to fetch all reports (including soft-deleted) from Firestore
+    async function fetchAllReportsIncludeDeleted(): Promise<any[]> {
+        try {
+            const q = query(collection(db, 'cash_reports'), orderBy('date', 'desc'));
+            const snaps = await getDocs(q);
+            return snaps.docs.map(d => {
+                const data = d.data() as any;
+                return {
+                    id: d.id,
+                    type: data.type || 'in',
+                    date: data.date || defaultDate,
+                    amount: Number(data.amount) || 0,
+                    category: data.category || '',
+                    description: data.description || '',
+                    deleted: !!data.deleted,
+                    deletedAt: data.deletedAt ? (data.deletedAt.toDate ? data.deletedAt.toDate().toISOString() : String(data.deletedAt)) : '',
+                };
+            });
+        } catch (e) {
+            console.warn('fetchAllReportsIncludeDeleted error', e);
+            return [];
+        }
+    }
 
-    // helper: months and years list
-    const MONTHS = ['All', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    const currentYear = new Date().getFullYear();
-    const YEARS = Array.from({ length: 6 }).map((_, i) => currentYear - i); // last 6 years, latest first
+    // REPLACE exportReports implementation to export ALL records (including soft-deleted)
+    async function exportReports() {
+        try {
+            setExporting(true);
 
-    // NEW: filtered reports based on filters
-    const filteredReports = reports.filter((r) => {
-        const d = new Date(r.date);
-        if (filterType !== 'all' && r.type !== filterType) return false;
-        if (filterMonth && d.getMonth() + 1 !== filterMonth) return false;
-        if (filterYear && d.getFullYear() !== filterYear) return false;
-        return true;
-    });
+            // fetch all from DB (including deleted) and export ALL (do not apply UI filters)
+            const all = await fetchAllReportsIncludeDeleted();
+            const rows = all; // export everything
 
-    // update total to reflect filtered results
-    const totalFilteredSaldo = filteredReports.reduce((acc, r) => acc + (r.type === 'in' ? r.amount : -r.amount), 0);
+            // headers include deleted info
+            const headers = ['id', 'type', 'date', 'amount', 'category', 'description', 'deleted', 'deletedAt'];
+            const lines = [headers.join(',')];
+            for (const r of rows) {
+                const line = [
+                    escapeCsvCell(r.id),
+                    escapeCsvCell(r.type),
+                    escapeCsvCell(r.date),
+                    escapeCsvCell(r.amount),
+                    escapeCsvCell(r.category),
+                    escapeCsvCell(r.description),
+                    escapeCsvCell(r.deleted ? '1' : '0'),
+                    escapeCsvCell(r.deletedAt || ''),
+                ].join(',');
+                lines.push(line);
+            }
+            const csv = lines.join('\n');
+
+            // filename: include 'all' to indicate full export
+            const filename = `cash_reports_all.csv`;
+
+            if (Platform.OS === 'web') {
+                const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                URL.revokeObjectURL(url);
+                Alert.alert('Download', 'CSV file should be downloaded to your device.');
+            } else {
+                // Native: reuse existing logic (try Downloads, SAF fallback, then app storage)
+                if (Platform.OS === 'android') {
+                    try {
+                        const granted = await PermissionsAndroid.request(
+                            PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
+                            {
+                                title: 'Storage Permission',
+                                message: 'App needs access to save files to your Downloads folder',
+                                buttonPositive: 'OK',
+                                buttonNegative: 'Cancel',
+                            }
+                        );
+                        const fileNameWithPath = '/storage/emulated/0/Download/' + filename;
+                        if (granted === PermissionsAndroid.RESULTS.GRANTED) {
+                            try {
+                                await FileSystem.writeAsStringAsync(fileNameWithPath, csv);
+                                Alert.alert('Saved', `File saved to Downloads:\n${fileNameWithPath}`);
+                            } catch (errWrite) {
+                                console.warn('Direct write to Downloads failed, falling back to SAF:', errWrite);
+                                const saved = await saveUsingSAF(csv, filename);
+                                if (saved) Alert.alert('Saved', `File saved to:\n${saved}`);
+                                else {
+                                    const fileUri = FileSystem.documentDirectory + filename;
+                                    await FileSystem.writeAsStringAsync(fileUri, csv);
+                                    Alert.alert('Saved', `Unable to write to Downloads. Saved to app storage:\n${fileUri}`);
+                                }
+                            }
+                        } else {
+                            const saved = await saveUsingSAF(csv, filename);
+                            if (saved) Alert.alert('Saved', `File saved to:\n${saved}`);
+                            else {
+                                const fileUri = FileSystem.documentDirectory + filename;
+                                await FileSystem.writeAsStringAsync(fileUri, csv);
+                                Alert.alert('Saved', `Permission denied. File saved to app storage:\n${fileUri}`);
+                            }
+                        }
+                    } catch (err) {
+                        console.warn('Android export unexpected error:', err);
+                        const saved = await saveUsingSAF(csv, filename);
+                        if (saved) Alert.alert('Saved', `File saved to:\n${saved}`);
+                        else {
+                            const fileUri = FileSystem.documentDirectory + filename;
+                            try { await FileSystem.writeAsStringAsync(fileUri, csv); } catch { }
+                            Alert.alert('Saved', `Saved to app storage:\n${fileUri}`);
+                        }
+                    }
+                } else {
+                    const fileUri = FileSystem.documentDirectory + filename;
+                    await FileSystem.writeAsStringAsync(fileUri, csv);
+                    Alert.alert('Saved', `File saved to app storage:\n${fileUri}`);
+                }
+            }
+        } catch (err) {
+            console.error('Export error:', err);
+            Alert.alert('Error', 'Failed to export CSV');
+        } finally {
+            setExporting(false);
+        }
+    }
+
+    // NEW: build CSV from current filteredReports
+    function buildCsvFromFilteredReports() {
+        const rows = filteredReports;
+        const headers = ['id', 'type', 'date', 'amount', 'category', 'description'];
+        const lines = [headers.join(',')];
+        for (const r of rows) {
+            const line = [
+                escapeCsvCell(r.id),
+                escapeCsvCell(r.type),
+                escapeCsvCell(r.date),
+                escapeCsvCell(r.amount),
+                escapeCsvCell(r.category),
+                escapeCsvCell(r.description),
+            ].join(',');
+            lines.push(line);
+        }
+        return lines.join('\n');
+    }
+
+    // NEW: handler to save via SAF (user chooses folder)
+    async function handleSaveToFolder() {
+        setSavingSAF(true);
+        try {
+            // fetch all from DB (including deleted)
+            const all = await fetchAllReportsIncludeDeleted();
+            const rows = all; // export everything
+
+            const headers = ['id', 'type', 'date', 'amount', 'category', 'description', 'deleted', 'deletedAt'];
+            const lines = [headers.join(',')];
+            for (const r of rows) {
+                const line = [
+                    escapeCsvCell(r.id),
+                    escapeCsvCell(r.type),
+                    escapeCsvCell(r.date),
+                    escapeCsvCell(r.amount),
+                    escapeCsvCell(r.category),
+                    escapeCsvCell(r.description),
+                    escapeCsvCell(r.deleted ? '1' : '0'),
+                    escapeCsvCell(r.deletedAt || ''),
+                ].join(',');
+                lines.push(line);
+            }
+            const csv = lines.join('\n');
+
+            const filename = `cash_reports_all.csv`;
+
+            const savedUri = await saveUsingSAF(csv, filename);
+            if (savedUri) {
+                Alert.alert('Saved', `File successfully saved!`);
+                return;
+            }
+            // fallback to app storage
+            const fileUri = FileSystem.documentDirectory + filename;
+            await FileSystem.writeAsStringAsync(fileUri, csv);
+            Alert.alert('Saved', `Unable to save via picker. File saved to app storage:\n${fileUri}`);
+        } catch (err) {
+            console.error('SAF save error:', err);
+            Alert.alert('Error', 'Failed to save via picker');
+        } finally {
+            setSavingSAF(false);
+        }
+    }
+
+    // NEW helper: use Storage Access Framework (SAF) to let user pick a folder and save file there (Android)
+    async function saveUsingSAF(content: string, filename: string): Promise<string | null> {
+        try {
+            // request user to pick a directory
+            // note: StorageAccessFramework api available on expo-file-system
+            // returns { directoryUri } or throws
+            // adapt to environment: some expo versions return { granted, directoryUri }
+            // try both shapes defensively
+            // @ts-ignore
+            const perm: any = await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync?.();
+            const dirUri = perm?.directoryUri ?? perm?.directoryURI ?? perm;
+            if (!dirUri) return null;
+
+            // create file in chosen directory
+            // mime type for CSV:
+            const mime = 'text/csv';
+            // @ts-ignore
+            const fileUri = await FileSystem.StorageAccessFramework.createFileAsync(dirUri, filename, mime);
+            if (!fileUri) return null;
+
+            // write content
+            await FileSystem.writeAsStringAsync(fileUri, content);
+            return fileUri;
+        } catch (e) {
+            console.warn('SAF save failed:', e);
+            return null;
+        }
+    }
+
+    // show loader if initial load
+    if (loadingReports) {
+        return (
+            <SafeAreaView style={{ flex: 1, backgroundColor: '#fff', paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0 }}>
+                <StatusBar barStyle="dark-content" translucent backgroundColor="transparent" />
+                <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+                    <Text style={{ color: '#6B7280' }}>Loading reports...</Text>
+                </View>
+            </SafeAreaView>
+        );
+    }
 
     const renderItem = ({ item }: { item: Report }) => {
         const sign = item.type === 'in' ? '+' : '-';
@@ -361,18 +665,40 @@ export default function CashReportsScreen() {
             </View>
 
             {/* Add button */}
-            <View className="px-6 mb-2">
-                <TouchableOpacity activeOpacity={0.85} onPress={openAdd}>
-                    <LinearGradient
-                        colors={['#6366f1', '#8b5cf6']}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 0 }}
-                        className="rounded-full py-3 items-center"
-                        style={{ elevation: 3 }}
+            <View className="px-6 mb-2" style={{ flexDirection: 'row', gap: 12 }}>
+                <View style={{ flex: 1 }}>
+                    <TouchableOpacity activeOpacity={0.85} onPress={openAdd}>
+                        <LinearGradient
+                            colors={['#6366f1', '#8b5cf6']}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 0 }}
+                            style={{ borderRadius: 999, paddingVertical: 12, alignItems: 'center', elevation: 3 }}
+                        >
+                            <Text style={{ color: '#fff', fontWeight: '700' }}>+ Add Report</Text>
+                        </LinearGradient>
+                    </TouchableOpacity>
+                </View>
+
+                <View style={{ width: 140 }}>
+                    <TouchableOpacity
+                        onPress={handleSaveToFolder}
+                        disabled={savingSAF}
+                        style={{
+                            borderRadius: 999,
+                            paddingVertical: 12,
+                            alignItems: 'center',
+                            backgroundColor: savingSAF ? '#f0fdf4' : '#F3F4F6',
+                            borderWidth: 1,
+                            borderColor: '#86efac',
+                        }}
                     >
-                        <Text className="text-white font-semibold">+ Add Report</Text>
-                    </LinearGradient>
-                </TouchableOpacity>
+                        {savingSAF ? (
+                            <ActivityIndicator size="small" color="#16a34a" />
+                        ) : (
+                            <Text style={{ color: '#16a34a', fontWeight: '700' }}>Save to...</Text>
+                        )}
+                    </TouchableOpacity>
+                </View>
             </View>
 
             {/* List */}
@@ -435,12 +761,13 @@ export default function CashReportsScreen() {
                         <Text className="text-sm text-gray-600 mb-1">Description</Text>
                         <TextInput value={description} onChangeText={setDescription} placeholder="Description (optional)" className="border rounded-lg px-4 py-3 mb-3" />
 
-                        <View className="flex-row justify-between mt-2">
-                            <TouchableOpacity onPress={() => setModalVisible(false)} className="px-4 py-3">
-                                <Text className="text-gray-600">Cancel</Text>
+                        <View className="flex-row justify-between mt-2" style={{ alignItems: 'center' }}>
+                            <TouchableOpacity onPress={() => !operationLoading && setModalVisible(false)} disabled={operationLoading} style={{ opacity: operationLoading ? 0.6 : 1, paddingHorizontal: 16, paddingVertical: 8 }}>
+                                <Text style={{ color: '#6B7280' }}>Cancel</Text>
                             </TouchableOpacity>
-                            <TouchableOpacity onPress={save} className="px-4 py-3">
-                                <Text className="text-[#4fc3f7] font-semibold">{editingId ? 'Save' : 'Add'}</Text>
+                            <TouchableOpacity onPress={save} disabled={operationLoading} style={{ flexDirection: 'row', alignItems: 'center', opacity: operationLoading ? 0.7 : 1, paddingHorizontal: 16, paddingVertical: 8 }}>
+                                {operationLoading && <ActivityIndicator size="small" color="#4fc3f7" style={{ marginRight: 8 }} />}
+                                <Text style={{ color: '#4fc3f7', fontWeight: '700' }}>{operationLoading ? 'Saving...' : (editingId ? 'Save' : 'Add')}</Text>
                             </TouchableOpacity>
                         </View>
                     </View>
