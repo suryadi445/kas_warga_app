@@ -1,9 +1,21 @@
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as ImagePicker from 'expo-image-picker';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Platform, ScrollView, StatusBar, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import {
+    ActivityIndicator,
+    Alert,
+    Image, // ADD: Import Image component
+    Platform,
+    ScrollView,
+    StatusBar,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
+} from 'react-native';
 import DateTimePickerModal from 'react-native-modal-datetime-picker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { db } from '../../src/firebaseConfig';
@@ -26,7 +38,13 @@ export default function ProfilePage() {
     const [maritalStatus, setMaritalStatus] = useState('single');
     const [spouseName, setSpouseName] = useState('');
     const [children, setChildren] = useState<Array<{ name: string; birthDate: string; placeOfBirth: string }>>([]);
-    const [address, setAddress] = useState(''); // NEW: address field
+    const [address, setAddress] = useState('');
+
+    // NEW: profile image state
+    const [profileImage, setProfileImage] = useState<string | undefined>(undefined);
+
+    // NEW: marital status dropdown state
+    const [maritalStatusOpen, setMaritalStatusOpen] = useState(false);
 
     // date picker modal: context can be 'birthday' or { type: 'child', index: number }
     const [datePickerVisible, setDatePickerVisible] = useState(false);
@@ -38,6 +56,13 @@ export default function ProfilePage() {
     const [roleOpen, setRoleOpen] = useState(false);
     const [canEditRole, setCanEditRole] = useState(false); // NEW: check if user can edit roles
     const [currentUserRole, setCurrentUserRole] = useState<string>('Member'); // NEW: track current user's role
+
+    const MARITAL_STATUS_OPTIONS = [
+        { value: 'single', label: 'Single' },
+        { value: 'married', label: 'Married' },
+        { value: 'divorced', label: 'Divorced' },
+        { value: 'widowed', label: 'Widowed' },
+    ];
 
     // Load profile on mount
     useEffect(() => {
@@ -77,7 +102,6 @@ export default function ProfilePage() {
 
             for (let i = 0; i < retries; i++) {
                 try {
-                    // Force fresh read by adding timestamp to prevent cache
                     const userDocRef = doc(db, 'users', currentUser.uid);
                     const userDoc = await getDoc(userDocRef);
 
@@ -101,6 +125,8 @@ export default function ProfilePage() {
                         setMaritalStatus(data.maritalStatus || 'single');
                         setSpouseName(data.spouseName || '');
                         setChildren(data.children || []);
+                        setAddress(data.address || '');
+                        setProfileImage(data.profileImage || undefined); // NEW: load profile image
 
                         console.log('State updated - Role:', data.role);
                     } else {
@@ -178,6 +204,33 @@ export default function ProfilePage() {
         setDatePickerContext(null);
     }
 
+    // NEW: image upload helpers
+    function revokePreviousImage() {
+        try {
+            if (profileImage && typeof profileImage === 'string' && profileImage.startsWith('blob:')) {
+                URL.revokeObjectURL(profileImage);
+            }
+        } catch { }
+    }
+
+    async function pickImageNative() {
+        try {
+            const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+            if (!perm.granted) {
+                Alert.alert('Permission', 'Gallery access permission required');
+                return;
+            }
+            const res = await ImagePicker.launchImageLibraryAsync({ quality: 0.7, base64: false });
+            const uri = (res as any)?.assets?.[0]?.uri || (res as any)?.uri;
+            if (uri) {
+                revokePreviousImage();
+                setProfileImage(uri);
+            }
+        } catch {
+            // ignore
+        }
+    }
+
     async function handleSave() {
         if (!name.trim()) {
             Alert.alert('Validation', 'Name is required');
@@ -192,9 +245,7 @@ export default function ProfilePage() {
         try {
             setSaving(true);
 
-            // Use setDoc with merge: true instead of updateDoc
-            // This will create the document if it doesn't exist, or update it if it does
-            await setDoc(doc(db, 'users', uid), {
+            const updateData: any = {
                 uid,
                 email,
                 nama: name,
@@ -205,10 +256,22 @@ export default function ProfilePage() {
                 maritalStatus,
                 spouseName: maritalStatus === 'married' ? spouseName : '',
                 children: (maritalStatus === 'married' || maritalStatus === 'divorced' || maritalStatus === 'widowed') ? children : [],
-            }, { merge: true });
+                address: address,
+                profileImage: profileImage || '', // use profileImage only
+            };
+
+            // Only include role if user is super admin (can edit role)
+            if (canEditRole) {
+                updateData.role = role;
+            } else {
+                updateData.role = role;
+            }
+
+            console.log('Saving profile with data:', updateData);
+
+            await setDoc(doc(db, 'users', uid), updateData, { merge: true });
 
             Alert.alert('Success', 'Profile updated successfully');
-            // Reload profile to sync state
             await loadUserProfile();
         } catch (error: any) {
             console.error('Save profile error:', error);
@@ -286,6 +349,31 @@ export default function ProfilePage() {
             </View>
 
             <ScrollView style={{ padding: 16 }} contentContainerStyle={{ paddingBottom: 160 }}>
+                {/* Profile Image Section */}
+                <View style={{ alignItems: 'center', marginBottom: 16 }}>
+                    <View style={{ width: 120, height: 120, borderRadius: 60, backgroundColor: '#F3F4F6', overflow: 'hidden', marginBottom: 12, borderWidth: 3, borderColor: '#6366f1' }}>
+                        {profileImage ? (
+                            <Image source={{ uri: profileImage }} style={{ width: '100%', height: '100%' }} />
+                        ) : (
+                            <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+                                <Text style={{ fontSize: 48 }}>👤</Text>
+                            </View>
+                        )}
+                    </View>
+
+                    <Text style={{ color: '#374151', marginBottom: 6 }}>Profile Image</Text>
+
+                    {/* Action buttons */}
+                    <View style={{ flexDirection: 'row', gap: 8, width: '100%', justifyContent: 'center' }}>
+                        <TouchableOpacity onPress={pickImageNative} style={{ backgroundColor: '#F3F4F6', padding: 10, borderRadius: 8, flex: 1 }}>
+                            <Text style={{ color: '#374151', textAlign: 'center' }}>Pick from gallery</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={() => { revokePreviousImage(); setProfileImage(undefined); }} style={{ backgroundColor: '#FEF2F2', padding: 10, borderRadius: 8, flex: 1 }}>
+                            <Text style={{ color: '#EF4444', textAlign: 'center' }}>Clear</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+
                 <Text style={{ color: '#374151' }}>Name</Text>
                 <TextInput value={name} onChangeText={setName} placeholder="Full name" style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 10, marginTop: 8 }} />
 
@@ -387,31 +475,53 @@ export default function ProfilePage() {
                 <Text style={{ color: '#374151', marginTop: 12 }}>Phone</Text>
                 <TextInput value={phone} onChangeText={setPhone} placeholder="08xxxx" keyboardType="phone-pad" style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 10, marginTop: 8 }} />
 
+                {/* NEW: Address field - after Phone and before Marital Status */}
+                <Text style={{ color: '#374151', marginTop: 12 }}>Address</Text>
+                <TextInput
+                    value={address}
+                    onChangeText={setAddress}
+                    placeholder="Full address"
+                    multiline
+                    numberOfLines={3}
+                    style={{
+                        borderWidth: 1,
+                        borderColor: '#E5E7EB',
+                        borderRadius: 8,
+                        padding: 10,
+                        marginTop: 8,
+                        textAlignVertical: 'top',
+                        minHeight: 80,
+                    }}
+                />
+
+                {/* Marital Status - Select Option (changed from buttons) */}
                 <Text style={{ color: '#374151', marginTop: 12 }}>Marital Status</Text>
-                <View style={{ flexDirection: 'row', marginTop: 8, flexWrap: 'wrap', gap: 8 }}>
-                    {['single', 'married', 'divorced', 'widowed'].map((s) => {
-                        const selected = maritalStatus === s;
-                        return (
+                <TouchableOpacity
+                    onPress={() => setMaritalStatusOpen((v) => !v)}
+                    style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 12, marginTop: 8, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}
+                >
+                    <Text style={{ color: maritalStatus ? '#111827' : '#9CA3AF' }}>
+                        {MARITAL_STATUS_OPTIONS.find(o => o.value === maritalStatus)?.label || 'Select marital status'}
+                    </Text>
+                    <Text style={{ color: '#6B7280' }}>▾</Text>
+                </TouchableOpacity>
+                {maritalStatusOpen && (
+                    <View style={{ backgroundColor: '#F9FAFB', borderRadius: 8, marginTop: 6 }}>
+                        {MARITAL_STATUS_OPTIONS.map((opt) => (
                             <TouchableOpacity
-                                key={s}
+                                key={opt.value}
                                 onPress={() => {
-                                    setMaritalStatus(s);
-                                    if (s !== 'married') setSpouseName('');
+                                    setMaritalStatus(opt.value);
+                                    setMaritalStatusOpen(false);
+                                    if (opt.value !== 'married') setSpouseName('');
                                 }}
-                                style={{
-                                    paddingVertical: 8,
-                                    paddingHorizontal: 12,
-                                    borderRadius: 8,
-                                    backgroundColor: selected ? '#6366f1' : '#F3F4F6',
-                                }}
+                                style={{ paddingVertical: 12, paddingHorizontal: 12 }}
                             >
-                                <Text style={{ color: selected ? '#fff' : '#111827', fontWeight: selected ? '700' : '600' }}>
-                                    {s.charAt(0).toUpperCase() + s.slice(1)}
-                                </Text>
+                                <Text style={{ color: '#111827' }}>{opt.label}</Text>
                             </TouchableOpacity>
-                        );
-                    })}
-                </View>
+                        ))}
+                    </View>
+                )}
 
                 {/* spouse name when married */}
                 {maritalStatus === 'married' && (
