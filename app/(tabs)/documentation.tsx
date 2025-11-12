@@ -1,6 +1,8 @@
 import * as ImagePicker from 'expo-image-picker';
-import React, { useState } from 'react';
+import { addDoc, collection, deleteDoc, doc, onSnapshot, orderBy, query, serverTimestamp, updateDoc } from 'firebase/firestore';
+import React, { useEffect, useState } from 'react';
 import {
+    ActivityIndicator,
     Alert,
     FlatList,
     Image,
@@ -14,6 +16,7 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import { db } from '../../src/firebaseConfig';
 import HeaderCard from '../components/HeaderCard';
 
 type Documentation = {
@@ -25,34 +28,61 @@ type Documentation = {
     date: string;
 };
 
-// Sample activities (normally fetched from activities store/API)
-const SAMPLE_ACTIVITIES = [
-    { id: 'act1', name: 'Senam Pagi' },
-    { id: 'act2', name: 'Rapat RW' },
-    { id: 'act3', name: 'Gotong Royong' },
-];
-
-const SAMPLE_DOCS: Documentation[] = [
-    {
-        id: 'd1',
-        activityId: 'act1',
-        activityName: 'Senam Pagi',
-        images: ['https://via.placeholder.com/150'],
-        description: 'Dokumentasi senam pagi minggu ini',
-        date: '2025-11-09',
-    },
-];
-
 export default function DocumentationScreen() {
-    const [items, setItems] = useState<Documentation[]>(SAMPLE_DOCS);
+    const [items, setItems] = useState<Documentation[]>([]);
     const [modalVisible, setModalVisible] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
+    const [loadingDocs, setLoadingDocs] = useState(true);
+    const [operationLoading, setOperationLoading] = useState(false);
 
     const [activityId, setActivityId] = useState('');
     const [activityName, setActivityName] = useState('');
+    const [activities, setActivities] = useState<{ id: string; name: string }[]>([]);
     const [images, setImages] = useState<string[]>([]);
     const [description, setDescription] = useState('');
     const [activityOpen, setActivityOpen] = useState(false);
+
+    // realtime listener for activities collection (so picker uses actual activities module)
+    useEffect(() => {
+        const q = query(collection(db, 'activities'), orderBy('date', 'desc'));
+        const unsub = onSnapshot(q, (snap) => {
+            const rows = snap.docs.map(d => {
+                const data = d.data() as any;
+                // try common name fields used in different schemas
+                const name = data.title ?? data.name ?? data.activityName ?? '';
+                return { id: d.id, name };
+            });
+            setActivities(rows);
+        }, (err) => {
+            console.warn('activities snapshot error', err);
+        });
+        return () => unsub();
+    }, []);
+
+    // realtime listener for documentation collection
+    useEffect(() => {
+        setLoadingDocs(true);
+        const q = query(collection(db, 'documentation'), orderBy('date', 'desc'));
+        const unsub = onSnapshot(q, (snap) => {
+            const rows: Documentation[] = snap.docs.map(d => {
+                const data = d.data() as any;
+                return {
+                    id: d.id,
+                    activityId: data.activityId || '',
+                    activityName: data.activityName || '',
+                    images: Array.isArray(data.images) ? data.images : [],
+                    description: data.description || '',
+                    date: data.date || (data.createdAt ? new Date(data.createdAt.seconds * 1000).toISOString().split('T')[0] : ''),
+                };
+            });
+            setItems(rows);
+            setLoadingDocs(false);
+        }, (err) => {
+            console.error('documentation snapshot error', err);
+            setLoadingDocs(false);
+        });
+        return () => unsub();
+    }, []);
 
     function openAdd() {
         setEditingId(null);
@@ -95,7 +125,7 @@ export default function DocumentationScreen() {
         setImages((prev) => prev.filter((i) => i !== uri));
     }
 
-    function save() {
+    async function save() {
         if (!activityId) {
             Alert.alert('Error', 'Please select an activity');
             return;
@@ -104,28 +134,53 @@ export default function DocumentationScreen() {
             Alert.alert('Error', 'Please upload at least one image');
             return;
         }
-
-        const payload: Documentation = {
-            id: editingId ?? Date.now().toString(),
-            activityId,
-            activityName,
-            images,
-            description,
-            date: new Date().toISOString().split('T')[0],
-        };
-
-        if (editingId) {
-            setItems((p) => p.map((i) => (i.id === editingId ? payload : i)));
-        } else {
-            setItems((p) => [payload, ...p]);
+        setOperationLoading(true);
+        try {
+            if (editingId) {
+                const ref = doc(db, 'documentation', editingId);
+                await updateDoc(ref, {
+                    activityId,
+                    activityName,
+                    images,
+                    description,
+                    date: new Date().toISOString().split('T')[0],
+                    updatedAt: serverTimestamp(),
+                });
+            } else {
+                await addDoc(collection(db, 'documentation'), {
+                    activityId,
+                    activityName,
+                    images,
+                    description,
+                    date: new Date().toISOString().split('T')[0],
+                    createdAt: serverTimestamp(),
+                });
+            }
+            setModalVisible(false);
+        } catch (e) {
+            console.error('documentation save error', e);
+            Alert.alert('Error', 'Failed to save documentation');
+        } finally {
+            setOperationLoading(false);
         }
-        setModalVisible(false);
     }
 
     function remove(id: string) {
         Alert.alert('Confirm', 'Delete this documentation?', [
             { text: 'Cancel', style: 'cancel' },
-            { text: 'Delete', style: 'destructive', onPress: () => setItems((p) => p.filter((i) => i.id !== id)) },
+            {
+                text: 'Delete', style: 'destructive', onPress: async () => {
+                    setOperationLoading(true);
+                    try {
+                        await deleteDoc(doc(db, 'documentation', id));
+                    } catch (e) {
+                        console.error('delete documentation error', e);
+                        Alert.alert('Error', 'Failed to delete documentation');
+                    } finally {
+                        setOperationLoading(false);
+                    }
+                }
+            },
         ]);
     }
 
@@ -141,10 +196,10 @@ export default function DocumentationScreen() {
                         </View>
 
                         <View style={{ marginLeft: 8, alignItems: 'flex-end' }}>
-                            <TouchableOpacity onPress={() => openEdit(item)} style={{ marginBottom: 8 }}>
+                            <TouchableOpacity disabled={operationLoading} onPress={() => openEdit(item)} style={{ marginBottom: 8 }}>
                                 <Text style={{ color: '#06B6D4', fontWeight: '600' }}>Edit</Text>
                             </TouchableOpacity>
-                            <TouchableOpacity onPress={() => remove(item.id)}>
+                            <TouchableOpacity disabled={operationLoading} onPress={() => remove(item.id)}>
                                 <Text style={{ color: '#EF4444', fontWeight: '600' }}>Delete</Text>
                             </TouchableOpacity>
                         </View>
@@ -167,7 +222,13 @@ export default function DocumentationScreen() {
 
             <HeaderCard icon="📸" title="Documentation" subtitle="Upload photos of community activities" buttonLabel="+ Add Documentation" onButtonPress={openAdd} />
 
-            <FlatList data={items} keyExtractor={(i) => i.id} renderItem={renderItem} contentContainerStyle={{ paddingBottom: 32 }} />
+            {loadingDocs ? (
+                <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 40 }}>
+                    <ActivityIndicator size="small" color="#6366f1" />
+                </View>
+            ) : (
+                <FlatList data={items} keyExtractor={(i) => i.id} renderItem={renderItem} contentContainerStyle={{ paddingBottom: 32 }} />
+            )}
 
             {/* Modal Form */}
             <Modal visible={modalVisible} animationType="slide" transparent onRequestClose={() => setModalVisible(false)}>
@@ -183,7 +244,11 @@ export default function DocumentationScreen() {
                             </TouchableOpacity>
                             {activityOpen && (
                                 <View style={{ backgroundColor: '#F9FAFB', borderRadius: 8, marginTop: 6 }}>
-                                    {SAMPLE_ACTIVITIES.map((act) => (
+                                    {activities.length === 0 ? (
+                                        <View style={{ padding: 12 }}>
+                                            <Text style={{ color: '#6B7280' }}>No activities</Text>
+                                        </View>
+                                    ) : activities.map((act) => (
                                         <TouchableOpacity key={act.id} onPress={() => { setActivityId(act.id); setActivityName(act.name); setActivityOpen(false); }} style={{ paddingVertical: 12, paddingHorizontal: 12 }}>
                                             <Text style={{ color: '#111827' }}>{act.name}</Text>
                                         </TouchableOpacity>
