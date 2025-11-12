@@ -1,7 +1,9 @@
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
-import React, { useState } from 'react';
+import { addDoc, collection, deleteDoc, doc, onSnapshot, orderBy, query, serverTimestamp, updateDoc } from 'firebase/firestore';
+import React, { useEffect, useState } from 'react';
 import {
+    ActivityIndicator,
     Alert,
     FlatList,
     Image,
@@ -15,6 +17,7 @@ import {
     View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { db } from '../../src/firebaseConfig';
 
 type Org = {
     id: string;
@@ -31,16 +34,43 @@ const SAMPLE: Org[] = [
 ];
 
 export default function OrganizationScreen() {
-    const [items, setItems] = useState<Org[]>(SAMPLE);
+    // now backed by Firestore
+    const [items, setItems] = useState<Org[]>([]);
     const [modalVisible, setModalVisible] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
+    const [loadingOrg, setLoadingOrg] = useState(true);
+    const [operationLoading, setOperationLoading] = useState(false);
 
     const [title, setTitle] = useState('');
     const [name, setName] = useState('');
     const [phone, setPhone] = useState('');
     const [image, setImage] = useState<string | undefined>(undefined);
-    const [imageUrlInput, setImageUrlInput] = useState('');
     const [leader, setLeader] = useState(false);
+
+    // realtime listener for organization collection
+    useEffect(() => {
+        setLoadingOrg(true);
+        const q = query(collection(db, 'organization'), orderBy('createdAt', 'desc'));
+        const unsub = onSnapshot(q, (snap) => {
+            const rows: Org[] = snap.docs.map(d => {
+                const data = d.data() as any;
+                return {
+                    id: d.id,
+                    title: data.title || '',
+                    name: data.name || '',
+                    phone: data.phone || '',
+                    image: data.image || undefined,
+                    leader: !!data.leader,
+                };
+            });
+            setItems(rows);
+            setLoadingOrg(false);
+        }, (err) => {
+            console.warn('organization snapshot error', err);
+            setLoadingOrg(false);
+        });
+        return () => unsub();
+    }, []);
 
     function openAdd() {
         setEditingId(null);
@@ -48,7 +78,6 @@ export default function OrganizationScreen() {
         setName('');
         setPhone('');
         setImage(undefined);
-        setImageUrlInput('');
         setLeader(false);
         setModalVisible(true);
     }
@@ -59,36 +88,55 @@ export default function OrganizationScreen() {
         setName(o.name);
         setPhone(o.phone);
         setImage(o.image);
-        setImageUrlInput(o.image ?? '');
         setLeader(o.leader);
         setModalVisible(true);
     }
 
-    function save() {
+    async function save() {
         if (!name.trim() || !phone.trim()) {
             Alert.alert('Error', 'Name and phone are required');
             return;
         }
-        const payload: Org = {
-            id: editingId ?? Date.now().toString(),
-            title,
-            name,
-            phone,
-            image: imageUrlInput || image,
-            leader,
-        };
-        if (editingId) {
-            setItems((p) => p.map((it) => (it.id === editingId ? payload : it)));
-        } else {
-            setItems((p) => [payload, ...p]);
+        setOperationLoading(true);
+        try {
+            const payload = {
+                title,
+                name,
+                phone,
+                image: image,
+                leader,
+            };
+            if (editingId) {
+                const ref = doc(db, 'organization', editingId);
+                await updateDoc(ref, { ...payload, updatedAt: serverTimestamp() });
+            } else {
+                await addDoc(collection(db, 'organization'), { ...payload, createdAt: serverTimestamp() });
+            }
+            setModalVisible(false);
+        } catch (e) {
+            console.error('organization save error', e);
+            Alert.alert('Error', 'Failed to save member');
+        } finally {
+            setOperationLoading(false);
         }
-        setModalVisible(false);
     }
 
     function remove(id: string) {
         Alert.alert('Confirm', 'Delete this member?', [
             { text: 'Cancel', style: 'cancel' },
-            { text: 'Delete', style: 'destructive', onPress: () => setItems((p) => p.filter((i) => i.id !== id)) },
+            {
+                text: 'Delete', style: 'destructive', onPress: async () => {
+                    setOperationLoading(true);
+                    try {
+                        await deleteDoc(doc(db, 'organization', id));
+                    } catch (e) {
+                        console.error('delete org member error', e);
+                        Alert.alert('Error', 'Failed to delete member');
+                    } finally {
+                        setOperationLoading(false);
+                    }
+                }
+            },
         ]);
     }
 
@@ -113,42 +161,9 @@ export default function OrganizationScreen() {
             if (uri) {
                 revokePreviousImage();
                 setImage(uri);
-                setImageUrlInput(uri);
             }
         } catch {
             // ignore
-        }
-    }
-
-    function handleWebFileChange(e: any) {
-        const maybeFiles =
-            e?.target?.files || e?.nativeEvent?.target?.files || e?.currentTarget?.files ||
-            (e?.nativeEvent && e.nativeEvent?.dataTransfer && e.nativeEvent.dataTransfer.files);
-        const file = maybeFiles && maybeFiles[0];
-        if (!file) return;
-        if (!file.type?.startsWith?.('image/')) {
-            Alert.alert('Invalid file', 'Please select an image file');
-            return;
-        }
-        revokePreviousImage();
-        try {
-            const reader = new FileReader();
-            reader.onload = () => {
-                const result = reader.result as string | null;
-                if (result) {
-                    setImage(result);
-                    setImageUrlInput('');
-                }
-            };
-            reader.readAsDataURL(file);
-        } catch {
-            try {
-                const url = URL.createObjectURL(file);
-                setImage(url);
-                setImageUrlInput('');
-            } catch {
-                Alert.alert('Error', 'Failed to process image file.');
-            }
         }
     }
 
@@ -177,10 +192,10 @@ export default function OrganizationScreen() {
                     </View>
 
                     <View style={{ marginLeft: 8, alignItems: 'flex-end' }}>
-                        <TouchableOpacity onPress={() => openEdit(item)} style={{ marginBottom: 8 }}>
+                        <TouchableOpacity disabled={operationLoading} onPress={() => openEdit(item)} style={{ marginBottom: 8 }}>
                             <Text style={{ color: '#06B6D4', fontWeight: '600' }}>Edit</Text>
                         </TouchableOpacity>
-                        <TouchableOpacity onPress={() => remove(item.id)}>
+                        <TouchableOpacity disabled={operationLoading} onPress={() => remove(item.id)}>
                             <Text style={{ color: '#EF4444', fontWeight: '600' }}>Delete</Text>
                         </TouchableOpacity>
                     </View>
@@ -203,14 +218,20 @@ export default function OrganizationScreen() {
             </View>
 
             <View style={{ paddingHorizontal: 16, marginBottom: 12 }}>
-                <TouchableOpacity onPress={openAdd}>
+                <TouchableOpacity disabled={operationLoading} onPress={openAdd}>
                     <LinearGradient colors={['#6366f1', '#8b5cf6']} style={{ paddingVertical: 12, borderRadius: 999, alignItems: 'center' }}>
                         <Text style={{ color: '#fff', fontWeight: '700' }}>+ Add Member</Text>
                     </LinearGradient>
                 </TouchableOpacity>
             </View>
 
-            <FlatList data={sortedItems} keyExtractor={(i) => i.id} renderItem={renderItem} contentContainerStyle={{ paddingBottom: 32 }} />
+            {loadingOrg ? (
+                <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 40 }}>
+                    <ActivityIndicator size="small" color="#6366f1" />
+                </View>
+            ) : (
+                <FlatList data={sortedItems} keyExtractor={(i) => i.id} renderItem={renderItem} contentContainerStyle={{ paddingBottom: 32 }} />
+            )}
 
             <Modal visible={modalVisible} animationType="slide" transparent onRequestClose={() => setModalVisible(false)}>
                 <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.3)' }}>
@@ -227,20 +248,12 @@ export default function OrganizationScreen() {
                             <Text style={{ color: '#374151', marginTop: 8 }}>Phone</Text>
                             <TextInput value={phone} onChangeText={setPhone} placeholder="08xxxxxxxx" keyboardType="phone-pad" style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 10, marginTop: 6 }} />
 
-                            <Text style={{ color: '#374151', marginTop: 8 }}>Image (URL or file)</Text>
-                            <TextInput value={imageUrlInput} onChangeText={(v) => { setImageUrlInput(v); setImage(v); }} placeholder="https://..." style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 10, marginTop: 6 }} />
-
-                            {Platform.OS === 'web' ? (
-                                <div style={{ marginTop: 8 }}>
-                                    <input type="file" accept="image/*" onChange={(e) => handleWebFileChange(e)} />
-                                </div>
-                            ) : null}
-
+                            <Text style={{ color: '#374151', marginTop: 8 }}>Image (pick from gallery)</Text>
                             <View style={{ flexDirection: 'row', marginTop: 8, gap: 8 }}>
                                 <TouchableOpacity onPress={pickImageNative} style={{ backgroundColor: '#F3F4F6', padding: 10, borderRadius: 8 }}>
                                     <Text style={{ color: '#374151' }}>Pick from gallery</Text>
                                 </TouchableOpacity>
-                                <TouchableOpacity onPress={() => { revokePreviousImage(); setImage(undefined); setImageUrlInput(''); }} style={{ backgroundColor: '#F3F4F6', padding: 10, borderRadius: 8 }}>
+                                <TouchableOpacity onPress={() => { revokePreviousImage(); setImage(undefined); }} style={{ backgroundColor: '#F3F4F6', padding: 10, borderRadius: 8 }}>
                                     <Text style={{ color: '#EF4444' }}>Clear</Text>
                                 </TouchableOpacity>
                             </View>
@@ -257,11 +270,11 @@ export default function OrganizationScreen() {
                             </View>
 
                             <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 16 }}>
-                                <TouchableOpacity onPress={() => setModalVisible(false)} style={{ padding: 10 }}>
+                                <TouchableOpacity onPress={() => !operationLoading && setModalVisible(false)} disabled={operationLoading} style={{ padding: 10, opacity: operationLoading ? 0.6 : 1 }}>
                                     <Text style={{ color: '#6B7280' }}>Cancel</Text>
                                 </TouchableOpacity>
-                                <TouchableOpacity onPress={save} style={{ padding: 10 }}>
-                                    <Text style={{ color: '#4fc3f7', fontWeight: '700' }}>{editingId ? 'Save' : 'Add'}</Text>
+                                <TouchableOpacity onPress={save} disabled={operationLoading} style={{ padding: 10 }}>
+                                    {operationLoading ? <ActivityIndicator size="small" color="#4fc3f7" /> : <Text style={{ color: '#4fc3f7', fontWeight: '700' }}>{editingId ? 'Save' : 'Add'}</Text>}
                                 </TouchableOpacity>
                             </View>
                         </ScrollView>
