@@ -1,8 +1,7 @@
 import {
     createUserWithEmailAndPassword,
-    signOut as firebaseSignOut,
     signInWithEmailAndPassword,
-    UserCredential,
+    UserCredential
 } from 'firebase/auth';
 import {
     addDoc,
@@ -55,17 +54,26 @@ export const signUp = async (email: string, password: string, nama: string, phon
         const credential: UserCredential = await createUserWithEmailAndPassword(auth, email, password);
         const user = credential.user;
 
-        // simpan data profil tambahan di Firestore
-        await setDoc(doc(db, 'users', user.uid), {
+        const userData = {
             uid: user.uid,
-            email: user.email,
-            nama, // pastikan ini ada
-            phone,
-            role: 'Member',
+            email: user.email || email,
+            nama: nama.trim(),
+            phone: phone.trim(),
+            role: 'Member', // default role
+            gender: '',
+            birthday: '',
+            religion: '',
+            maritalStatus: 'single',
+            spouseName: '',
+            children: [],
             createdAt: serverTimestamp(),
-        });
+        };
 
-        console.log('User registered with nama:', nama); // debug log
+        console.log('Saving user data to Firestore:', userData);
+
+        await setDoc(doc(db, 'users', user.uid), userData);
+
+        console.log('User registered successfully');
 
         return { success: true, user: { uid: user.uid, email: user.email } };
     } catch (err: any) {
@@ -81,15 +89,15 @@ export const signUp = async (email: string, password: string, nama: string, phon
 };
 
 // Helper: retry getDoc with timeout
-async function getDocWithRetry(docRef: any, maxRetries = 3, timeoutMs = 10000) {
+async function getDocWithRetry(docRef: any, maxRetries = 3, timeoutMs = 10000): Promise<any> {
     for (let i = 0; i < maxRetries; i++) {
         try {
-            const promise = getDoc(docRef);
-            const timeoutPromise = new Promise((_, reject) =>
-                setTimeout(() => reject(new Error('Timeout')), timeoutMs)
-            );
-
-            const snap = await Promise.race([promise, timeoutPromise]);
+            const snap = await Promise.race([
+                getDoc(docRef),
+                new Promise<never>((_, reject) =>
+                    setTimeout(() => reject(new Error('Timeout')), timeoutMs)
+                )
+            ]);
             return snap;
         } catch (err: any) {
             console.warn(`getDoc attempt ${i + 1} failed:`, err.message);
@@ -153,15 +161,15 @@ export const signIn = async (email: string, password: string): Promise<AuthResul
 };
 
 // Sign out
-export const signOut = async (): Promise<AuthResult> => {
+export async function signOut() {
     try {
-        await firebaseSignOut(authInstance);
+        await auth.signOut();
         return { success: true };
-    } catch (err: any) {
-        console.error('signOut error:', err);
-        return { success: false, error: err?.message || String(err), code: err?.code || null };
+    } catch (error: any) {
+        console.error('Sign out error:', error);
+        return { success: false, error: error.message || 'Logout failed' };
     }
-};
+}
 
 // Get current user (synchronous)
 export const getCurrentUser = () => {

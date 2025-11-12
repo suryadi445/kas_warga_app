@@ -1,14 +1,12 @@
 // Import the functions you need from the SDKs you need
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { FirebaseApp, getApps, initializeApp } from "firebase/app";
-import { Auth, getAuth, getReactNativePersistence, initializeAuth } from "firebase/auth";
-import { Firestore, initializeFirestore } from "firebase/firestore";
+import { Auth, getAuth } from "firebase/auth";
+import { Firestore, getFirestore, initializeFirestore } from "firebase/firestore";
 // TODO: Add SDKs for Firebase products that you want to use
 // https://firebase.google.com/docs/web/setup#available-libraries
 
 // Your web app's Firebase configuration
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
-const firebaseConfig = {
+export const firebaseConfig = {
     apiKey: "AIzaSyD7VYiv1DKcbSrU9YYb6VcqkKkvCb8xOHg",
     authDomain: "masjid-app-df8c8.firebaseapp.com",
     projectId: "masjid-app-df8c8",
@@ -21,21 +19,14 @@ const firebaseConfig = {
 // Initialize Firebase app (avoid double init)
 const app: FirebaseApp = getApps().length ? (getApps()[0] as FirebaseApp) : initializeApp(firebaseConfig);
 
-// Initialize Auth with AsyncStorage persistence for React Native
+// Initialize Auth - simple approach without persistence config
 let auth: Auth;
 try {
-    auth = initializeAuth(app, {
-        persistence: getReactNativePersistence(AsyncStorage)
-    });
+    auth = getAuth(app);
+    console.log('Auth initialized successfully');
 } catch (e: any) {
-    // If already initialized, fallback to getAuth
-    if (e?.code === 'auth/already-initialized' || e?.message?.includes('already initialized')) {
-        console.warn('Auth already initialized, using getAuth()');
-        auth = getAuth(app);
-    } else {
-        console.error('Failed to initialize auth:', e);
-        auth = getAuth(app);
-    }
+    console.error('Failed to initialize auth:', e);
+    auth = getAuth(app);
 }
 
 // Initialize Firestore with proper error handling
@@ -48,12 +39,9 @@ try {
 } catch (e: any) {
     if (e?.code === 'firestore/already-initialized' || e?.message?.includes('already initialized')) {
         console.warn('Firestore already initialized, using existing instance');
-        const { getFirestore } = require('firebase/firestore');
         db = getFirestore(app);
     } else {
-        // Log error but create instance anyway - will fail on first operation if DB not created
         console.error('Firestore initialization warning:', e.message);
-        const { getFirestore } = require('firebase/firestore');
         db = getFirestore(app);
     }
 }

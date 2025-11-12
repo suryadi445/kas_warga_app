@@ -1,11 +1,13 @@
+import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Platform, ScrollView, StatusBar, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import DateTimePickerModal from 'react-native-modal-datetime-picker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { db } from '../../src/firebaseConfig';
-import { getCurrentUser } from '../../src/services/authService';
+import { getCurrentUser, signOut } from '../../src/services/authService';
 
 export default function ProfilePage() {
     const router = useRouter();
@@ -24,11 +26,20 @@ export default function ProfilePage() {
     const [maritalStatus, setMaritalStatus] = useState('single');
     const [spouseName, setSpouseName] = useState('');
     const [children, setChildren] = useState<Array<{ name: string; birthDate: string; placeOfBirth: string }>>([]);
+    const [address, setAddress] = useState(''); // NEW: address field
 
     // date picker modal: context can be 'birthday' or { type: 'child', index: number }
     const [datePickerVisible, setDatePickerVisible] = useState(false);
     const [datePickerContext, setDatePickerContext] = useState<{ kind: 'birthday' } | { kind: 'child'; index: number } | null>(null);
 
+    // dropdown open state
+    const [genderOpen, setGenderOpen] = useState(false);
+    const [religionOpen, setReligionOpen] = useState(false);
+    const [roleOpen, setRoleOpen] = useState(false);
+    const [canEditRole, setCanEditRole] = useState(false); // NEW: check if user can edit roles
+    const [currentUserRole, setCurrentUserRole] = useState<string>('Member'); // NEW: track current user's role
+
+    // Load profile on mount
     useEffect(() => {
         loadUserProfile();
     }, []);
@@ -46,26 +57,42 @@ export default function ProfilePage() {
             const currentUser = getCurrentUser();
 
             if (!currentUser) {
-                Alert.alert('Error', 'User tidak login', [
+                Alert.alert('Error', 'User not logged in', [
                     { text: 'Login', onPress: () => router.replace('/login') }
                 ]);
                 return;
             }
 
+            console.log('Loading profile for user:', currentUser.uid, currentUser.email);
+
             setUid(currentUser.uid);
             setEmail(currentUser.email || '');
 
-            // Load data dari Firestore with retry
+            // Check if user is the super admin
+            setCanEditRole(currentUser.email === 'suryadi.hhb@gmail.com');
+
+            // Load data dari Firestore with retry - FORCE FRESH READ
             let retries = 3;
             let lastError = null;
 
             for (let i = 0; i < retries; i++) {
                 try {
-                    const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
+                    // Force fresh read by adding timestamp to prevent cache
+                    const userDocRef = doc(db, 'users', currentUser.uid);
+                    const userDoc = await getDoc(userDocRef);
+
+                    console.log(`Profile load attempt ${i + 1}:`, userDoc.exists() ? 'Document found' : 'Document not found');
 
                     if (userDoc.exists()) {
                         const data = userDoc.data();
-                        setName(data.nama || '');
+                        console.log('=== PROFILE DATA FROM FIRESTORE ===');
+                        console.log('Raw data:', JSON.stringify(data, null, 2));
+                        console.log('Role value:', data.role);
+                        console.log('Role type:', typeof data.role);
+                        console.log('===================================');
+
+                        // Force refresh all fields from Firestore
+                        setName(data.nama || data.name || '');
                         setRole(data.role || 'Member');
                         setPhone(data.phone || '');
                         setGender(data.gender || '');
@@ -74,19 +101,24 @@ export default function ProfilePage() {
                         setMaritalStatus(data.maritalStatus || 'single');
                         setSpouseName(data.spouseName || '');
                         setChildren(data.children || []);
+
+                        console.log('State updated - Role:', data.role);
+                    } else {
+                        console.warn('User document does not exist in Firestore');
+                        Alert.alert('Warning', 'Profile data not found. Please complete your profile.');
                     }
 
                     return; // Success
                 } catch (err: any) {
                     lastError = err;
-                    console.warn(`Load profile attempt ${i + 1} failed:`, err.message);
+                    console.error(`Load profile attempt ${i + 1} failed:`, err.message);
 
-                    // Check if it's a "database not created" error
                     if (err.message?.includes('unavailable') || err.message?.includes('not found')) {
-                        throw new Error('Firestore database belum dibuat di Firebase Console. Buat database terlebih dahulu.');
+                        throw new Error('Firestore database not yet created in Firebase Console.');
                     }
 
                     if (i < retries - 1) {
+                        console.log(`Retrying in ${1500 * (i + 1)}ms...`);
                         await new Promise(resolve => setTimeout(resolve, 1500 * (i + 1)));
                     }
                 }
@@ -96,10 +128,9 @@ export default function ProfilePage() {
 
         } catch (error: any) {
             console.error('Load profile error:', error);
-
-            const message = error.message?.includes('database belum dibuat')
+            const message = error.message?.includes('database not yet created')
                 ? error.message
-                : 'Gagal memuat profil. Pastikan:\n1. Firestore database sudah dibuat\n2. Koneksi internet aktif\n3. Rules Firestore sudah diset';
+                : 'Failed to load profile. Make sure:\n1. Firestore database is created\n2. Internet connection is active\n3. Firestore rules are set';
 
             Alert.alert('Error', message, [
                 { text: 'Retry', onPress: () => loadUserProfile() },
@@ -149,20 +180,23 @@ export default function ProfilePage() {
 
     async function handleSave() {
         if (!name.trim()) {
-            Alert.alert('Validation', 'Nama wajib diisi');
+            Alert.alert('Validation', 'Name is required');
             return;
         }
 
         if (!uid) {
-            Alert.alert('Error', 'User ID tidak ditemukan');
+            Alert.alert('Error', 'User ID not found');
             return;
         }
 
         try {
             setSaving(true);
 
-            // Update ke Firestore
-            await updateDoc(doc(db, 'users', uid), {
+            // Use setDoc with merge: true instead of updateDoc
+            // This will create the document if it doesn't exist, or update it if it does
+            await setDoc(doc(db, 'users', uid), {
+                uid,
+                email,
                 nama: name,
                 phone,
                 gender,
@@ -171,15 +205,61 @@ export default function ProfilePage() {
                 maritalStatus,
                 spouseName: maritalStatus === 'married' ? spouseName : '',
                 children: (maritalStatus === 'married' || maritalStatus === 'divorced' || maritalStatus === 'widowed') ? children : [],
-            });
+            }, { merge: true });
 
-            Alert.alert('Sukses', 'Profil berhasil diperbarui');
-            router.back();
+            Alert.alert('Success', 'Profile updated successfully');
+            // Reload profile to sync state
+            await loadUserProfile();
         } catch (error: any) {
             console.error('Save profile error:', error);
-            Alert.alert('Error', 'Gagal menyimpan: ' + (error.message || 'Unknown error'));
+            Alert.alert('Error', 'Failed to save: ' + (error.message || 'Unknown error'));
         } finally {
             setSaving(false);
+        }
+    }
+
+    async function handleLogout() {
+        Alert.alert(
+            'Logout',
+            'Are you sure you want to logout?',
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Logout',
+                    style: 'destructive',
+                    onPress: async () => {
+                        try {
+                            await signOut();
+                            // Clear any stored user data
+                            await AsyncStorage.removeItem('user');
+                            // Navigate to login
+                            router.replace('/login');
+                        } catch (error) {
+                            Alert.alert('Error', 'Failed to logout. Please try again.');
+                        }
+                    }
+                }
+            ]
+        );
+    }
+
+    const GENDER_OPTIONS = ['Male', 'Female', 'Other'];
+    const RELIGION_OPTIONS = ['Islam', 'Christianity', 'Catholicism', 'Hinduism', 'Buddhism', 'Confucianism', 'Other'];
+    const ROLE_OPTIONS = ['Member', 'Admin', 'Staff'];
+
+    // Temporary debug function
+    async function forceUpdateRole() {
+        if (!uid) return;
+
+        try {
+            await setDoc(doc(db, 'users', uid), {
+                role: 'Admin'
+            }, { merge: true });
+
+            Alert.alert('Success', 'Role force updated to Admin. Reloading...');
+            await loadUserProfile();
+        } catch (error: any) {
+            Alert.alert('Error', error.message);
         }
     }
 
@@ -205,22 +285,77 @@ export default function ProfilePage() {
                 </Text>
             </View>
 
-            <ScrollView style={{ padding: 16 }}>
+            <ScrollView style={{ padding: 16 }} contentContainerStyle={{ paddingBottom: 160 }}>
                 <Text style={{ color: '#374151' }}>Name</Text>
                 <TextInput value={name} onChangeText={setName} placeholder="Full name" style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 10, marginTop: 8 }} />
 
                 <Text style={{ color: '#374151', marginTop: 12 }}>Role</Text>
-                <TextInput value={role} onChangeText={setRole} placeholder="Role" editable={false} style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 10, marginTop: 8, backgroundColor: '#F9FAFB' }} />
+                {/* Role field: only editable by super admin (suryadi.hhb@gmail.com) */}
+                {canEditRole ? (
+                    <>
+                        <TouchableOpacity
+                            onPress={() => setRoleOpen((v) => !v)}
+                            style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 12, marginTop: 8, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#F9FAFB' }}
+                        >
+                            <Text style={{ color: role ? '#111827' : '#9CA3AF' }}>{role || 'Select role'}</Text>
+                            <Text style={{ color: '#6B7280' }}>▾</Text>
+                        </TouchableOpacity>
+                        {roleOpen && (
+                            <View style={{ backgroundColor: '#F9FAFB', borderRadius: 8, marginTop: 6 }}>
+                                {ROLE_OPTIONS.map((r) => (
+                                    <TouchableOpacity
+                                        key={r}
+                                        onPress={() => { setRole(r); setRoleOpen(false); }}
+                                        style={{ paddingVertical: 12, paddingHorizontal: 12 }}
+                                    >
+                                        <Text style={{ color: '#111827' }}>{r}</Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+                        )}
+                        <Text style={{ color: '#10B981', fontSize: 12, marginTop: 2 }}>
+                            ✓ You have super admin privileges
+                        </Text>
+                    </>
+                ) : (
+                    <>
+                        <View style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 12, marginTop: 8, backgroundColor: '#F9FAFB' }}>
+                            <Text style={{ color: '#6B7280' }}>{role}</Text>
+                        </View>
+                        <Text style={{ color: '#9CA3AF', fontSize: 12, marginTop: 2 }}>
+                            Only super admin can change user roles
+                        </Text>
+                    </>
+                )}
 
                 <Text style={{ color: '#374151', marginTop: 12 }}>Gender</Text>
-                <TextInput value={gender} onChangeText={setGender} placeholder="Male / Female / Other" style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 10, marginTop: 8 }} />
+                <TouchableOpacity
+                    onPress={() => setGenderOpen((v) => !v)}
+                    style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 12, marginTop: 8, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}
+                >
+                    <Text style={{ color: gender ? '#111827' : '#9CA3AF' }}>{gender || 'Select gender'}</Text>
+                    <Text style={{ color: '#6B7280' }}>▾</Text>
+                </TouchableOpacity>
+                {genderOpen && (
+                    <View style={{ backgroundColor: '#F9FAFB', borderRadius: 8, marginTop: 6 }}>
+                        {GENDER_OPTIONS.map((g) => (
+                            <TouchableOpacity
+                                key={g}
+                                onPress={() => { setGender(g); setGenderOpen(false); }}
+                                style={{ paddingVertical: 12, paddingHorizontal: 12 }}
+                            >
+                                <Text style={{ color: '#111827' }}>{g}</Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+                )}
 
                 <Text style={{ color: '#374151', marginTop: 12 }}>Birthday</Text>
                 {Platform.OS === 'web' ? (
                     <TextInput value={birthday} onChangeText={setBirthday} placeholder="YYYY-MM-DD" style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 10, marginTop: 8 }} />
                 ) : (
                     <TouchableOpacity onPress={openDatePickerForBirthday} style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 12, marginTop: 8 }}>
-                        <Text style={{ color: '#111827' }}>{birthday || 'Select birthday'}</Text>
+                        <Text style={{ color: birthday ? '#111827' : '#9CA3AF' }}>{birthday || 'Select birthday'}</Text>
                     </TouchableOpacity>
                 )}
 
@@ -228,14 +363,33 @@ export default function ProfilePage() {
                 <TextInput value={email} editable={false} placeholder="email@example.com" style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 10, marginTop: 8, backgroundColor: '#F9FAFB' }} />
 
                 <Text style={{ color: '#374151', marginTop: 12 }}>Religion</Text>
-                <TextInput value={religion} onChangeText={setReligion} placeholder="Religion" style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 10, marginTop: 8 }} />
+                <TouchableOpacity
+                    onPress={() => setReligionOpen((v) => !v)}
+                    style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 12, marginTop: 8, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}
+                >
+                    <Text style={{ color: religion ? '#111827' : '#9CA3AF' }}>{religion || 'Select religion'}</Text>
+                    <Text style={{ color: '#6B7280' }}>▾</Text>
+                </TouchableOpacity>
+                {religionOpen && (
+                    <View style={{ backgroundColor: '#F9FAFB', borderRadius: 8, marginTop: 6 }}>
+                        {RELIGION_OPTIONS.map((r) => (
+                            <TouchableOpacity
+                                key={r}
+                                onPress={() => { setReligion(r); setReligionOpen(false); }}
+                                style={{ paddingVertical: 12, paddingHorizontal: 12 }}
+                            >
+                                <Text style={{ color: '#111827' }}>{r}</Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+                )}
 
                 <Text style={{ color: '#374151', marginTop: 12 }}>Phone</Text>
                 <TextInput value={phone} onChangeText={setPhone} placeholder="08xxxx" keyboardType="phone-pad" style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 10, marginTop: 8 }} />
 
                 <Text style={{ color: '#374151', marginTop: 12 }}>Marital Status</Text>
-                <View style={{ flexDirection: 'row', marginTop: 8 }}>
-                    {['single', 'married', 'divorced', 'widowed'].map((s, i) => {
+                <View style={{ flexDirection: 'row', marginTop: 8, flexWrap: 'wrap', gap: 8 }}>
+                    {['single', 'married', 'divorced', 'widowed'].map((s) => {
                         const selected = maritalStatus === s;
                         return (
                             <TouchableOpacity
@@ -249,7 +403,6 @@ export default function ProfilePage() {
                                     paddingHorizontal: 12,
                                     borderRadius: 8,
                                     backgroundColor: selected ? '#6366f1' : '#F3F4F6',
-                                    marginRight: i === 3 ? 0 : 8,
                                 }}
                             >
                                 <Text style={{ color: selected ? '#fff' : '#111827', fontWeight: selected ? '700' : '600' }}>
@@ -287,7 +440,7 @@ export default function ProfilePage() {
                                     <TextInput value={ch.birthDate} onChangeText={(v) => updateChild(idx, 'birthDate', v)} placeholder="YYYY-MM-DD" style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 6, padding: 8, marginTop: 6 }} />
                                 ) : (
                                     <TouchableOpacity onPress={() => openDatePickerForChild(idx)} style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 6, padding: 10, marginTop: 6 }}>
-                                        <Text>{ch.birthDate || 'Select date'}</Text>
+                                        <Text style={{ color: ch.birthDate ? '#111827' : '#9CA3AF' }}>{ch.birthDate || 'Select date'}</Text>
                                     </TouchableOpacity>
                                 )}
 
@@ -303,26 +456,62 @@ export default function ProfilePage() {
                         ))}
                     </View>
                 )}
-
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 24, marginBottom: 24 }}>
-                    <TouchableOpacity onPress={() => router.back()} style={{ padding: 10 }} disabled={saving}>
-                        <Text style={{ color: '#6B7280' }}>Cancel</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                        onPress={handleSave}
-                        style={{ backgroundColor: '#6366f1', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8, opacity: saving ? 0.7 : 1 }}
-                        disabled={saving}
-                    >
-                        {saving ? (
-                            <ActivityIndicator color="#fff" />
-                        ) : (
-                            <Text style={{ color: '#fff', fontWeight: '700' }}>Save</Text>
-                        )}
-                    </TouchableOpacity>
-                </View>
             </ScrollView>
 
-            {/* DateTime picker modal used for profile birthday and children DOB on mobile */}
+            {/* Fixed Footer */}
+            <View style={{
+                position: 'absolute',
+                bottom: 0,
+                left: 0,
+                right: 0,
+                backgroundColor: '#fff',
+                padding: 16,
+                paddingBottom: Platform.OS === 'ios' ? 34 : 16,
+                borderTopWidth: 1,
+                borderTopColor: '#E5E7EB',
+                elevation: 8,
+                shadowColor: '#000',
+                shadowOpacity: 0.1,
+                shadowRadius: 8,
+                shadowOffset: { width: 0, height: -2 }
+            }}>
+                <TouchableOpacity
+                    onPress={handleSave}
+                    disabled={saving}
+                    style={{
+                        backgroundColor: '#6366f1',
+                        paddingVertical: 14,
+                        borderRadius: 999,
+                        alignItems: 'center',
+                        marginBottom: 8,
+                        opacity: saving ? 0.6 : 1,
+                    }}
+                >
+                    {saving ? (
+                        <ActivityIndicator color="#fff" />
+                    ) : (
+                        <Text style={{ color: '#fff', fontWeight: '700', fontSize: 16 }}>Save Profile</Text>
+                    )}
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                    onPress={handleLogout}
+                    style={{
+                        backgroundColor: '#FEF2F2',
+                        paddingVertical: 14,
+                        borderRadius: 999,
+                        alignItems: 'center',
+                        borderWidth: 1,
+                        borderColor: '#EF4444',
+                    }}
+                >
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <Ionicons name="log-out-outline" size={20} color="#EF4444" />
+                        <Text style={{ color: '#EF4444', fontWeight: '700', fontSize: 16, marginLeft: 8 }}>Logout</Text>
+                    </View>
+                </TouchableOpacity>
+            </View>
+
             <DateTimePickerModal
                 isVisible={datePickerVisible}
                 mode="date"

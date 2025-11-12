@@ -5,8 +5,8 @@ import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, StatusBar, Te
 import { signIn } from '../src/services/authService'; // existing import
 
 export default function LoginScreen() {
-    const [username, setUsername] = useState('');
-    const [password, setPassword] = useState('');
+    const [username, setUsername] = useState('suryadi.hhb@gmail.com');
+    const [password, setPassword] = useState('11111111');
     const [showPassword, setShowPassword] = useState(false); // added
     const [loading, setLoading] = useState(false);
     const router = useRouter();
