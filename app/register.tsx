@@ -3,7 +3,6 @@ import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
     ActivityIndicator,
-    Alert,
     KeyboardAvoidingView,
     Platform,
     StatusBar,
@@ -12,10 +11,12 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import { useToast } from '../src/contexts/ToastContext';
 import { signUp } from '../src/services/authService';
 
 export default function RegisterScreen() {
     const router = useRouter();
+    const { showToast } = useToast();
     const [nama, setNama] = useState('suryadi');
     const [email, setEmail] = useState('suryadi.hhb@gmail.com');
     const [phone, setPhone] = useState('089678468651');
@@ -72,15 +73,15 @@ export default function RegisterScreen() {
 
     const handleRegister = async () => {
         if (!nama.trim() || !email.trim() || !password) {
-            Alert.alert('Error', 'Name, email, and password are required');
+            showToast('Name, email, and password are required', 'error');
             return;
         }
         if (password.length < 8) {
-            Alert.alert('Error', 'Password must be at least 8 characters');
+            showToast('Password must be at least 8 characters', 'error');
             return;
         }
         if (password !== confirmPassword) {
-            Alert.alert('Error', 'Password and confirmation do not match');
+            showToast('Password and confirmation do not match', 'error');
             return;
         }
 
@@ -89,18 +90,11 @@ export default function RegisterScreen() {
         setLoading(false);
 
         if (res.success) {
-            Alert.alert('Success', 'Registration successful', [{ text: 'OK', onPress: () => router.replace('/(tabs)') }]);
+            showToast('Registration successful', 'success');
+            setTimeout(() => router.replace('/(tabs)'), 700);
         } else {
-            // If email already used, offer to go to login
-            if (res.code === 'auth/email-already-in-use') {
-                Alert.alert('Error', res.error || 'Email already registered', [
-                    { text: 'Login', onPress: () => router.push('/login') },
-                    { text: 'OK' }
-                ]);
-            } else {
-                const msg = res.error || 'Registration failed';
-                Alert.alert('Error', msg);
-            }
+            const msg = res.error || 'Registration failed';
+            showToast(msg, 'error');
         }
     };
 
