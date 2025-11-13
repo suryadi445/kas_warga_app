@@ -1,19 +1,21 @@
-import { Ionicons } from '@expo/vector-icons'; // added
+import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, StatusBar, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { signIn } from '../src/services/authService'; // existing import
+import { ActivityIndicator, KeyboardAvoidingView, Platform, StatusBar, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { useToast } from '../src/contexts/ToastContext';
+import { signIn } from '../src/services/authService';
 
 export default function LoginScreen() {
     const [username, setUsername] = useState('suryadi.hhb@gmail.com');
     const [password, setPassword] = useState('11111111');
-    const [showPassword, setShowPassword] = useState(false); // added
+    const [showPassword, setShowPassword] = useState(false);
     const [loading, setLoading] = useState(false);
+    const { showToast } = useToast();
     const router = useRouter();
 
     const handleLogin = async () => {
         if (!username.trim() || !password) {
-            Alert.alert('Error', 'Email and password are required');
+            showToast('Email and password are required', 'error');
             return;
         }
 
@@ -23,19 +25,15 @@ export default function LoginScreen() {
 
         if (res.success) {
             if (res.offline) {
-                Alert.alert(
-                    'Login (offline)',
-                    'Login successful, but profile data could not be retrieved because Firestore connection is offline. The app will function with limited features.',
-                    [{ text: 'Continue', onPress: () => router.replace('/(tabs)') }]
-                );
+                showToast('Login successful (offline)', 'success');
+                setTimeout(() => router.replace('/(tabs)'), 700);
             } else {
-                Alert.alert('Success', 'Login successful', [
-                    { text: 'OK', onPress: () => router.replace('/(tabs)') }
-                ]);
+                showToast('Login successful', 'success');
+                setTimeout(() => router.replace('/(tabs)'), 700);
             }
         } else {
             const message = res.error || 'Login failed';
-            Alert.alert('Error', message);
+            showToast(message, 'error');
         }
     };
 
