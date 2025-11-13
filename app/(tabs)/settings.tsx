@@ -3,7 +3,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { doc, onSnapshot, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
 import React, { useEffect, useState } from 'react';
 import {
-    Alert,
+    ActivityIndicator,
     Modal,
     Platform,
     ScrollView,
@@ -15,6 +15,8 @@ import {
 } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import ConfirmDialog from '../../src/components/ConfirmDialog'; // added
+import { useToast } from '../../src/contexts/ToastContext'; // added
 import { db } from '../../src/firebaseConfig';
 
 const MONTHS = [
@@ -33,6 +35,7 @@ const MONTHS = [
 ];
 
 export default function SettingsScreen() {
+    const { showToast } = useToast(); // added
     const [appName, setAppName] = useState('Kas Warga');
     const [businessType, setBusinessType] = useState('Community Service');
     const [phone, setPhone] = useState('081234567890');
@@ -44,6 +47,13 @@ export default function SettingsScreen() {
     const [bankAccount, setBankAccount] = useState('');
     // dynamic payment methods: phone number + provider (e.g. 0899.. - OVO)
     const [paymentMethods, setPaymentMethods] = useState<Array<{ id: string; number: string; provider: string }>>([]);
+
+    // NEW: saving state for settings save button
+    const [savingSettings, setSavingSettings] = useState(false);
+
+    // confirm delete for payment methods
+    const [pmDeleteVisible, setPmDeleteVisible] = useState(false);
+    const [pmToDelete, setPmToDelete] = useState<string | null>(null);
 
     // NEW: coordinates state + map modal
     const [latitude, setLatitude] = useState<number | null>(null);
@@ -133,7 +143,7 @@ export default function SettingsScreen() {
 
     function save() {
         if (!appName.trim()) {
-            Alert.alert('Error', 'App name is required');
+            showToast('App name is required', 'error');
             return;
         }
         // commit tmp coords if map modal still open values were edited
@@ -143,6 +153,7 @@ export default function SettingsScreen() {
     }
 
     async function saveSettings() {
+        setSavingSettings(true);
         // commit tmp coords if map modal still open values were edited
         const finalLat = (latitude ?? tmpLat) ?? null;
         const finalLng = (longitude ?? tmpLng) ?? null;
@@ -174,18 +185,19 @@ export default function SettingsScreen() {
             try {
                 await AsyncStorage.setItem('settings', JSON.stringify(payload));
             } catch { /* ignore */ }
-            Alert.alert('Saved', 'Settings saved to cloud');
+            showToast('Settings saved to cloud', 'success');
         } catch (e) {
             console.error('saveSettings error', e);
             // fallback to AsyncStorage only
             try {
                 await AsyncStorage.setItem('settings', JSON.stringify(payload));
-                Alert.alert('Saved', 'Settings saved locally (no network)');
+                showToast('Settings saved locally (no network)', 'info');
             } catch {
-                Alert.alert('Error', 'Failed to save settings');
+                showToast('Failed to save settings', 'error');
             }
         } finally {
             setModalVisible(false);
+            setSavingSettings(false);
         }
     }
 
@@ -195,8 +207,17 @@ export default function SettingsScreen() {
     function updatePaymentMethod(id: string, field: 'number' | 'provider', value: string) {
         setPaymentMethods((p) => p.map((m) => (m.id === id ? { ...m, [field]: value } : m)));
     }
-    function removePaymentMethod(id: string) {
-        setPaymentMethods((p) => p.filter((m) => m.id !== id));
+    // show confirmation before removing payment method
+    function confirmRemovePaymentMethod(id: string) {
+        setPmToDelete(id);
+        setPmDeleteVisible(true);
+    }
+    function removePaymentMethodConfirmed() {
+        if (!pmToDelete) return;
+        setPaymentMethods((p) => p.filter((m) => m.id !== pmToDelete));
+        setPmDeleteVisible(false);
+        showToast('Payment method removed', 'success');
+        setPmToDelete(null);
     }
 
     return (
@@ -251,11 +272,6 @@ export default function SettingsScreen() {
                                 <Text style={{ color: '#fff', fontWeight: '700' }}>Edit</Text>
                             </LinearGradient>
                         </TouchableOpacity>
-
-                        {/* Open map modal directly */}
-                        <TouchableOpacity onPress={() => { setTmpLat(latitude); setTmpLng(longitude); setMapModalVisible(true); }} style={{ marginTop: 8 }}>
-                            <Text style={{ color: '#06B6D4', fontWeight: '600' }}>Set location on map</Text>
-                        </TouchableOpacity>
                     </View>
                 </View>
             </View>
@@ -288,6 +304,22 @@ export default function SettingsScreen() {
                                 <TextInput value={address} onChangeText={setAddress} placeholder="Address" multiline numberOfLines={4} style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 10, marginTop: 6, textAlignVertical: 'top', height: 120 }} />
                             )}
 
+                            <View style={{ marginTop: 0, marginLeft: 'auto' }}>
+                                {Platform.OS === 'web' ? (
+                                    <View style={{ marginTop: 6 }}>
+                                        <TextInput value={tmpLat !== null ? String(tmpLat) : ''} onChangeText={(v) => setTmpLat(v ? Number(v) : null)} placeholder="Latitude" keyboardType="numeric" style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 10, marginTop: 6 }} />
+                                        <TextInput value={tmpLng !== null ? String(tmpLng) : ''} onChangeText={(v) => setTmpLng(v ? Number(v) : null)} placeholder="Longitude" keyboardType="numeric" style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 10, marginTop: 6 }} />
+                                        <TouchableOpacity onPress={() => { setMapModalVisible(true); }} style={{ marginTop: 8 }}>
+                                            <Text style={{ color: '#06B6D4', fontWeight: '600' }}>Open map picker</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                ) : (
+                                    <TouchableOpacity onPress={() => setMapModalVisible(true)} style={{ marginTop: 6 }}>
+                                        <Text style={{ color: '#06B6D4', fontWeight: '600' }}>Pick location on map</Text>
+                                    </TouchableOpacity>
+                                )}
+                            </View>
+
                             <Text style={{ color: '#374151', marginTop: 12 }}>Bank Account</Text>
                             <TextInput
                                 value={bankAccount}
@@ -314,7 +346,7 @@ export default function SettingsScreen() {
                                         style={{ borderWidth: 0, paddingVertical: 6, marginTop: 4 }}
                                     />
                                     <View style={{ flexDirection: 'row', justifyContent: 'flex-end' }}>
-                                        <TouchableOpacity onPress={() => removePaymentMethod(pm.id)} style={{ padding: 6 }}>
+                                        <TouchableOpacity onPress={() => confirmRemovePaymentMethod(pm.id)} style={{ padding: 6 }}>
                                             <Text style={{ color: '#EF4444', fontWeight: '600' }}>Remove</Text>
                                         </TouchableOpacity>
                                     </View>
@@ -324,38 +356,22 @@ export default function SettingsScreen() {
                                 <Text style={{ color: '#06B6D4', fontWeight: '700' }}>+ Add payment method</Text>
                             </TouchableOpacity>
 
-                            <View style={{ paddingHorizontal: 16, marginTop: 12 }}>
-                                <Text style={{ color: '#374151', marginTop: 8 }}>Location Coordinates</Text>
-                                {Platform.OS === 'web' ? (
-                                    <View style={{ marginTop: 6 }}>
-                                        <TextInput value={tmpLat !== null ? String(tmpLat) : ''} onChangeText={(v) => setTmpLat(v ? Number(v) : null)} placeholder="Latitude" keyboardType="numeric" style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 10, marginTop: 6 }} />
-                                        <TextInput value={tmpLng !== null ? String(tmpLng) : ''} onChangeText={(v) => setTmpLng(v ? Number(v) : null)} placeholder="Longitude" keyboardType="numeric" style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 10, marginTop: 6 }} />
-                                        <TouchableOpacity onPress={() => { setMapModalVisible(true); }} style={{ marginTop: 8 }}>
-                                            <Text style={{ color: '#06B6D4', fontWeight: '600' }}>Open map picker</Text>
-                                        </TouchableOpacity>
-                                    </View>
-                                ) : (
-                                    <TouchableOpacity onPress={() => setMapModalVisible(true)} style={{ marginTop: 6 }}>
-                                        <Text style={{ color: '#06B6D4', fontWeight: '600' }}>Pick location on map</Text>
-                                    </TouchableOpacity>
-                                )}
-                            </View>
-
                             <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 16 }}>
-                                <TouchableOpacity onPress={() => setModalVisible(false)} style={{ padding: 10 }}>
+                                <TouchableOpacity onPress={() => setModalVisible(false)} disabled={savingSettings} style={{ padding: 10, opacity: savingSettings ? 0.6 : 1 }}>
                                     <Text style={{ color: '#6B7280' }}>Cancel</Text>
                                 </TouchableOpacity>
-                                <TouchableOpacity onPress={saveSettings} style={{ padding: 10 }}>
-                                    <Text style={{ color: '#4fc3f7', fontWeight: '700' }}>Save</Text>
+                                <TouchableOpacity onPress={saveSettings} disabled={savingSettings} style={{ padding: 10 }}>
+                                    {savingSettings ? <ActivityIndicator size="small" color="#4fc3f7" /> : <Text style={{ color: '#4fc3f7', fontWeight: '700' }}>Save</Text>}
                                 </TouchableOpacity>
                             </View>
                         </ScrollView>
                     </View>
                 </View>
-            </Modal>
+            </Modal >
 
             {/* Map picker modal */}
-            <Modal visible={mapModalVisible} animationType="slide" transparent onRequestClose={() => setMapModalVisible(false)}>
+            < Modal visible={mapModalVisible} animationType="slide" transparent onRequestClose={() => setMapModalVisible(false)
+            }>
                 <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.3)' }}>
                     <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 18, borderTopRightRadius: 18, padding: 12, height: Platform.OS === 'web' ? 420 : 480 }}>
                         <Text style={{ fontWeight: '700', fontSize: 16, marginBottom: 8 }}>Pick location</Text>
@@ -460,7 +476,17 @@ export default function SettingsScreen() {
                         )}
                     </View>
                 </View>
-            </Modal>
-        </SafeAreaView>
+            </Modal >
+
+            <ConfirmDialog
+                visible={pmDeleteVisible}
+                title="Remove payment method"
+                message="Are you sure you want to remove this payment method?"
+                onConfirm={removePaymentMethodConfirmed}
+                onCancel={() => { setPmDeleteVisible(false); setPmToDelete(null); }}
+                confirmText="Remove"
+                cancelText="Cancel"
+            />
+        </SafeAreaView >
     );
 }

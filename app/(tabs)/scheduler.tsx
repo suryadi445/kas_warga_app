@@ -2,7 +2,6 @@ import { addDoc, collection, deleteDoc, doc, onSnapshot, orderBy, query, serverT
 import React, { useEffect, useState } from 'react';
 import {
     ActivityIndicator,
-    Alert,
     FlatList,
     Modal,
     Platform,
@@ -14,6 +13,8 @@ import {
     View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import ConfirmDialog from '../../src/components/ConfirmDialog';
+import { useToast } from '../../src/contexts/ToastContext';
 import { db } from '../../src/firebaseConfig';
 
 type Schedule = {
@@ -34,16 +35,15 @@ const FREQUENCY_OPTIONS = [
     { value: 'yearly', label: 'Yearly' },
 ];
 
-const SAMPLE_SCHEDULES: Schedule[] = [
-    { id: 's1', activityName: 'Senam Pagi', time: '06:30', frequency: 'weekly', location: 'Lapangan RW', description: 'Senam setiap Minggu pagi' },
-];
-
 export default function SchedulerScreen() {
+    const { showToast } = useToast();
     const [items, setItems] = useState<Schedule[]>([]); // now loaded from Firestore
     const [modalVisible, setModalVisible] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
     const [loadingSchedules, setLoadingSchedules] = useState(true);
     const [operationLoading, setOperationLoading] = useState(false);
+    const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false);
+    const [itemToDelete, setItemToDelete] = useState<string | null>(null);
 
     const [activityName, setActivityName] = useState('');
     const [time, setTime] = useState('09:00');
@@ -99,7 +99,7 @@ export default function SchedulerScreen() {
 
     async function save() {
         if (!activityName.trim()) {
-            Alert.alert('Error', 'Activity name is required');
+            showToast('Activity name is required', 'error');
             return;
         }
         setOperationLoading(true);
@@ -107,35 +107,39 @@ export default function SchedulerScreen() {
             if (editingId) {
                 const ref = doc(db, 'schedules', editingId);
                 await updateDoc(ref, { activityName, time, frequency, location, description, updatedAt: serverTimestamp() });
+                showToast('Schedule updated', 'success');
             } else {
                 await addDoc(collection(db, 'schedules'), { activityName, time, frequency, location, description, createdAt: serverTimestamp() });
+                showToast('Schedule added', 'success');
             }
             setModalVisible(false);
         } catch (e) {
             console.error('schedule save error', e);
-            Alert.alert('Error', 'Failed to save schedule');
+            showToast('Failed to save schedule', 'error');
         } finally {
             setOperationLoading(false);
         }
     }
 
-    function remove(id: string) {
-        Alert.alert('Confirm', 'Delete this schedule?', [
-            { text: 'Cancel', style: 'cancel' },
-            {
-                text: 'Delete', style: 'destructive', onPress: async () => {
-                    setOperationLoading(true);
-                    try {
-                        await deleteDoc(doc(db, 'schedules', id));
-                    } catch (e) {
-                        console.error('delete schedule error', e);
-                        Alert.alert('Error', 'Failed to delete schedule');
-                    } finally {
-                        setOperationLoading(false);
-                    }
-                }
-            },
-        ]);
+    function confirmRemove(id: string) {
+        setItemToDelete(id);
+        setDeleteConfirmVisible(true);
+    }
+
+    async function removeConfirmed() {
+        if (!itemToDelete) return;
+        setDeleteConfirmVisible(false);
+        setOperationLoading(true);
+        try {
+            await deleteDoc(doc(db, 'schedules', itemToDelete));
+            showToast('Schedule deleted', 'success');
+        } catch (e) {
+            console.error('delete schedule error', e);
+            showToast('Failed to delete schedule', 'error');
+        } finally {
+            setOperationLoading(false);
+            setItemToDelete(null);
+        }
     }
 
     const renderItem = ({ item }: { item: Schedule }) => {
@@ -163,7 +167,7 @@ export default function SchedulerScreen() {
                         <TouchableOpacity onPress={() => openEdit(item)} style={{ marginBottom: 8 }}>
                             <Text style={{ color: '#06B6D4', fontWeight: '600' }}>Edit</Text>
                         </TouchableOpacity>
-                        <TouchableOpacity onPress={() => remove(item.id)}>
+                        <TouchableOpacity onPress={() => confirmRemove(item.id)}>
                             <Text style={{ color: '#EF4444', fontWeight: '600' }}>Delete</Text>
                         </TouchableOpacity>
                     </View>
@@ -241,7 +245,7 @@ export default function SchedulerScreen() {
                                 <TouchableOpacity onPress={() => !operationLoading && setModalVisible(false)} disabled={operationLoading} style={{ padding: 10, opacity: operationLoading ? 0.6 : 1 }}>
                                     <Text style={{ color: '#6B7280' }}>Cancel</Text>
                                 </TouchableOpacity>
-                                <TouchableOpacity onPress={save} disabled={operationLoading} style={{ padding: 10 }}>
+                                <TouchableOpacity disabled={operationLoading} onPress={save} style={{ padding: 10 }}>
                                     {operationLoading ? <ActivityIndicator size="small" color="#4fc3f7" /> : <Text style={{ color: '#4fc3f7', fontWeight: '700' }}>{editingId ? 'Save' : 'Add'}</Text>}
                                 </TouchableOpacity>
                             </View>
@@ -249,6 +253,14 @@ export default function SchedulerScreen() {
                     </View>
                 </View>
             </Modal>
+
+            <ConfirmDialog
+                visible={deleteConfirmVisible}
+                title="Delete Schedule"
+                message="Are you sure you want to delete this schedule? This action cannot be undone."
+                onConfirm={removeConfirmed}
+                onCancel={() => { setDeleteConfirmVisible(false); setItemToDelete(null); }}
+            />
         </SafeAreaView>
     );
 }

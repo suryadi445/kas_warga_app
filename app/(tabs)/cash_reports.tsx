@@ -2,8 +2,10 @@ import * as FileSystem from 'expo-file-system/legacy'; // use legacy API so writ
 import { LinearGradient } from 'expo-linear-gradient';
 import { addDoc, collection, doc, getDocs, orderBy, query, updateDoc } from 'firebase/firestore';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Modal, PermissionsAndroid, Platform, StatusBar, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, FlatList, Modal, PermissionsAndroid, Platform, StatusBar, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import ConfirmDialog from '../../src/components/ConfirmDialog';
+import { useToast } from '../../src/contexts/ToastContext';
 import { db } from '../../src/firebaseConfig';
 
 type Report = {
@@ -22,6 +24,7 @@ const sampleData: Report[] = [
 ];
 
 export default function CashReportsScreen() {
+    const { showToast } = useToast();
     const [reports, setReports] = useState<Report[]>([]);
     const [loadingReports, setLoadingReports] = useState(false);
     const [operationLoading, setOperationLoading] = useState(false); // for save/delete ops
@@ -67,7 +70,7 @@ export default function CashReportsScreen() {
             setReports(rows);
         } catch (err) {
             console.error('Failed to load reports:', err);
-            Alert.alert('Error', 'Failed to load cash reports');
+            showToast('Failed to load cash reports', 'error');
         } finally {
             setLoadingReports(false);
         }
@@ -155,7 +158,7 @@ export default function CashReportsScreen() {
 
     function save() {
         if (!date.trim() || !amount.trim()) {
-            Alert.alert('Error', 'Date and amount are required');
+            showToast('Date and amount are required', 'error');
             return;
         }
         const amt = parseCurrency(amount);
@@ -165,9 +168,11 @@ export default function CashReportsScreen() {
                 if (editingId) {
                     const ref = doc(db, 'cash_reports', editingId);
                     await updateDoc(ref, { type, date, amount: amt, category, description });
+                    showToast('Report updated', 'success');
                 } else {
                     // create with deleted flag = false
                     await addDoc(collection(db, 'cash_reports'), { type, date, amount: amt, category, description, createdAt: new Date(), deleted: false });
+                    showToast('Report added', 'success');
                 }
                 // reload via shared loader
                 await loadReports();
@@ -180,33 +185,37 @@ export default function CashReportsScreen() {
                 setModalVisible(false);
             } catch (err) {
                 console.error('Save error:', err);
-                Alert.alert('Error', 'Failed to save report');
+                showToast('Failed to save report', 'error');
             } finally {
                 setOperationLoading(false);
             }
         })();
     }
 
-    function remove(id: string) {
-        Alert.alert('Confirm', 'Delete this cash report?', [
-            { text: 'Cancel', style: 'cancel' },
-            {
-                text: 'Delete', style: 'destructive', onPress: async () => {
-                    // soft-delete: set deleted flag and timestamp
-                    setOperationLoading(true);
-                    try {
-                        const ref = doc(db, 'cash_reports', id);
-                        await updateDoc(ref, { deleted: true, deletedAt: new Date() });
-                        await loadReports();
-                    } catch (err) {
-                        console.error('Soft-delete error:', err);
-                        Alert.alert('Error', 'Failed to delete report');
-                    } finally {
-                        setOperationLoading(false);
-                    }
-                }
-            },
-        ]);
+    const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false);
+    const [itemToDelete, setItemToDelete] = useState<string | null>(null);
+
+    function confirmRemove(id: string) {
+        setItemToDelete(id);
+        setDeleteConfirmVisible(true);
+    }
+
+    async function removeConfirmed() {
+        if (!itemToDelete) return;
+        setDeleteConfirmVisible(false);
+        setOperationLoading(true);
+        try {
+            const ref = doc(db, 'cash_reports', itemToDelete);
+            await updateDoc(ref, { deleted: true, deletedAt: new Date() });
+            await loadReports();
+            showToast('Report deleted', 'success');
+        } catch (err) {
+            console.error('Soft-delete error:', err);
+            showToast('Failed to delete report', 'error');
+        } finally {
+            setOperationLoading(false);
+            setItemToDelete(null);
+        }
     }
 
     // NEW: CSV helper & export function
@@ -283,7 +292,7 @@ export default function CashReportsScreen() {
                 a.click();
                 a.remove();
                 URL.revokeObjectURL(url);
-                Alert.alert('Download', 'CSV file should be downloaded to your device.');
+                showToast('CSV file downloaded', 'success');
             } else {
                 // Native: reuse existing logic (try Downloads, SAF fallback, then app storage)
                 if (Platform.OS === 'android') {
@@ -301,45 +310,45 @@ export default function CashReportsScreen() {
                         if (granted === PermissionsAndroid.RESULTS.GRANTED) {
                             try {
                                 await FileSystem.writeAsStringAsync(fileNameWithPath, csv);
-                                Alert.alert('Saved', `File saved to Downloads:\n${fileNameWithPath}`);
+                                showToast(`Saved to Downloads`, 'success');
                             } catch (errWrite) {
                                 console.warn('Direct write to Downloads failed, falling back to SAF:', errWrite);
                                 const saved = await saveUsingSAF(csv, filename);
-                                if (saved) Alert.alert('Saved', `File saved to:\n${saved}`);
+                                if (saved) showToast('Saved via picker', 'success');
                                 else {
                                     const fileUri = FileSystem.documentDirectory + filename;
                                     await FileSystem.writeAsStringAsync(fileUri, csv);
-                                    Alert.alert('Saved', `Unable to write to Downloads. Saved to app storage:\n${fileUri}`);
+                                    showToast('Saved to app storage', 'success');
                                 }
                             }
                         } else {
                             const saved = await saveUsingSAF(csv, filename);
-                            if (saved) Alert.alert('Saved', `File saved to:\n${saved}`);
+                            if (saved) showToast('Saved via picker', 'success');
                             else {
                                 const fileUri = FileSystem.documentDirectory + filename;
                                 await FileSystem.writeAsStringAsync(fileUri, csv);
-                                Alert.alert('Saved', `Permission denied. File saved to app storage:\n${fileUri}`);
+                                showToast('Permission denied. Saved to app storage', 'info');
                             }
                         }
                     } catch (err) {
                         console.warn('Android export unexpected error:', err);
                         const saved = await saveUsingSAF(csv, filename);
-                        if (saved) Alert.alert('Saved', `File saved to:\n${saved}`);
+                        if (saved) showToast('Saved via picker', 'success');
                         else {
                             const fileUri = FileSystem.documentDirectory + filename;
                             try { await FileSystem.writeAsStringAsync(fileUri, csv); } catch { }
-                            Alert.alert('Saved', `Saved to app storage:\n${fileUri}`);
+                            showToast('Saved to app storage', 'success');
                         }
                     }
                 } else {
                     const fileUri = FileSystem.documentDirectory + filename;
                     await FileSystem.writeAsStringAsync(fileUri, csv);
-                    Alert.alert('Saved', `File saved to app storage:\n${fileUri}`);
+                    showToast('Saved to app storage', 'success');
                 }
             }
         } catch (err) {
             console.error('Export error:', err);
-            Alert.alert('Error', 'Failed to export CSV');
+            showToast('Failed to export CSV', 'error');
         } finally {
             setExporting(false);
         }
@@ -393,16 +402,16 @@ export default function CashReportsScreen() {
 
             const savedUri = await saveUsingSAF(csv, filename);
             if (savedUri) {
-                Alert.alert('Saved', `File successfully saved!`);
+                showToast('File successfully saved!', 'success');
                 return;
             }
             // fallback to app storage
             const fileUri = FileSystem.documentDirectory + filename;
             await FileSystem.writeAsStringAsync(fileUri, csv);
-            Alert.alert('Saved', `Unable to save via picker. File saved to app storage:\n${fileUri}`);
+            showToast('Unable to save via picker. File saved to app storage', 'success');
         } catch (err) {
             console.error('SAF save error:', err);
-            Alert.alert('Error', 'Failed to save via picker');
+            showToast('Failed to save via picker', 'error');
         } finally {
             setSavingSAF(false);
         }
@@ -496,7 +505,7 @@ export default function CashReportsScreen() {
                             <TouchableOpacity style={{ marginRight: 14 }} onPress={() => openEdit(item)}>
                                 <Text style={{ color: '#06B6D4', fontWeight: '600' }}>Edit</Text>
                             </TouchableOpacity>
-                            <TouchableOpacity onPress={() => remove(item.id)}>
+                            <TouchableOpacity onPress={() => confirmRemove(item.id)}>
                                 <Text style={{ color: '#EF4444', fontWeight: '600' }}>Delete</Text>
                             </TouchableOpacity>
                         </View>
@@ -762,17 +771,30 @@ export default function CashReportsScreen() {
                         <TextInput value={description} onChangeText={setDescription} placeholder="Description (optional)" className="border rounded-lg px-4 py-3 mb-3" />
 
                         <View className="flex-row justify-between mt-2" style={{ alignItems: 'center' }}>
-                            <TouchableOpacity onPress={() => !operationLoading && setModalVisible(false)} disabled={operationLoading} style={{ opacity: operationLoading ? 0.6 : 1, paddingHorizontal: 16, paddingVertical: 8 }}>
+                            <TouchableOpacity onPress={() => !operationLoading && setModalVisible(false)} disabled={operationLoading} style={{ padding: 10, opacity: operationLoading ? 0.6 : 1 }}>
                                 <Text style={{ color: '#6B7280' }}>Cancel</Text>
                             </TouchableOpacity>
-                            <TouchableOpacity onPress={save} disabled={operationLoading} style={{ flexDirection: 'row', alignItems: 'center', opacity: operationLoading ? 0.7 : 1, paddingHorizontal: 16, paddingVertical: 8 }}>
-                                {operationLoading && <ActivityIndicator size="small" color="#4fc3f7" style={{ marginRight: 8 }} />}
-                                <Text style={{ color: '#4fc3f7', fontWeight: '700' }}>{operationLoading ? 'Saving...' : (editingId ? 'Save' : 'Add')}</Text>
+                            <TouchableOpacity disabled={operationLoading} onPress={save} style={{ padding: 10 }}>
+                                {operationLoading ? (
+                                    <ActivityIndicator size="small" color="#4fc3f7" />
+                                ) : (
+                                    <Text style={{ color: '#4fc3f7', fontWeight: '700' }}>{editingId ? 'Save' : 'Add'}</Text>
+                                )}
                             </TouchableOpacity>
                         </View>
                     </View>
                 </View>
             </Modal>
+
+            <ConfirmDialog
+                visible={deleteConfirmVisible}
+                title="Delete Report"
+                message="Delete this cash report? This will mark it as deleted. Continue?"
+                onConfirm={removeConfirmed}
+                onCancel={() => { setDeleteConfirmVisible(false); setItemToDelete(null); }}
+                confirmText="Delete"
+                cancelText="Cancel"
+            />
         </SafeAreaView>
     );
 }

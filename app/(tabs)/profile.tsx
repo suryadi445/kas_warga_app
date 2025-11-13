@@ -6,7 +6,6 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
     ActivityIndicator,
-    Alert,
     Image, // ADD: Import Image component
     Platform,
     ScrollView,
@@ -18,6 +17,8 @@ import {
 } from 'react-native';
 import DateTimePickerModal from 'react-native-modal-datetime-picker';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import ConfirmDialog from '../../src/components/ConfirmDialog';
+import { useToast } from '../../src/contexts/ToastContext';
 import { db } from '../../src/firebaseConfig';
 import { getCurrentUser, signOut } from '../../src/services/authService';
 
@@ -25,6 +26,10 @@ export default function ProfilePage() {
     const router = useRouter();
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+    const { showToast } = useToast();
+    const [logoutConfirmVisible, setLogoutConfirmVisible] = useState(false);
+    const [loadErrorVisible, setLoadErrorVisible] = useState(false);
+    const [loadErrorMessage, setLoadErrorMessage] = useState('');
     const [uid, setUid] = useState<string | null>(null);
 
     // profile fields
@@ -57,6 +62,11 @@ export default function ProfilePage() {
     const [canEditRole, setCanEditRole] = useState(false); // NEW: check if user can edit roles
     const [currentUserRole, setCurrentUserRole] = useState<string>('Member'); // NEW: track current user's role
 
+    // confirm states for child remove and image clear (missing previously)
+    const [childDeleteVisible, setChildDeleteVisible] = useState(false);
+    const [childToDeleteIndex, setChildToDeleteIndex] = useState<number | null>(null);
+    const [imageClearVisible, setImageClearVisible] = useState(false);
+
     const MARITAL_STATUS_OPTIONS = [
         { value: 'single', label: 'Single' },
         { value: 'married', label: 'Married' },
@@ -82,9 +92,8 @@ export default function ProfilePage() {
             const currentUser = getCurrentUser();
 
             if (!currentUser) {
-                Alert.alert('Error', 'User not logged in', [
-                    { text: 'Login', onPress: () => router.replace('/login') }
-                ]);
+                showToast('User not logged in', 'error');
+                router.replace('/login');
                 return;
             }
 
@@ -131,7 +140,7 @@ export default function ProfilePage() {
                         console.log('State updated - Role:', data.role);
                     } else {
                         console.warn('User document does not exist in Firestore');
-                        Alert.alert('Warning', 'Profile data not found. Please complete your profile.');
+                        showToast('Profile data not found. Please complete your profile.', 'info');
                     }
 
                     return; // Success
@@ -158,10 +167,8 @@ export default function ProfilePage() {
                 ? error.message
                 : 'Failed to load profile. Make sure:\n1. Firestore database is created\n2. Internet connection is active\n3. Firestore rules are set';
 
-            Alert.alert('Error', message, [
-                { text: 'Retry', onPress: () => loadUserProfile() },
-                { text: 'Cancel', style: 'cancel' }
-            ]);
+            setLoadErrorMessage(message);
+            setLoadErrorVisible(true);
         } finally {
             setLoading(false);
         }
@@ -170,8 +177,16 @@ export default function ProfilePage() {
     function addChild() {
         setChildren((c) => [...c, { name: '', birthDate: '', placeOfBirth: '' }]);
     }
-    function removeChild(idx: number) {
-        setChildren((c) => c.filter((_, i) => i !== idx));
+    function requestRemoveChild(idx: number) {
+        setChildToDeleteIndex(idx);
+        setChildDeleteVisible(true);
+    }
+    function removeChildConfirmed() {
+        if (childToDeleteIndex === null) return;
+        setChildren((c) => c.filter((_, i) => i !== childToDeleteIndex));
+        setChildDeleteVisible(false);
+        setChildToDeleteIndex(null);
+        showToast('Child removed', 'success');
     }
     function updateChild(idx: number, field: 'name' | 'birthDate' | 'placeOfBirth', value: string) {
         setChildren((c) => c.map((ch, i) => (i === idx ? { ...ch, [field]: value } : ch)));
@@ -217,7 +232,7 @@ export default function ProfilePage() {
         try {
             const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
             if (!perm.granted) {
-                Alert.alert('Permission', 'Gallery access permission required');
+                showToast('Gallery access permission required', 'error');
                 return;
             }
             const res = await ImagePicker.launchImageLibraryAsync({ quality: 0.7, base64: false });
@@ -233,12 +248,12 @@ export default function ProfilePage() {
 
     async function handleSave() {
         if (!name.trim()) {
-            Alert.alert('Validation', 'Name is required');
+            showToast('Name is required', 'error');
             return;
         }
 
         if (!uid) {
-            Alert.alert('Error', 'User ID not found');
+            showToast('User ID not found', 'error');
             return;
         }
 
@@ -271,39 +286,18 @@ export default function ProfilePage() {
 
             await setDoc(doc(db, 'users', uid), updateData, { merge: true });
 
-            Alert.alert('Success', 'Profile updated successfully');
+            showToast('Profile updated successfully', 'success');
             await loadUserProfile();
         } catch (error: any) {
             console.error('Save profile error:', error);
-            Alert.alert('Error', 'Failed to save: ' + (error.message || 'Unknown error'));
+            showToast('Failed to save: ' + (error.message || 'Unknown error'), 'error');
         } finally {
             setSaving(false);
         }
     }
 
     async function handleLogout() {
-        Alert.alert(
-            'Logout',
-            'Are you sure you want to logout?',
-            [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                    text: 'Logout',
-                    style: 'destructive',
-                    onPress: async () => {
-                        try {
-                            await signOut();
-                            // Clear any stored user data
-                            await AsyncStorage.removeItem('user');
-                            // Navigate to login
-                            router.replace('/login');
-                        } catch (error) {
-                            Alert.alert('Error', 'Failed to logout. Please try again.');
-                        }
-                    }
-                }
-            ]
-        );
+        setLogoutConfirmVisible(true);
     }
 
     const GENDER_OPTIONS = ['Male', 'Female', 'Other'];
@@ -319,10 +313,10 @@ export default function ProfilePage() {
                 role: 'Admin'
             }, { merge: true });
 
-            Alert.alert('Success', 'Role force updated to Admin. Reloading...');
+            showToast('Role force updated to Admin. Reloading...', 'success');
             await loadUserProfile();
         } catch (error: any) {
-            Alert.alert('Error', error.message);
+            showToast(error.message || 'Error', 'error');
         }
     }
 
@@ -368,7 +362,7 @@ export default function ProfilePage() {
                         <TouchableOpacity onPress={pickImageNative} style={{ backgroundColor: '#F3F4F6', padding: 10, borderRadius: 8, flex: 1 }}>
                             <Text style={{ color: '#374151', textAlign: 'center' }}>Pick from gallery</Text>
                         </TouchableOpacity>
-                        <TouchableOpacity onPress={() => { revokePreviousImage(); setProfileImage(undefined); }} style={{ backgroundColor: '#FEF2F2', padding: 10, borderRadius: 8, flex: 1 }}>
+                        <TouchableOpacity onPress={() => setImageClearVisible(true)} style={{ backgroundColor: '#FEF2F2', padding: 10, borderRadius: 8, flex: 1 }}>
                             <Text style={{ color: '#EF4444', textAlign: 'center' }}>Clear</Text>
                         </TouchableOpacity>
                     </View>
@@ -558,7 +552,7 @@ export default function ProfilePage() {
                                 <TextInput value={ch.placeOfBirth} onChangeText={(v) => updateChild(idx, 'placeOfBirth', v)} placeholder="City / Hospital" style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 6, padding: 8, marginTop: 6 }} />
 
                                 <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 8 }}>
-                                    <TouchableOpacity onPress={() => removeChild(idx)} style={{ padding: 6 }}>
+                                    <TouchableOpacity onPress={() => requestRemoveChild(idx)} style={{ padding: 6 }}>
                                         <Text style={{ color: '#EF4444', fontWeight: '600' }}>Remove</Text>
                                     </TouchableOpacity>
                                 </View>
@@ -627,6 +621,64 @@ export default function ProfilePage() {
                 mode="date"
                 onConfirm={onDateConfirm}
                 onCancel={onDateCancel}
+            />
+
+            {/* ConfirmDialog components (logout and load error) */}
+            <ConfirmDialog
+                visible={logoutConfirmVisible}
+                title="Logout"
+                message="Are you sure you want to logout?"
+                onConfirm={async () => {
+                    setLogoutConfirmVisible(false);
+                    try {
+                        await signOut();
+                        await AsyncStorage.removeItem('user');
+                        router.replace('/login');
+                    } catch (err) {
+                        showToast('Failed to logout. Please try again.', 'error');
+                    }
+                }}
+                onCancel={() => setLogoutConfirmVisible(false)}
+                confirmText="Logout"
+                cancelText="Cancel"
+            />
+
+            <ConfirmDialog
+                visible={loadErrorVisible}
+                title="Error"
+                message={loadErrorMessage}
+                onConfirm={() => {
+                    setLoadErrorVisible(false);
+                    loadUserProfile();
+                }}
+                onCancel={() => setLoadErrorVisible(false)}
+                confirmText="Retry"
+                cancelText="Close"
+            />
+
+            <ConfirmDialog
+                visible={childDeleteVisible}
+                title="Remove child"
+                message="Are you sure you want to remove this child?"
+                onConfirm={removeChildConfirmed}
+                onCancel={() => { setChildDeleteVisible(false); setChildToDeleteIndex(null); }}
+                confirmText="Remove"
+                cancelText="Cancel"
+            />
+
+            <ConfirmDialog
+                visible={imageClearVisible}
+                title="Clear profile image"
+                message="Clear profile image? This action cannot be undone."
+                onConfirm={() => {
+                    setImageClearVisible(false);
+                    revokePreviousImage();
+                    setProfileImage(undefined);
+                    showToast('Profile image cleared', 'success');
+                }}
+                onCancel={() => setImageClearVisible(false)}
+                confirmText="Clear"
+                cancelText="Cancel"
             />
         </SafeAreaView>
     );

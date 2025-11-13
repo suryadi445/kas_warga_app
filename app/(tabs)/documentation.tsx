@@ -3,7 +3,6 @@ import { addDoc, collection, deleteDoc, doc, onSnapshot, orderBy, query, serverT
 import React, { useEffect, useState } from 'react';
 import {
     ActivityIndicator,
-    Alert,
     FlatList,
     Image,
     Modal,
@@ -16,6 +15,8 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import ConfirmDialog from '../../src/components/ConfirmDialog';
+import { useToast } from '../../src/contexts/ToastContext';
 import { db } from '../../src/firebaseConfig';
 import HeaderCard from '../components/HeaderCard';
 
@@ -29,6 +30,7 @@ type Documentation = {
 };
 
 export default function DocumentationScreen() {
+    const { showToast } = useToast();
     const [items, setItems] = useState<Documentation[]>([]);
     const [modalVisible, setModalVisible] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
@@ -41,6 +43,10 @@ export default function DocumentationScreen() {
     const [images, setImages] = useState<string[]>([]);
     const [description, setDescription] = useState('');
     const [activityOpen, setActivityOpen] = useState(false);
+
+    // delete confirm state
+    const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false);
+    const [itemToDelete, setItemToDelete] = useState<string | null>(null);
 
     // realtime listener for activities collection (so picker uses actual activities module)
     useEffect(() => {
@@ -105,7 +111,7 @@ export default function DocumentationScreen() {
     async function pickImages() {
         const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
         if (!permission.granted) {
-            Alert.alert('Permission required', 'Allow access to photos to upload documentation');
+            showToast('Allow access to photos to upload documentation', 'error');
             return;
         }
 
@@ -127,11 +133,11 @@ export default function DocumentationScreen() {
 
     async function save() {
         if (!activityId) {
-            Alert.alert('Error', 'Please select an activity');
+            showToast('Please select an activity', 'error');
             return;
         }
         if (images.length === 0) {
-            Alert.alert('Error', 'Please upload at least one image');
+            showToast('Please upload at least one image', 'error');
             return;
         }
         setOperationLoading(true);
@@ -146,6 +152,7 @@ export default function DocumentationScreen() {
                     date: new Date().toISOString().split('T')[0],
                     updatedAt: serverTimestamp(),
                 });
+                showToast('Documentation updated', 'success');
             } else {
                 await addDoc(collection(db, 'documentation'), {
                     activityId,
@@ -155,33 +162,36 @@ export default function DocumentationScreen() {
                     date: new Date().toISOString().split('T')[0],
                     createdAt: serverTimestamp(),
                 });
+                showToast('Documentation added', 'success');
             }
             setModalVisible(false);
         } catch (e) {
             console.error('documentation save error', e);
-            Alert.alert('Error', 'Failed to save documentation');
+            showToast('Failed to save documentation', 'error');
         } finally {
             setOperationLoading(false);
         }
     }
 
-    function remove(id: string) {
-        Alert.alert('Confirm', 'Delete this documentation?', [
-            { text: 'Cancel', style: 'cancel' },
-            {
-                text: 'Delete', style: 'destructive', onPress: async () => {
-                    setOperationLoading(true);
-                    try {
-                        await deleteDoc(doc(db, 'documentation', id));
-                    } catch (e) {
-                        console.error('delete documentation error', e);
-                        Alert.alert('Error', 'Failed to delete documentation');
-                    } finally {
-                        setOperationLoading(false);
-                    }
-                }
-            },
-        ]);
+    function confirmRemove(id: string) {
+        setItemToDelete(id);
+        setDeleteConfirmVisible(true);
+    }
+
+    async function removeConfirmed() {
+        if (!itemToDelete) return;
+        setDeleteConfirmVisible(false);
+        setOperationLoading(true);
+        try {
+            await deleteDoc(doc(db, 'documentation', itemToDelete));
+            showToast('Documentation deleted', 'success');
+        } catch (e) {
+            console.error('delete documentation error', e);
+            showToast('Failed to delete documentation', 'error');
+        } finally {
+            setOperationLoading(false);
+            setItemToDelete(null);
+        }
     }
 
     const renderItem = ({ item }: { item: Documentation }) => {
@@ -199,7 +209,7 @@ export default function DocumentationScreen() {
                             <TouchableOpacity disabled={operationLoading} onPress={() => openEdit(item)} style={{ marginBottom: 8 }}>
                                 <Text style={{ color: '#06B6D4', fontWeight: '600' }}>Edit</Text>
                             </TouchableOpacity>
-                            <TouchableOpacity disabled={operationLoading} onPress={() => remove(item.id)}>
+                            <TouchableOpacity disabled={operationLoading} onPress={() => confirmRemove(item.id)}>
                                 <Text style={{ color: '#EF4444', fontWeight: '600' }}>Delete</Text>
                             </TouchableOpacity>
                         </View>
@@ -278,17 +288,26 @@ export default function DocumentationScreen() {
                             <TextInput value={description} onChangeText={setDescription} placeholder="Description (optional)" multiline numberOfLines={4} style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 10, marginTop: 6, textAlignVertical: 'top', minHeight: 100 }} />
 
                             <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 16 }}>
-                                <TouchableOpacity onPress={() => setModalVisible(false)} style={{ padding: 10 }}>
+                                <TouchableOpacity onPress={() => !operationLoading && setModalVisible(false)} disabled={operationLoading} style={{ padding: 10, opacity: operationLoading ? 0.6 : 1 }}>
                                     <Text style={{ color: '#6B7280' }}>Cancel</Text>
                                 </TouchableOpacity>
-                                <TouchableOpacity onPress={save} style={{ padding: 10 }}>
-                                    <Text style={{ color: '#4fc3f7', fontWeight: '700' }}>{editingId ? 'Save' : 'Add'}</Text>
+                                <TouchableOpacity disabled={operationLoading} onPress={save} style={{ padding: 10 }}>
+                                    {operationLoading ? <ActivityIndicator size="small" color="#4fc3f7" /> : <Text style={{ color: '#4fc3f7', fontWeight: '700' }}>{editingId ? 'Save' : 'Add'}</Text>}
                                 </TouchableOpacity>
                             </View>
+
                         </ScrollView>
                     </View>
                 </View>
             </Modal>
+
+            <ConfirmDialog
+                visible={deleteConfirmVisible}
+                title="Delete Documentation"
+                message="Are you sure you want to delete this documentation? This action cannot be undone."
+                onConfirm={removeConfirmed}
+                onCancel={() => { setDeleteConfirmVisible(false); setItemToDelete(null); }}
+            />
         </SafeAreaView>
     );
 }

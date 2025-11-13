@@ -3,7 +3,6 @@ import { addDoc, collection, deleteDoc, doc, onSnapshot, orderBy, query, serverT
 import React, { useEffect, useState } from 'react';
 import {
     ActivityIndicator,
-    Alert,
     FlatList,
     Modal,
     Platform,
@@ -15,6 +14,8 @@ import {
     View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import ConfirmDialog from '../../src/components/ConfirmDialog';
+import { useToast } from '../../src/contexts/ToastContext';
 import { db } from '../../src/firebaseConfig';
 
 type Announcement = {
@@ -32,6 +33,7 @@ const PRIORITIES = [
 ];
 
 export default function AnnouncementsScreen() {
+    const { showToast } = useToast();
     const [items, setItems] = useState<Announcement[]>([]);
     const [modalVisible, setModalVisible] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
@@ -41,6 +43,8 @@ export default function AnnouncementsScreen() {
     const [priorityOpen, setPriorityOpen] = useState(false);
     const [loadingAnnouncements, setLoadingAnnouncements] = useState(true);
     const [operationLoading, setOperationLoading] = useState(false);
+    const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false);
+    const [itemToDelete, setItemToDelete] = useState<string | null>(null);
 
     // realtime listener
     useEffect(() => {
@@ -84,7 +88,7 @@ export default function AnnouncementsScreen() {
 
     async function save() {
         if (!title.trim()) {
-            Alert.alert('Error', 'Title is required');
+            showToast('Title is required', 'error');
             return;
         }
         setOperationLoading(true);
@@ -92,6 +96,7 @@ export default function AnnouncementsScreen() {
             if (editingId) {
                 const ref = doc(db, 'announcements', editingId);
                 await updateDoc(ref, { title, content, priority, date: new Date().toISOString().split('T')[0] });
+                showToast('Announcement updated successfully', 'success');
             } else {
                 await addDoc(collection(db, 'announcements'), {
                     title,
@@ -100,33 +105,38 @@ export default function AnnouncementsScreen() {
                     date: new Date().toISOString().split('T')[0],
                     createdAt: serverTimestamp(),
                 });
+                showToast('Announcement added successfully', 'success');
             }
             setModalVisible(false);
         } catch (e) {
             console.error('announcement save error', e);
-            Alert.alert('Error', 'Failed to save announcement');
+            showToast('Failed to save announcement', 'error');
         } finally {
             setOperationLoading(false);
         }
     }
 
-    async function remove(id: string) {
-        Alert.alert('Confirm', 'Delete this announcement?', [
-            { text: 'Cancel', style: 'cancel' },
-            {
-                text: 'Delete', style: 'destructive', onPress: async () => {
-                    setOperationLoading(true);
-                    try {
-                        await deleteDoc(doc(db, 'announcements', id));
-                    } catch (e) {
-                        console.error('delete announcement error', e);
-                        Alert.alert('Error', 'Failed to delete announcement');
-                    } finally {
-                        setOperationLoading(false);
-                    }
-                }
-            },
-        ]);
+    function confirmRemove(id: string) {
+        setItemToDelete(id);
+        setDeleteConfirmVisible(true);
+    }
+
+    async function remove() {
+        if (!itemToDelete) return;
+
+        setDeleteConfirmVisible(false);
+        setOperationLoading(true);
+
+        try {
+            await deleteDoc(doc(db, 'announcements', itemToDelete));
+            showToast('Announcement deleted successfully', 'success');
+        } catch (e) {
+            console.error('delete announcement error', e);
+            showToast('Failed to delete announcement', 'error');
+        } finally {
+            setOperationLoading(false);
+            setItemToDelete(null);
+        }
     }
 
     const renderItem = ({ item }: { item: Announcement }) => {
@@ -146,10 +156,10 @@ export default function AnnouncementsScreen() {
 
                         <View style={{ marginLeft: 8, alignItems: 'flex-end' }}>
                             <TouchableOpacity disabled={operationLoading} onPress={() => openEdit(item)} style={{ marginBottom: 8 }}>
-                                <Text style={{ color: '#06B6D4', fontWeight: '600' }}>Edit</Text>
+                                <Text style={{ color: '#06B6D4', fontWeight: '600', opacity: operationLoading ? 0.5 : 1 }}>Edit</Text>
                             </TouchableOpacity>
-                            <TouchableOpacity disabled={operationLoading} onPress={() => remove(item.id)}>
-                                <Text style={{ color: '#EF4444', fontWeight: '600' }}>Delete</Text>
+                            <TouchableOpacity disabled={operationLoading} onPress={() => confirmRemove(item.id)}>
+                                <Text style={{ color: '#EF4444', fontWeight: '600', opacity: operationLoading ? 0.5 : 1 }}>Delete</Text>
                             </TouchableOpacity>
                         </View>
                     </View>
@@ -218,17 +228,28 @@ export default function AnnouncementsScreen() {
                             )}
 
                             <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 16 }}>
-                                <TouchableOpacity onPress={() => setModalVisible(false)} style={{ padding: 10 }}>
+                                <TouchableOpacity onPress={() => !operationLoading && setModalVisible(false)} disabled={operationLoading} style={{ padding: 10, opacity: operationLoading ? 0.6 : 1 }}>
                                     <Text style={{ color: '#6B7280' }}>Cancel</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity disabled={operationLoading} onPress={save} style={{ padding: 10 }}>
-                                    <Text style={{ color: '#4fc3f7', fontWeight: '700' }}>{operationLoading ? 'Saving...' : (editingId ? 'Save' : 'Add')}</Text>
+                                    {operationLoading ? <ActivityIndicator size="small" color="#4fc3f7" /> : <Text style={{ color: '#4fc3f7', fontWeight: '700' }}>{editingId ? 'Save' : 'Add'}</Text>}
                                 </TouchableOpacity>
                             </View>
                         </ScrollView>
                     </View>
                 </View>
             </Modal>
+
+            <ConfirmDialog
+                visible={deleteConfirmVisible}
+                title="Delete Announcement"
+                message="Are you sure you want to delete this announcement? This action cannot be undone."
+                onConfirm={remove}
+                onCancel={() => {
+                    setDeleteConfirmVisible(false);
+                    setItemToDelete(null);
+                }}
+            />
         </SafeAreaView>
     );
 }

@@ -3,7 +3,6 @@ import { addDoc, collection, deleteDoc, doc, onSnapshot, orderBy, query, serverT
 import React, { useEffect, useState } from 'react';
 import {
     ActivityIndicator,
-    Alert,
     FlatList,
     Modal,
     Platform,
@@ -16,6 +15,8 @@ import {
 } from 'react-native';
 import DateTimePickerModal from 'react-native-modal-datetime-picker';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import ConfirmDialog from '../../src/components/ConfirmDialog';
+import { useToast } from '../../src/contexts/ToastContext';
 import { db } from '../../src/firebaseConfig';
 
 type Activity = {
@@ -32,12 +33,15 @@ const SAMPLE_ACTIVITIES: Activity[] = [
 ];
 
 export default function ActivitiesScreen() {
+    const { showToast } = useToast();
     // data comes from Firestore
     const [items, setItems] = useState<Activity[]>([]);
     const [modalVisible, setModalVisible] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
     const [loadingActivities, setLoadingActivities] = useState(true);
     const [operationLoading, setOperationLoading] = useState(false);
+    const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false);
+    const [itemToDelete, setItemToDelete] = useState<string | null>(null);
 
     const [title, setTitle] = useState('');
     const [location, setLocation] = useState('');
@@ -121,7 +125,7 @@ export default function ActivitiesScreen() {
 
     async function save() {
         if (!title.trim()) {
-            Alert.alert('Error', 'Title is required');
+            showToast('Title is required', 'error');
             return;
         }
         setOperationLoading(true);
@@ -129,35 +133,41 @@ export default function ActivitiesScreen() {
             if (editingId) {
                 const ref = doc(db, 'activities', editingId);
                 await updateDoc(ref, { title, location, date, time, description, updatedAt: serverTimestamp() });
+                showToast('Activity updated successfully', 'success');
             } else {
                 await addDoc(collection(db, 'activities'), { title, location, date, time, description, createdAt: serverTimestamp() });
+                showToast('Activity added successfully', 'success');
             }
             setModalVisible(false);
         } catch (e) {
             console.error('activity save error', e);
-            Alert.alert('Error', 'Failed to save activity');
+            showToast('Failed to save activity', 'error');
         } finally {
             setOperationLoading(false);
         }
     }
 
-    function remove(id: string) {
-        Alert.alert('Confirm', 'Delete this activity?', [
-            { text: 'Cancel', style: 'cancel' },
-            {
-                text: 'Delete', style: 'destructive', onPress: async () => {
-                    setOperationLoading(true);
-                    try {
-                        await deleteDoc(doc(db, 'activities', id));
-                    } catch (e) {
-                        console.error('delete activity error', e);
-                        Alert.alert('Error', 'Failed to delete activity');
-                    } finally {
-                        setOperationLoading(false);
-                    }
-                }
-            },
-        ]);
+    function confirmRemove(id: string) {
+        setItemToDelete(id);
+        setDeleteConfirmVisible(true);
+    }
+
+    async function remove() {
+        if (!itemToDelete) return;
+
+        setDeleteConfirmVisible(false);
+        setOperationLoading(true);
+
+        try {
+            await deleteDoc(doc(db, 'activities', itemToDelete));
+            showToast('Activity deleted successfully', 'success');
+        } catch (e) {
+            console.error('delete activity error', e);
+            showToast('Failed to delete activity', 'error');
+        } finally {
+            setOperationLoading(false);
+            setItemToDelete(null);
+        }
     }
 
     const renderItem = ({ item }: { item: Activity }) => {
@@ -182,11 +192,11 @@ export default function ActivitiesScreen() {
                     </View>
 
                     <View style={{ marginLeft: 8, alignItems: 'flex-end' }}>
-                        <TouchableOpacity onPress={() => openEdit(item)} style={{ marginBottom: 8 }}>
-                            <Text style={{ color: '#06B6D4', fontWeight: '600' }}>Edit</Text>
+                        <TouchableOpacity onPress={() => openEdit(item)} style={{ marginBottom: 8 }} disabled={operationLoading}>
+                            <Text style={{ color: '#06B6D4', fontWeight: '600', opacity: operationLoading ? 0.5 : 1 }}>Edit</Text>
                         </TouchableOpacity>
-                        <TouchableOpacity onPress={() => remove(item.id)}>
-                            <Text style={{ color: '#EF4444', fontWeight: '600' }}>Delete</Text>
+                        <TouchableOpacity onPress={() => confirmRemove(item.id)} disabled={operationLoading}>
+                            <Text style={{ color: '#EF4444', fontWeight: '600', opacity: operationLoading ? 0.5 : 1 }}>Delete</Text>
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -338,6 +348,17 @@ export default function ActivitiesScreen() {
                     </View>
                 </View>
             </Modal>
+
+            <ConfirmDialog
+                visible={deleteConfirmVisible}
+                title="Delete Activity"
+                message="Are you sure you want to delete this activity? This action cannot be undone."
+                onConfirm={remove}
+                onCancel={() => {
+                    setDeleteConfirmVisible(false);
+                    setItemToDelete(null);
+                }}
+            />
         </SafeAreaView>
     );
 }

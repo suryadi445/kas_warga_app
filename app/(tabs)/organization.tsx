@@ -4,7 +4,6 @@ import { addDoc, collection, deleteDoc, doc, onSnapshot, orderBy, query, serverT
 import React, { useEffect, useState } from 'react';
 import {
     ActivityIndicator,
-    Alert,
     FlatList,
     Image,
     Modal,
@@ -17,6 +16,8 @@ import {
     View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import ConfirmDialog from '../../src/components/ConfirmDialog';
+import { useToast } from '../../src/contexts/ToastContext';
 import { db } from '../../src/firebaseConfig';
 
 type Org = {
@@ -34,7 +35,7 @@ const SAMPLE: Org[] = [
 ];
 
 export default function OrganizationScreen() {
-    // now backed by Firestore
+    const { showToast } = useToast();
     const [items, setItems] = useState<Org[]>([]);
     const [modalVisible, setModalVisible] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
@@ -46,6 +47,10 @@ export default function OrganizationScreen() {
     const [phone, setPhone] = useState('');
     const [image, setImage] = useState<string | undefined>(undefined);
     const [leader, setLeader] = useState(false);
+
+    // delete confirm state
+    const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false);
+    const [itemToDelete, setItemToDelete] = useState<string | null>(null);
 
     // realtime listener for organization collection
     useEffect(() => {
@@ -94,7 +99,7 @@ export default function OrganizationScreen() {
 
     async function save() {
         if (!name.trim() || !phone.trim()) {
-            Alert.alert('Error', 'Name and phone are required');
+            showToast('Name and phone are required', 'error');
             return;
         }
         setOperationLoading(true);
@@ -109,35 +114,39 @@ export default function OrganizationScreen() {
             if (editingId) {
                 const ref = doc(db, 'organization', editingId);
                 await updateDoc(ref, { ...payload, updatedAt: serverTimestamp() });
+                showToast('Member updated', 'success');
             } else {
                 await addDoc(collection(db, 'organization'), { ...payload, createdAt: serverTimestamp() });
+                showToast('Member added', 'success');
             }
             setModalVisible(false);
         } catch (e) {
             console.error('organization save error', e);
-            Alert.alert('Error', 'Failed to save member');
+            showToast('Failed to save member', 'error');
         } finally {
             setOperationLoading(false);
         }
     }
 
-    function remove(id: string) {
-        Alert.alert('Confirm', 'Delete this member?', [
-            { text: 'Cancel', style: 'cancel' },
-            {
-                text: 'Delete', style: 'destructive', onPress: async () => {
-                    setOperationLoading(true);
-                    try {
-                        await deleteDoc(doc(db, 'organization', id));
-                    } catch (e) {
-                        console.error('delete org member error', e);
-                        Alert.alert('Error', 'Failed to delete member');
-                    } finally {
-                        setOperationLoading(false);
-                    }
-                }
-            },
-        ]);
+    function confirmRemove(id: string) {
+        setItemToDelete(id);
+        setDeleteConfirmVisible(true);
+    }
+
+    async function removeConfirmed() {
+        if (!itemToDelete) return;
+        setDeleteConfirmVisible(false);
+        setOperationLoading(true);
+        try {
+            await deleteDoc(doc(db, 'organization', itemToDelete));
+            showToast('Member deleted', 'success');
+        } catch (e) {
+            console.error('delete org member error', e);
+            showToast('Failed to delete member', 'error');
+        } finally {
+            setOperationLoading(false);
+            setItemToDelete(null);
+        }
     }
 
     // image helpers
@@ -153,7 +162,7 @@ export default function OrganizationScreen() {
         try {
             const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
             if (!perm.granted) {
-                Alert.alert('Permission', 'Gallery access permission required');
+                showToast('Gallery access permission required', 'error');
                 return;
             }
             const res = await ImagePicker.launchImageLibraryAsync({ quality: 0.7, base64: false });
@@ -195,7 +204,7 @@ export default function OrganizationScreen() {
                         <TouchableOpacity disabled={operationLoading} onPress={() => openEdit(item)} style={{ marginBottom: 8 }}>
                             <Text style={{ color: '#06B6D4', fontWeight: '600' }}>Edit</Text>
                         </TouchableOpacity>
-                        <TouchableOpacity disabled={operationLoading} onPress={() => remove(item.id)}>
+                        <TouchableOpacity disabled={operationLoading} onPress={() => confirmRemove(item.id)}>
                             <Text style={{ color: '#EF4444', fontWeight: '600' }}>Delete</Text>
                         </TouchableOpacity>
                     </View>
@@ -273,14 +282,23 @@ export default function OrganizationScreen() {
                                 <TouchableOpacity onPress={() => !operationLoading && setModalVisible(false)} disabled={operationLoading} style={{ padding: 10, opacity: operationLoading ? 0.6 : 1 }}>
                                     <Text style={{ color: '#6B7280' }}>Cancel</Text>
                                 </TouchableOpacity>
-                                <TouchableOpacity onPress={save} disabled={operationLoading} style={{ padding: 10 }}>
+                                <TouchableOpacity disabled={operationLoading} onPress={save} style={{ padding: 10 }}>
                                     {operationLoading ? <ActivityIndicator size="small" color="#4fc3f7" /> : <Text style={{ color: '#4fc3f7', fontWeight: '700' }}>{editingId ? 'Save' : 'Add'}</Text>}
                                 </TouchableOpacity>
                             </View>
+
                         </ScrollView>
                     </View>
                 </View>
             </Modal>
+
+            <ConfirmDialog
+                visible={deleteConfirmVisible}
+                title="Delete Member"
+                message="Are you sure you want to delete this member? This action cannot be undone."
+                onConfirm={removeConfirmed}
+                onCancel={() => { setDeleteConfirmVisible(false); setItemToDelete(null); }}
+            />
         </SafeAreaView>
     );
 }

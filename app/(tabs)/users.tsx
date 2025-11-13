@@ -4,7 +4,6 @@ import { collection, deleteDoc, doc, getDoc, getDocs, setDoc } from 'firebase/fi
 import React, { useCallback, useEffect, useState } from 'react';
 import {
     ActivityIndicator,
-    Alert,
     FlatList,
     Image,
     Modal,
@@ -18,6 +17,8 @@ import {
 } from 'react-native';
 import DateTimePickerModal from 'react-native-modal-datetime-picker';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import ConfirmDialog from '../../src/components/ConfirmDialog';
+import { useToast } from '../../src/contexts/ToastContext';
 import { db } from '../../src/firebaseConfig';
 import { getCurrentUser } from '../../src/services/authService';
 
@@ -33,11 +34,15 @@ type User = {
 const ROLES = ['Member', 'Staff', 'Admin'];
 
 export default function UsersScreen() {
+    const { showToast } = useToast();
     const [users, setUsers] = useState<User[]>([]);
     const [modalVisible, setModalVisible] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const [canManageUsers, setCanManageUsers] = useState(false);
+    const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false);
+    const [itemToDelete, setItemToDelete] = useState<string | null>(null);
+    const [cleanupConfirmVisible, setCleanupConfirmVisible] = useState(false);
 
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
@@ -138,7 +143,7 @@ export default function UsersScreen() {
             setUsers(usersList);
         } catch (error) {
             console.error('Failed to load users:', error);
-            Alert.alert('Error', 'Failed to load users from Firestore');
+            showToast('Failed to load users from Firestore', 'error');
         } finally {
             setLoading(false);
         }
@@ -147,7 +152,7 @@ export default function UsersScreen() {
     function openEdit(u: User) {
         // Only super admin can edit users
         if (!canManageUsers) {
-            Alert.alert('Permission Denied', 'Only super admin (suryadi.hhb@gmail.com) can edit users');
+            showToast('Permission Denied: Only super admin can edit users', 'error');
             return;
         }
 
@@ -185,7 +190,7 @@ export default function UsersScreen() {
     // NEW: function to open add user modal
     function openAdd() {
         if (!canManageUsers) {
-            Alert.alert('Permission Denied', 'Only super admin can add users');
+            showToast('Permission Denied: Only super admin can add users', 'error');
             return;
         }
 
@@ -242,23 +247,23 @@ export default function UsersScreen() {
 
     async function save() {
         if (!canManageUsers) {
-            Alert.alert('Permission Denied', 'Only super admin can modify users');
+            showToast('Permission Denied: Only super admin can modify users', 'error');
             return;
         }
 
         if (!name.trim() || !email.trim()) {
-            Alert.alert('Error', 'Name and email are required');
+            showToast('Name and email are required', 'error');
             return;
         }
 
         // NEW: validation for creating user
         if (!editingId && !password.trim()) {
-            Alert.alert('Error', 'Password is required for new users');
+            showToast('Password is required for new users', 'error');
             return;
         }
 
         if (!editingId && password.trim().length < 6) {
-            Alert.alert('Error', 'Password must be at least 6 characters');
+            showToast('Password must be at least 6 characters', 'error');
             return;
         }
 
@@ -290,7 +295,7 @@ export default function UsersScreen() {
                     throw new Error(`Role update failed! Expected: ${role}, Got: ${verifyData?.role}`);
                 }
 
-                Alert.alert('Success', 'User updated successfully!');
+                showToast('User updated successfully!', 'success');
             } else {
                 // NEW: CREATE new user with complete data
                 console.log('=== CREATING NEW USER ===');
@@ -344,7 +349,7 @@ export default function UsersScreen() {
                     await deleteApp(secondaryApp);
 
                     console.log('User created successfully, secondary auth cleaned up');
-                    Alert.alert('Success', `User ${name} created successfully!`);
+                    showToast(`User ${name} created successfully!`, 'success');
                 } catch (innerError: any) {
                     console.error('Inner error during user creation:', innerError);
 
@@ -378,7 +383,7 @@ export default function UsersScreen() {
                 errorMessage = error.message;
             }
 
-            Alert.alert('Error', errorMessage);
+            showToast(errorMessage, 'error');
         } finally {
             setSaving(false); // STOP loading
         }
@@ -386,83 +391,72 @@ export default function UsersScreen() {
 
     function remove(id: string) {
         if (!canManageUsers) {
-            Alert.alert('Permission Denied', 'Only super admin can delete users');
+            showToast('Permission Denied: Only super admin can delete users', 'error');
             return;
         }
+        setItemToDelete(id);
+        setDeleteConfirmVisible(true);
+    }
 
-        Alert.alert('Confirm', 'Delete this user? This action cannot be undone.', [
-            { text: 'Cancel', style: 'cancel' },
-            {
-                text: 'Delete',
-                style: 'destructive',
-                onPress: async () => {
-                    try {
-                        await deleteDoc(doc(db, 'users', id));
-                        Alert.alert('Success', 'User deleted successfully');
-                        loadUsers();
-                    } catch (error: any) {
-                        console.error('Failed to delete user:', error);
-                        Alert.alert('Error', 'Failed to delete user: ' + (error.message || 'Unknown error'));
-                    }
-                }
-            },
-        ]);
+    async function removeConfirmed() {
+        if (!itemToDelete) return;
+        try {
+            await deleteDoc(doc(db, 'users', itemToDelete));
+            showToast('User deleted successfully', 'success');
+            await loadUsers();
+        } catch (error: any) {
+            console.error('Failed to delete user:', error);
+            showToast('Failed to delete user: ' + (error.message || 'Unknown error'), 'error');
+        } finally {
+            setDeleteConfirmVisible(false);
+            setItemToDelete(null);
+        }
     }
 
     // NEW: Function to check and remove duplicates
     async function cleanupDuplicates() {
         if (!canManageUsers) {
-            Alert.alert('Permission Denied', 'Only super admin can perform cleanup');
+            showToast('Permission Denied: Only super admin can perform cleanup', 'error');
             return;
         }
+        setCleanupConfirmVisible(true);
+    }
 
-        Alert.alert(
-            'Cleanup Duplicates',
-            'This will remove duplicate users based on email. Continue?',
-            [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                    text: 'Continue',
-                    onPress: async () => {
-                        try {
-                            const snapshot = await getDocs(collection(db, 'users'));
-                            const emailMap = new Map<string, string>(); // email -> first doc id
-                            const toDelete: string[] = [];
+    async function cleanupConfirmed() {
+        try {
+            const snapshot = await getDocs(collection(db, 'users'));
+            const emailMap = new Map<string, string>(); // email -> first doc id
+            const toDelete: string[] = [];
 
-                            snapshot.forEach((docSnap) => {
-                                const data = docSnap.data();
-                                const email = data.email;
+            snapshot.forEach((docSnap) => {
+                const data = docSnap.data();
+                const email = data.email;
 
-                                if (emailMap.has(email)) {
-                                    // Duplicate found
-                                    console.log('Duplicate found:', docSnap.id, email);
-                                    toDelete.push(docSnap.id);
-                                } else {
-                                    emailMap.set(email, docSnap.id);
-                                }
-                            });
-
-                            if (toDelete.length === 0) {
-                                Alert.alert('No Duplicates', 'No duplicate users found');
-                                return;
-                            }
-
-                            // Delete duplicates
-                            for (const id of toDelete) {
-                                await deleteDoc(doc(db, 'users', id));
-                                console.log('Deleted duplicate:', id);
-                            }
-
-                            Alert.alert('Success', `Removed ${toDelete.length} duplicate user(s)`);
-                            loadUsers();
-                        } catch (error: any) {
-                            console.error('Cleanup failed:', error);
-                            Alert.alert('Error', 'Failed to cleanup: ' + error.message);
-                        }
-                    }
+                if (emailMap.has(email)) {
+                    toDelete.push(docSnap.id);
+                } else {
+                    emailMap.set(email, docSnap.id);
                 }
-            ]
-        );
+            });
+
+            if (toDelete.length === 0) {
+                showToast('No duplicate users found', 'info');
+                setCleanupConfirmVisible(false);
+                return;
+            }
+
+            for (const id of toDelete) {
+                await deleteDoc(doc(db, 'users', id));
+            }
+
+            showToast(`Removed ${toDelete.length} duplicate user(s)`, 'success');
+            await loadUsers();
+        } catch (error: any) {
+            console.error('Cleanup failed:', error);
+            showToast('Failed to cleanup: ' + (error.message || 'Unknown error'), 'error');
+        } finally {
+            setCleanupConfirmVisible(false);
+        }
     }
 
     const renderItem = ({ item }: { item: User }) => {
@@ -888,29 +882,15 @@ export default function UsersScreen() {
                             )}
 
                             <View className="flex-row justify-between mt-4">
-                                <TouchableOpacity onPress={() => setModalVisible(false)} className="px-4 py-3">
-                                    <Text className="text-gray-600">Cancel</Text>
+                                <TouchableOpacity onPress={() => !saving && setModalVisible(false)} disabled={saving} style={{ padding: 10, opacity: saving ? 0.6 : 1 }}>
+                                    <Text style={{ color: '#6B7280' }}>Cancel</Text>
                                 </TouchableOpacity>
-                                <TouchableOpacity
-                                    onPress={save}
-                                    className="px-4 py-3"
-                                    disabled={saving}
-                                    style={{
-                                        flexDirection: 'row',
-                                        alignItems: 'center',
-                                        opacity: saving ? 0.5 : 1
-                                    }}
-                                >
-                                    {saving && (
-                                        <ActivityIndicator
-                                            size="small"
-                                            color="#4fc3f7"
-                                            style={{ marginRight: 8 }}
-                                        />
+                                <TouchableOpacity disabled={saving} onPress={save} style={{ padding: 10, minWidth: 100, alignItems: 'center', justifyContent: 'center' }}>
+                                    {saving ? (
+                                        <ActivityIndicator size="small" color="#4fc3f7" />
+                                    ) : (
+                                        <Text style={{ color: '#4fc3f7', fontWeight: '700' }}>{editingId ? 'Save' : 'Create'}</Text>
                                     )}
-                                    <Text className="text-[#4fc3f7] font-semibold">
-                                        {saving ? 'Saving...' : (editingId ? 'Save' : 'Create')}
-                                    </Text>
                                 </TouchableOpacity>
                             </View>
                         </ScrollView>
@@ -935,6 +915,27 @@ export default function UsersScreen() {
                     setChildDatePickerVisible(false);
                     setEditingChildIndex(null);
                 }}
+            />
+
+            {/* Confirm dialogs */}
+            <ConfirmDialog
+                visible={deleteConfirmVisible}
+                title="Delete user"
+                message="Delete this user? This action cannot be undone."
+                onConfirm={removeConfirmed}
+                onCancel={() => { setDeleteConfirmVisible(false); setItemToDelete(null); }}
+                confirmText="Delete"
+                cancelText="Cancel"
+            />
+
+            <ConfirmDialog
+                visible={cleanupConfirmVisible}
+                title="Cleanup duplicates"
+                message="This will remove duplicate users by email. Continue?"
+                onConfirm={cleanupConfirmed}
+                onCancel={() => setCleanupConfirmVisible(false)}
+                confirmText="Continue"
+                cancelText="Cancel"
             />
         </SafeAreaView>
     );
