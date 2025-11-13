@@ -1,10 +1,12 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { FlatList, Platform, StatusBar, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import ConfirmDialog from '../../src/components/ConfirmDialog';
+import { useToast } from '../../src/contexts/ToastContext';
+import { signOut } from '../../src/services/authService';
 
 
 const MENU_ITEMS = [
@@ -24,6 +26,11 @@ const MENU_ITEMS = [
 export default function TabsIndex() {
     const router = useRouter();
     const [selected, setSelected] = useState('cash_reports'); // default selected
+    const { showToast } = useToast();
+    const [logoutConfirmVisible, setLogoutConfirmVisible] = useState(false);
+
+    // number of columns for compact menu grid
+    const NUM_COLUMNS = 4;
 
     // get device location once and store for other pages (e.g. Prayer)
     useEffect(() => {
@@ -44,95 +51,55 @@ export default function TabsIndex() {
     }, []);
 
     const renderItem = ({ item }: { item: { id: string; label: string; icon?: string } }) => {
-        const isSelected = item.id === selected;
-
+        // Small square tile for compact grid menu
         return (
-            <View className="mx-6 my-3">
-                <TouchableOpacity
-                    activeOpacity={0.85}
-                    onPress={() => {
-                        setSelected(item.id);
-                        if (item.id === 'dashboard') {
-                            router.push('/(tabs)/dashboard');
-                        }
-                        // navigasi ke layar users atau cash_reports bila dipilih
-                        if (item.id === 'users') {
-                            router.push('/(tabs)/users');
-                        }
-                        if (item.id === 'cash_reports') {
-                            router.push('/(tabs)/cash_reports');
-                        }
-                        if (item.id === 'announcements') {
-                            router.push('/(tabs)/announcements');
-                        }
-                        if (item.id === 'activities') {
-                            router.push('/(tabs)/activities');
-                        }
-                        if (item.id === 'scheduler') {
-                            router.push('/(tabs)/scheduler');
-                        }
-                        if (item.id === 'documentation') {
-                            router.push('/(tabs)/documentation');
-                        }
-                        if (item.id === 'organization') {
-                            router.push('/(tabs)/organization');
-                        }
-                        if (item.id === 'settings') {
-                            router.push('/(tabs)/settings');
-                        }
-                        if (item.id === 'prayer') {
-                            router.push('/(tabs)/prayer');
-                        }
-                        if (item.id === 'developer') {
-                            router.push('/(tabs)/developer');
-                        }
-                        // router.push(`/(tabs)/${item.id}`); // contoh navigasi untuk item lain
-                    }}
-                    style={{ borderRadius: 999 }}
-                >
-                    {isSelected ? (
-                        <LinearGradient
-                            colors={['#6366f1', '#8b5cf6']}
-                            start={{ x: 0, y: 0 }}
-                            end={{ x: 1, y: 0 }}
-                            className="rounded-full px-6 py-4 flex-row items-center justify-between"
-                            style={{ elevation: 6 }}
-                        >
-                            <View className="flex-row items-center">
-                                <View className="w-12 h-12 rounded-full bg-white/20 items-center justify-center mr-4">
-                                    <Text className="text-xl"> {item.icon} </Text>
-                                </View>
-                                <Text className="text-white font-semibold text-base">{item.label}</Text>
-                            </View>
-                            <View className="bg-white/20 p-2 rounded-full">
-                                <Text className="text-white">›</Text>
-                            </View>
-                        </LinearGradient>
-                    ) : (
-                        <View
-                            className="rounded-full px-6 py-4 flex-row items-center justify-between"
-                            style={{
-                                backgroundColor: '#F3F4F6', // light grey pill
-                                elevation: 2,
-                                shadowColor: '#000',
-                                shadowOpacity: 0.05,
-                                shadowRadius: 6,
-                                shadowOffset: { width: 0, height: 3 },
-                            }}
-                        >
-                            <View className="flex-row items-center">
-                                <View className="w-12 h-12 rounded-full bg-white items-center justify-center mr-4">
-                                    <Text className="text-xl">{item.icon}</Text>
-                                </View>
-                                <Text className="text-gray-800 font-medium text-base">{item.label}</Text>
-                            </View>
-                            <View className="bg-white p-2 rounded-full">
-                                <Text className="text-gray-500">›</Text>
-                            </View>
-                        </View>
-                    )}
-                </TouchableOpacity>
-            </View>
+            <TouchableOpacity
+                activeOpacity={0.85}
+                onPress={() => {
+                    setSelected(item.id);
+                    // simple routing map
+                    const map: Record<string, string> = {
+                        dashboard: '/(tabs)/dashboard',
+                        users: '/(tabs)/users',
+                        cash_reports: '/(tabs)/cash_reports',
+                        announcements: '/(tabs)/announcements',
+                        activities: '/(tabs)/activities',
+                        scheduler: '/(tabs)/scheduler',
+                        documentation: '/(tabs)/documentation',
+                        organization: '/(tabs)/organization',
+                        settings: '/(tabs)/settings',
+                        prayer: '/(tabs)/prayer',
+                        developer: '/(tabs)/developer',
+                    };
+                    const route = map[item.id];
+                    if (route) router.push(route as any);
+                }}
+                style={{
+                    flexBasis: '25%', // 4 columns
+                    alignItems: 'center',
+                    marginVertical: 8,
+                }}
+            >
+                <View style={{ alignItems: 'center' }}>
+                    <View
+                        style={{
+                            width: 56,
+                            height: 56,
+                            borderRadius: 12,
+                            backgroundColor: '#F3F4F6',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            marginBottom: 6,
+                            elevation: 2,
+                        }}
+                    >
+                        <Text style={{ fontSize: 20 }}>{item.icon}</Text>
+                    </View>
+                    <Text style={{ fontSize: 12, color: '#374151', textAlign: 'center' }} numberOfLines={1}>
+                        {item.label}
+                    </Text>
+                </View>
+            </TouchableOpacity>
         );
     };
 
@@ -158,10 +125,10 @@ export default function TabsIndex() {
                     Use the menu below to access cash, schedule, announcements, documentation, and more.
                 </Text>
 
-                {/* profile icon top-right - navigate to profile page */}
+                {/* top-right: Logout button (replaces profile icon) */}
                 <TouchableOpacity
-                    onPress={() => router.push('/(tabs)/profile')}
-                    accessibilityLabel="Open profile"
+                    onPress={() => setLogoutConfirmVisible(true)}
+                    accessibilityLabel="Logout"
                     style={{
                         position: 'absolute',
                         right: 16,
@@ -169,11 +136,32 @@ export default function TabsIndex() {
                         top: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) + 8 : 8,
                     }}
                 >
-                    <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', elevation: 4 }}>
-                        <Text style={{ fontSize: 18 }}>👤</Text>
+                    <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#FEF2F2', alignItems: 'center', justifyContent: 'center', elevation: 4, borderWidth: 1, borderColor: '#EF4444' }}>
+                        <Text style={{ fontSize: 18, color: '#EF4444' }}>🚪</Text>
                     </View>
                 </TouchableOpacity>
             </View>
+
+            {/* logout confirm dialog */}
+            <ConfirmDialog
+                visible={logoutConfirmVisible}
+                title="Logout"
+                message="Are you sure you want to logout?"
+                onConfirm={async () => {
+                    setLogoutConfirmVisible(false);
+                    try {
+                        await signOut();
+                        await AsyncStorage.removeItem('user');
+                        router.replace('/login');
+                    } catch (err: any) {
+                        console.error('Logout failed', err);
+                        showToast?.('Failed to logout. Please try again.', 'error');
+                    }
+                }}
+                onCancel={() => setLogoutConfirmVisible(false)}
+                confirmText="Logout"
+                cancelText="Cancel"
+            />
 
             {/* profile page handled in /(tabs)/profile */}
 
@@ -182,7 +170,8 @@ export default function TabsIndex() {
                 data={MENU_ITEMS}
                 keyExtractor={(i) => i.id}
                 renderItem={renderItem}
-                contentContainerStyle={{ paddingVertical: 16 }}
+                numColumns={4}
+                contentContainerStyle={{ paddingVertical: 16, paddingHorizontal: 12, paddingBottom: 120 }}
                 showsVerticalScrollIndicator={false}
             />
         </SafeAreaView>
