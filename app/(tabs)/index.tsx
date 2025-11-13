@@ -3,13 +3,13 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import { useRouter } from 'expo-router';
 import { doc, onSnapshot } from 'firebase/firestore';
-import { db } from '../../src/firebaseConfig';
-import { signOut } from '../../src/services/authService';
 import React, { useEffect, useState } from 'react';
 import { FlatList, Image, StatusBar, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import ConfirmDialog from '../../src/components/ConfirmDialog';
 import { useToast } from '../../src/contexts/ToastContext';
+import { db } from '../../src/firebaseConfig';
+import { signOut } from '../../src/services/authService';
 
 
 const MENU_ITEMS = [
