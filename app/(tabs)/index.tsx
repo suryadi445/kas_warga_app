@@ -1,12 +1,15 @@
+import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import { useRouter } from 'expo-router';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { db } from '../../src/firebaseConfig';
+import { signOut } from '../../src/services/authService';
 import React, { useEffect, useState } from 'react';
-import { FlatList, Platform, StatusBar, Text, TouchableOpacity, View } from 'react-native';
+import { FlatList, Image, StatusBar, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import ConfirmDialog from '../../src/components/ConfirmDialog';
 import { useToast } from '../../src/contexts/ToastContext';
-import { signOut } from '../../src/services/authService';
 
 
 const MENU_ITEMS = [
@@ -28,9 +31,37 @@ export default function TabsIndex() {
     const [selected, setSelected] = useState('cash_reports'); // default selected
     const { showToast } = useToast();
     const [logoutConfirmVisible, setLogoutConfirmVisible] = useState(false);
+    const [appName, setAppName] = useState('Community App'); // default app name
+    const [appImage, setAppImage] = useState<string | undefined>(undefined);
+    const [appDescription, setAppDescription] = useState(
+        'Management application for cash, activities, and mosque or community information. Use the menu below to access cash, schedule, announcements, documentation, and more.'
+    );
 
     // number of columns for compact menu grid
     const NUM_COLUMNS = 4;
+
+    // load app name from settings
+    useEffect(() => {
+        let unsub: (() => void) | null = null;
+        (async () => {
+            try {
+                const ref = doc(db, 'settings', 'app');
+                unsub = onSnapshot(ref, (snap) => {
+                    if (snap.exists()) {
+                        const data = snap.data();
+                        if (data.appName) setAppName(data.appName);
+                        if (data.appImage) setAppImage(data.appImage);
+                        if (data.appDescription) setAppDescription(data.appDescription);
+                    }
+                }, (err) => {
+                    console.warn('settings onSnapshot error', err);
+                });
+            } catch (e) {
+                console.warn('Failed to load app name from settings', e);
+            }
+        })();
+        return () => { if (unsub) unsub(); };
+    }, []);
 
     // get device location once and store for other pages (e.g. Prayer)
     useEffect(() => {
@@ -107,22 +138,21 @@ export default function TabsIndex() {
         <SafeAreaView className="flex-1 bg-white">
             <StatusBar barStyle="dark-content" translucent backgroundColor="transparent" />
             <View
-                className="px-6 pt-6 pb-4 items-center"
-                style={{
-                    position: 'relative',
-                    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) + 24 : 24,
-                }}
+                className="px-6 pb-4 items-center"
             >
                 <View
                     className="w-20 h-20 bg-[#4fc3f7] rounded-full items-center justify-center mb-3 shadow-lg"
-                    style={{ elevation: 4 }}
+                    style={{ elevation: 4, overflow: 'hidden' }}
                 >
-                    <Text className="text-white text-3xl">🕌</Text>
+                    {appImage ? (
+                        <Image source={{ uri: appImage }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                    ) : (
+                        <Text className="text-white text-3xl">🕌</Text>
+                    )}
                 </View>
-                <Text className="text-[#4fc3f7] text-2xl font-bold">Kas Masjid Ar Rahman</Text>
+                <Text className="text-[#4fc3f7] text-2xl font-bold">{appName}</Text>
                 <Text className="text-gray-500 text-sm" style={{ textAlign: 'center', marginTop: 4 }}>
-                    Management application for cash, activities, and mosque or community information.
-                    Use the menu below to access cash, schedule, announcements, documentation, and more.
+                    {appDescription}
                 </Text>
 
                 {/* top-right: Logout button (replaces profile icon) */}
@@ -132,12 +162,10 @@ export default function TabsIndex() {
                     style={{
                         position: 'absolute',
                         right: 16,
-                        // use StatusBar height on Android to avoid overlapping the system bar
-                        top: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) + 8 : 8,
                     }}
                 >
-                    <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#FEF2F2', alignItems: 'center', justifyContent: 'center', elevation: 4, borderWidth: 1, borderColor: '#EF4444' }}>
-                        <Text style={{ fontSize: 18, color: '#EF4444' }}>🚪</Text>
+                    <View style={{ width: 40, height: 20, alignItems: 'center', justifyContent: 'center', borderColor: '#EF4444' }}>
+                        <Ionicons name="log-out-outline" size={24} color="#EF4444" />
                     </View>
                 </TouchableOpacity>
             </View>

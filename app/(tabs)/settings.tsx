@@ -1,9 +1,11 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { doc, onSnapshot, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
 import React, { useEffect, useState } from 'react';
 import {
     ActivityIndicator,
+    Image,
     Modal,
     Platform,
     ScrollView,
@@ -35,8 +37,9 @@ const MONTHS = [
 ];
 
 export default function SettingsScreen() {
-    const { showToast } = useToast(); // added
+    const { showToast } = useToast();
     const [appName, setAppName] = useState('Kas Warga');
+    const [appImage, setAppImage] = useState<string | undefined>(undefined);
     const [businessType, setBusinessType] = useState('Community Service');
     const [phone, setPhone] = useState('081234567890');
     const [email, setEmail] = useState('info@example.com');
@@ -62,6 +65,11 @@ export default function SettingsScreen() {
     // temp state used inside map modal (so cancel doesn't overwrite)
     const [tmpLat, setTmpLat] = useState<number | null>(latitude);
     const [tmpLng, setTmpLng] = useState<number | null>(longitude);
+
+    // NEW: app description
+    const [appDescription, setAppDescription] = useState(
+        'Management application for cash, activities, and mosque or community information. Use the menu below to access cash, schedule, announcements, documentation, and more.'
+    );
 
     // reverse geocode using Nominatim (OpenStreetMap)
     async function reverseGeocode(lat: number | null, lon: number | null) {
@@ -90,6 +98,7 @@ export default function SettingsScreen() {
                     if (!snap.exists()) return;
                     const s = snap.data() as any;
                     if (s.appName) setAppName(s.appName);
+                    if (s.appImage) setAppImage(s.appImage);
                     if (s.businessType) setBusinessType(s.businessType);
                     if (s.phone) setPhone(s.phone);
                     if (s.email) setEmail(s.email);
@@ -99,6 +108,7 @@ export default function SettingsScreen() {
                     if (s.location) setLocation(s.location);
                     if (s.latitude != null) setLatitude(s.latitude);
                     if (s.longitude != null) setLongitude(s.longitude);
+                    if (s.appDescription) setAppDescription(s.appDescription);
                 }, (err) => {
                     console.warn('settings onSnapshot error', err);
                 });
@@ -141,6 +151,24 @@ export default function SettingsScreen() {
         })();
     }, [paymentMethods]);
 
+    // image picker helper
+    async function pickAppImage() {
+        try {
+            const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+            if (!perm.granted) {
+                showToast('Gallery access permission required', 'error');
+                return;
+            }
+            const res = await ImagePicker.launchImageLibraryAsync({ quality: 0.7, base64: false });
+            const uri = (res as any)?.assets?.[0]?.uri || (res as any)?.uri;
+            if (uri) {
+                setAppImage(uri);
+            }
+        } catch {
+            // ignore
+        }
+    }
+
     function save() {
         if (!appName.trim()) {
             showToast('App name is required', 'error');
@@ -162,6 +190,8 @@ export default function SettingsScreen() {
 
         const payload: any = {
             appName,
+            appDescription, // NEW: include description
+            appImage: appImage || '',
             businessType,
             phone,
             email,
@@ -231,13 +261,16 @@ export default function SettingsScreen() {
                 <Text style={{ color: '#6B7280', marginTop: 4, textAlign: 'center' }}>
                     Update app details, address, and payment methods.
                 </Text>
-                <TouchableOpacity onPress={() => setModalVisible(true)} style={{ marginTop: 10 }}>
-                    <Text style={{ color: '#6366f1', fontWeight: '700', fontSize: 16 }}>Edit</Text>
-                </TouchableOpacity>
             </View>
 
             <View style={{ paddingHorizontal: 16 }}>
                 <View style={{ backgroundColor: '#F9FAFB', borderRadius: 12, padding: 14, elevation: 2 }}>
+                    {/* App Image Preview */}
+                    {appImage && (
+                        <View style={{ alignItems: 'center', marginBottom: 10 }}>
+                            <Image source={{ uri: appImage }} style={{ width: 80, height: 80, borderRadius: 40 }} />
+                        </View>
+                    )}
                     <Text style={{ fontWeight: '700', fontSize: 16 }}>{appName}</Text>
                     <Text style={{ color: '#6B7280', marginTop: 6 }}>{businessType}</Text>
 
@@ -283,8 +316,41 @@ export default function SettingsScreen() {
                         <ScrollView>
                             <Text style={{ fontSize: 18, fontWeight: '700', marginBottom: 8 }}>Edit Settings</Text>
 
+                            {/* App Image Section */}
+                            <View style={{ alignItems: 'center', marginBottom: 16 }}>
+                                <View style={{ width: 100, height: 100, borderRadius: 50, backgroundColor: '#F3F4F6', overflow: 'hidden', marginBottom: 12, borderWidth: 2, borderColor: '#6366f1' }}>
+                                    {appImage ? (
+                                        <Image source={{ uri: appImage }} style={{ width: '100%', height: '100%' }} />
+                                    ) : (
+                                        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+                                            <Text style={{ fontSize: 40 }}>🕌</Text>
+                                        </View>
+                                    )}
+                                </View>
+                                <Text style={{ color: '#374151', marginBottom: 6, fontSize: 12 }}>App Logo</Text>
+                                <View style={{ flexDirection: 'row', gap: 8, justifyContent: 'center' }}>
+                                    <TouchableOpacity onPress={pickAppImage} style={{ backgroundColor: '#F3F4F6', padding: 8, borderRadius: 8 }}>
+                                        <Text style={{ color: '#374151', fontSize: 12 }}>Pick Image</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity onPress={() => setAppImage(undefined)} style={{ backgroundColor: '#FEF2F2', padding: 8, borderRadius: 8 }}>
+                                        <Text style={{ color: '#EF4444', fontSize: 12 }}>Clear</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            </View>
+
                             <Text style={{ color: '#374151', marginTop: 8 }}>App Name</Text>
                             <TextInput value={appName} onChangeText={setAppName} placeholder="App name" style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 10, marginTop: 6 }} />
+
+                            {/* NEW: App Description */}
+                            <Text style={{ color: '#374151', marginTop: 8 }}>App Description</Text>
+                            <TextInput
+                                value={appDescription}
+                                onChangeText={setAppDescription}
+                                placeholder="Short description shown on the main page"
+                                multiline
+                                numberOfLines={3}
+                                style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 10, marginTop: 6, textAlignVertical: 'top', minHeight: 80 }}
+                            />
 
                             <Text style={{ color: '#374151', marginTop: 8 }}>Business Type</Text>
                             <TextInput value={businessType} onChangeText={setBusinessType} placeholder="Business / organization type" style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 10, marginTop: 6 }} />
