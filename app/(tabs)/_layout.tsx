@@ -21,34 +21,35 @@ export default function TabsLayout({ children }: { children: React.ReactNode }) 
         return pathname.startsWith(route);
     };
 
-    const TAB_HEIGHT = Platform.OS === 'ios' ? 70 : 60;
-    const bottomOffset = insets.bottom || (Platform.OS === 'ios' ? 16 : 4);
+    // CONTENT_HEIGHT: tinggi area yang digunakan untuk ikon + label (tidak termasuk safe-area inset)
+    const CONTENT_HEIGHT = Platform.OS === 'ios' ? 64 : 56;
+    // total tinggi container = content + bottom inset (so tab anchored to screen bottom)
+    const totalTabHeight = CONTENT_HEIGHT + (insets.bottom || (Platform.OS === 'ios' ? 16 : 4));
 
     return (
-        <View style={{ flex: 1, backgroundColor: '#fff' }}>
-            <SafeAreaView style={{ flex: 1 }} edges={['top']}>
-                <StatusBar barStyle="dark-content" translucent backgroundColor="transparent" />
-                <View style={{ flex: 1, paddingBottom: TAB_HEIGHT + bottomOffset }}>
-                    {/* render child screen via expo-router Slot */}
-                    <Slot />
-                </View>
-            </SafeAreaView>
+        <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
+            <StatusBar barStyle="dark-content" translucent backgroundColor="transparent" />
+            <View style={{ flex: 1, paddingBottom: totalTabHeight }}>
+                {/* render child screen via expo-router Slot */}
+                <Slot />
+            </View>
 
-            {/* bottom tab bar - fixed */}
+            {/* bottom tab bar - fixed (anchor to bottom:0, height includes safe inset) */}
             <View
                 style={{
                     position: 'absolute',
                     left: 0,
                     right: 0,
-                    bottom: bottomOffset,
-                    height: TAB_HEIGHT,
+                    bottom: 0, // fixed to screen bottom
+                    height: totalTabHeight, // content height + safe inset
                     backgroundColor: '#fff',
                     flexDirection: 'row',
                     alignItems: 'center',
                     justifyContent: 'space-around',
-                    paddingBottom: bottomOffset,
-                    paddingTop: 6,
-                    elevation: 0,
+                    // use insets.bottom for internal padding so icons are above system nav
+                    paddingBottom: insets.bottom || (Platform.OS === 'ios' ? 16 : 4),
+                    paddingTop: Math.max(4, (CONTENT_HEIGHT - 40) / 2), // small top spacing
+                    elevation: 12,
                     zIndex: 999,
                 }}
             >
@@ -61,7 +62,7 @@ export default function TabsLayout({ children }: { children: React.ReactNode }) 
                             style={{ alignItems: 'center', justifyContent: 'center', flex: 1 }}
                             activeOpacity={0.8}
                         >
-                            <View style={{ alignItems: 'center', justifyContent: 'center', marginTop: 2 }}>
+                            <View style={{ alignItems: 'center', justifyContent: 'center' }}>
                                 <Text style={{ fontSize: 20, lineHeight: 24 }}>{t.icon}</Text>
                                 <Text
                                     style={{
@@ -78,6 +79,6 @@ export default function TabsLayout({ children }: { children: React.ReactNode }) 
                     );
                 })}
             </View>
-        </View>
+        </SafeAreaView>
     );
 }

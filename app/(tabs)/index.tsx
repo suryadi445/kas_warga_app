@@ -135,7 +135,7 @@ export default function TabsIndex() {
     };
 
     return (
-        <SafeAreaView className="flex-1 bg-white">
+        <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
             <StatusBar barStyle="dark-content" translucent backgroundColor="transparent" />
             <View
                 className="px-6 pb-4 items-center"
@@ -199,8 +199,10 @@ export default function TabsIndex() {
                 keyExtractor={(i) => i.id}
                 renderItem={renderItem}
                 numColumns={4}
+                style={{ flex: 1 }}
                 contentContainerStyle={{ paddingVertical: 16, paddingHorizontal: 12, paddingBottom: 120 }}
                 showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
             />
         </SafeAreaView>
     );
