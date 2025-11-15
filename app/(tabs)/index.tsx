@@ -135,10 +135,14 @@ export default function TabsIndex() {
     };
 
     return (
-        <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
+        <SafeAreaView edges={['bottom']} style={{ flex: 1, backgroundColor: '#fff' }}>
             <StatusBar barStyle="dark-content" translucent backgroundColor="transparent" />
             <View
                 className="px-6 pb-4 items-center"
+                style={{
+                    position: 'relative',
+                    paddingTop: 16, // ADD: consistent top padding like other pages
+                }}
             >
                 <View
                     className="w-20 h-20 bg-[#4fc3f7] rounded-full items-center justify-center mb-3 shadow-lg"
@@ -162,9 +166,10 @@ export default function TabsIndex() {
                     style={{
                         position: 'absolute',
                         right: 16,
+                        top: 16,
                     }}
                 >
-                    <View style={{ width: 40, height: 20, alignItems: 'center', justifyContent: 'center', borderColor: '#EF4444' }}>
+                    <View style={{ width: 40, height: 40, alignItems: 'center', justifyContent: 'center' }}>
                         <Ionicons name="log-out-outline" size={24} color="#EF4444" />
                     </View>
                 </TouchableOpacity>

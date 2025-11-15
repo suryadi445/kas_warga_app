@@ -327,7 +327,7 @@ export default function CashReportsScreen() {
                             else {
                                 const fileUri = FileSystem.documentDirectory + filename;
                                 await FileSystem.writeAsStringAsync(fileUri, csv);
-                                showToast('Permission denied. Saved to app storage', 'info');
+                                showToast('Saved to app storage', 'success');
                             }
                         }
                     } catch (err) {
@@ -449,7 +449,7 @@ export default function CashReportsScreen() {
     // show loader if initial load
     if (loadingReports) {
         return (
-            <SafeAreaView style={{ flex: 1, backgroundColor: '#fff', paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0 }}>
+            <SafeAreaView edges={['bottom']} style={{ flex: 1, backgroundColor: '#fff' }}>
                 <StatusBar barStyle="dark-content" translucent backgroundColor="transparent" />
                 <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
                     <Text style={{ color: '#6B7280' }}>Loading reports...</Text>
@@ -459,53 +459,48 @@ export default function CashReportsScreen() {
     }
 
     const renderItem = ({ item }: { item: Report }) => {
-        const sign = item.type === 'in' ? '+' : '-';
-        const color = item.type === 'in' ? '#10B981' : '#EF4444'; // green/red
         return (
-            <View className="mx-6 my-3">
-                <View
-                    style={{
-                        minHeight: 72,
-                        borderRadius: 12,
-                        paddingHorizontal: 12,
-                        paddingVertical: 10,
-                        backgroundColor: '#F9FAFB',
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        elevation: 2,
-                        shadowColor: '#000',
-                        shadowOpacity: 0.04,
-                        shadowRadius: 6,
-                        shadowOffset: { width: 0, height: 3 },
-                    }}
-                >
-                    <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}>
-                        <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
-                            <Text style={{ fontSize: 18 }}>{item.type === 'in' ? '⬆️' : '⬇️'}</Text>
-                        </View>
+            <View style={{ marginHorizontal: 16, marginVertical: 8 }}>
+                <View style={{ backgroundColor: '#F9FAFB', borderRadius: 12, padding: 12, elevation: 2 }}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                         <View style={{ flex: 1 }}>
-                            {item.category ? (
-                                <>
-                                    <Text style={{ color: '#111827', fontWeight: '600' }}>{item.category}</Text>
-                                    <Text style={{ color: '#111827', fontWeight: '600', marginTop: 2 }}>{item.date}</Text>
-                                </>
-                            ) : (
-                                <Text style={{ color: '#111827', fontWeight: '600' }}>{item.date}</Text>
-                            )}
-                            <Text style={{ color: '#6B7280', fontSize: 12, marginTop: 4 }}>{item.description || '—'}</Text>
-                        </View>
-                    </View>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
+                                <View style={{
+                                    backgroundColor: item.type === 'in' ? '#ECFDF5' : '#FEF2F2',
+                                    paddingHorizontal: 8,
+                                    paddingVertical: 4,
+                                    borderRadius: 999,
+                                    marginRight: 8
+                                }}>
+                                    <Text style={{
+                                        color: item.type === 'in' ? '#065F46' : '#7F1D1D',
+                                        fontWeight: '700',
+                                        fontSize: 11
+                                    }}>
+                                        {item.type === 'in' ? 'IN' : 'OUT'}
+                                    </Text>
+                                </View>
+                                <Text style={{ color: '#6B7280', fontSize: 12 }}>{item.date}</Text>
+                            </View>
 
-                    <View style={{ width: 150, alignItems: 'flex-end' }}>
-                        <Text style={{ color, fontWeight: '700' }}>
-                            {sign} Rp {Number(item.amount).toLocaleString('id-ID')}
-                        </Text>
-                        <View style={{ flexDirection: 'row', marginTop: 8 }}>
-                            <TouchableOpacity style={{ marginRight: 14 }} onPress={() => openEdit(item)}>
+                            <Text style={{ fontWeight: '700', color: '#111827', fontSize: 16 }}>
+                                {formatAmount(item.type === 'in' ? item.amount : -item.amount)}
+                            </Text>
+
+                            {item.category ? (
+                                <Text style={{ color: '#6B7280', fontSize: 12, marginTop: 4 }}>{item.category}</Text>
+                            ) : null}
+
+                            {item.description ? (
+                                <Text numberOfLines={2} style={{ color: '#374151', marginTop: 4 }}>{item.description}</Text>
+                            ) : null}
+                        </View>
+
+                        <View style={{ marginLeft: 8, alignItems: 'flex-end' }}>
+                            <TouchableOpacity disabled={operationLoading} onPress={() => openEdit(item)} style={{ marginBottom: 8 }}>
                                 <Text style={{ color: '#06B6D4', fontWeight: '600' }}>Edit</Text>
                             </TouchableOpacity>
-                            <TouchableOpacity onPress={() => confirmRemove(item.id)}>
+                            <TouchableOpacity disabled={operationLoading} onPress={() => confirmRemove(item.id)}>
                                 <Text style={{ color: '#EF4444', fontWeight: '600' }}>Delete</Text>
                             </TouchableOpacity>
                         </View>
@@ -516,7 +511,7 @@ export default function CashReportsScreen() {
     };
 
     return (
-        <SafeAreaView style={{ flex: 1, backgroundColor: '#fff', paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0 }}>
+        <SafeAreaView edges={['bottom']} style={{ flex: 1, backgroundColor: '#fff' }}>
             <StatusBar barStyle="dark-content" translucent backgroundColor="transparent" />
             <View style={{ padding: 16, alignItems: 'center' }}>
                 <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: '#6366f1', alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>

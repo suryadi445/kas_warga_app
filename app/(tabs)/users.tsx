@@ -13,10 +13,10 @@ import {
     Text,
     TextInput,
     TouchableOpacity,
-    View,
+    View
 } from 'react-native';
 import DateTimePickerModal from 'react-native-modal-datetime-picker';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import ConfirmDialog from '../../src/components/ConfirmDialog';
 import { useToast } from '../../src/contexts/ToastContext';
 import { db } from '../../src/firebaseConfig';
@@ -34,6 +34,8 @@ type User = {
 const ROLES = ['Member', 'Staff', 'Admin'];
 
 export default function UsersScreen() {
+    const insets = useSafeAreaInsets();
+    const bottomInset = insets.bottom || 0;
     const { showToast } = useToast();
     const [users, setUsers] = useState<User[]>([]);
     const [modalVisible, setModalVisible] = useState(false);
@@ -81,6 +83,10 @@ export default function UsersScreen() {
         { value: 'divorced', label: 'Divorced' },
         { value: 'widowed', label: 'Widowed' },
     ];
+
+    // content height used by tab bar (icons + label area)
+    const CONTENT_TAB_HEIGHT = Platform.OS === 'ios' ? 64 : 56;
+    const totalTabHeight = CONTENT_TAB_HEIGHT + (insets.bottom || (Platform.OS === 'ios' ? 16 : 4));
 
     useEffect(() => {
         checkPermissions();
@@ -541,7 +547,7 @@ export default function UsersScreen() {
     }
 
     return (
-        <SafeAreaView style={{ flex: 1, backgroundColor: '#fff', paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0 }}>
+        <SafeAreaView edges={['bottom']} style={{ flex: 1, backgroundColor: '#fff' }}>
             <StatusBar barStyle="dark-content" translucent backgroundColor="transparent" />
 
             {/* Header */}
@@ -618,8 +624,11 @@ export default function UsersScreen() {
                 data={users}
                 keyExtractor={(i) => i.id}
                 renderItem={renderItem}
-                contentContainerStyle={{ paddingVertical: 8 }}
+                numColumns={1}
+                style={{ flex: 1 }}
+                contentContainerStyle={{ paddingVertical: 8, paddingHorizontal: 12, paddingBottom: bottomInset }}
                 showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
             />
 
             {/* Modal Form - Create & Edit */}

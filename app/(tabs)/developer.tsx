@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function DeveloperScreen() {
     return (
-        <SafeAreaView style={{ flex: 1, backgroundColor: '#f8fafc', paddingTop: StatusBar.currentHeight || 0 }}>
+        <SafeAreaView edges={['bottom']} style={{ flex: 1, backgroundColor: '#f8fafc' }}>
             <StatusBar barStyle="dark-content" translucent backgroundColor="transparent" />
             <ScrollView contentContainerStyle={{ padding: 24, alignItems: 'center' }}>
                 <View style={{

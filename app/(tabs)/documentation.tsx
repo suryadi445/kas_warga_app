@@ -1,4 +1,5 @@
 import * as ImagePicker from 'expo-image-picker';
+import { LinearGradient } from 'expo-linear-gradient';
 import { addDoc, collection, deleteDoc, doc, onSnapshot, orderBy, query, serverTimestamp, updateDoc } from 'firebase/firestore';
 import React, { useEffect, useState } from 'react';
 import {
@@ -6,19 +7,17 @@ import {
     FlatList,
     Image,
     Modal,
-    Platform,
-    SafeAreaView,
     ScrollView,
     StatusBar,
     Text,
     TextInput,
     TouchableOpacity,
-    View,
+    View
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import ConfirmDialog from '../../src/components/ConfirmDialog';
 import { useToast } from '../../src/contexts/ToastContext';
 import { db } from '../../src/firebaseConfig';
-import HeaderCard from '../components/HeaderCard';
 
 type Documentation = {
     id: string;
@@ -227,10 +226,28 @@ export default function DocumentationScreen() {
     };
 
     return (
-        <SafeAreaView style={{ flex: 1, backgroundColor: '#fff', paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0 }}>
+        <SafeAreaView edges={['bottom']} style={{ flex: 1, backgroundColor: '#fff' }}>
             <StatusBar barStyle="dark-content" translucent backgroundColor="transparent" />
 
-            <HeaderCard icon="📸" title="Documentation" subtitle="Upload photos of community activities" buttonLabel="+ Add Documentation" onButtonPress={openAdd} />
+            {/* REPLACE HeaderCard with standard header */}
+            <View style={{ padding: 16, alignItems: 'center' }}>
+                <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: '#6366f1', alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
+                    <Text style={{ color: '#fff', fontSize: 32 }}>📸</Text>
+                </View>
+                <Text style={{ color: '#6366f1', fontSize: 20, fontWeight: '700' }}>Documentation</Text>
+                <Text style={{ color: '#6B7280', marginTop: 4, textAlign: 'center' }}>
+                    Upload photos of community activities
+                </Text>
+            </View>
+
+            {/* Add button */}
+            <View style={{ paddingHorizontal: 16, marginBottom: 12 }}>
+                <TouchableOpacity disabled={operationLoading} onPress={openAdd}>
+                    <LinearGradient colors={['#6366f1', '#8b5cf6']} style={{ paddingVertical: 12, borderRadius: 999, alignItems: 'center' }}>
+                        <Text style={{ color: '#fff', fontWeight: '700' }}>+ Add Documentation</Text>
+                    </LinearGradient>
+                </TouchableOpacity>
+            </View>
 
             {loadingDocs ? (
                 <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 40 }}>

@@ -23,13 +23,14 @@ export default function TabsLayout({ children }: { children: React.ReactNode }) 
 
     // CONTENT_HEIGHT: tinggi area yang digunakan untuk ikon + label (tidak termasuk safe-area inset)
     const CONTENT_HEIGHT = Platform.OS === 'ios' ? 64 : 56;
-    // total tinggi container = content + bottom inset (so tab anchored to screen bottom)
-    const totalTabHeight = CONTENT_HEIGHT + (insets.bottom || (Platform.OS === 'ios' ? 16 : 4));
+    // only use safe-area inset for container padding bottom so there's no extra gap
+    const safeInsetBottom = insets.bottom || (Platform.OS === 'ios' ? 16 : 4);
 
     return (
         <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
             <StatusBar barStyle="dark-content" translucent backgroundColor="transparent" />
-            <View style={{ flex: 1, paddingBottom: totalTabHeight }}>
+            {/* keep container full-height but only reserve safe inset at bottom (no extra gap) */}
+            <View style={{ flex: 1, paddingBottom: safeInsetBottom }}>
                 {/* render child screen via expo-router Slot */}
                 <Slot />
             </View>
@@ -41,13 +42,13 @@ export default function TabsLayout({ children }: { children: React.ReactNode }) 
                     left: 0,
                     right: 0,
                     bottom: 0, // fixed to screen bottom
-                    height: totalTabHeight, // content height + safe inset
+                    height: CONTENT_HEIGHT + safeInsetBottom, // content height + safe inset
                     backgroundColor: '#fff',
                     flexDirection: 'row',
                     alignItems: 'center',
                     justifyContent: 'space-around',
-                    // use insets.bottom for internal padding so icons are above system nav
-                    paddingBottom: insets.bottom || (Platform.OS === 'ios' ? 16 : 4),
+                    // use safeInsetBottom for internal padding so icons are above system nav
+                    paddingBottom: safeInsetBottom,
                     paddingTop: Math.max(4, (CONTENT_HEIGHT - 40) / 2), // small top spacing
                     elevation: 12,
                     zIndex: 999,
