@@ -44,7 +44,12 @@ export default function UsersScreen() {
     const [canManageUsers, setCanManageUsers] = useState(false);
     const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false);
     const [itemToDelete, setItemToDelete] = useState<string | null>(null);
-    const [cleanupConfirmVisible, setCleanupConfirmVisible] = useState(false);
+
+    // NEW: role filter state (null = show all, 'Admin'/'Staff'/'Member' = show only that role)
+    const [roleFilter, setRoleFilter] = useState<string | null>(null);
+
+    // NEW: search query for name/email
+    const [searchQuery, setSearchQuery] = useState<string>('');
 
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
@@ -419,51 +424,14 @@ export default function UsersScreen() {
         }
     }
 
-    // NEW: Function to check and remove duplicates
-    async function cleanupDuplicates() {
-        if (!canManageUsers) {
-            showToast('Permission Denied: Only super admin can perform cleanup', 'error');
-            return;
-        }
-        setCleanupConfirmVisible(true);
-    }
-
-    async function cleanupConfirmed() {
-        try {
-            const snapshot = await getDocs(collection(db, 'users'));
-            const emailMap = new Map<string, string>(); // email -> first doc id
-            const toDelete: string[] = [];
-
-            snapshot.forEach((docSnap) => {
-                const data = docSnap.data();
-                const email = data.email;
-
-                if (emailMap.has(email)) {
-                    toDelete.push(docSnap.id);
-                } else {
-                    emailMap.set(email, docSnap.id);
-                }
-            });
-
-            if (toDelete.length === 0) {
-                showToast('No duplicate users found', 'info');
-                setCleanupConfirmVisible(false);
-                return;
-            }
-
-            for (const id of toDelete) {
-                await deleteDoc(doc(db, 'users', id));
-            }
-
-            showToast(`Removed ${toDelete.length} duplicate user(s)`, 'success');
-            await loadUsers();
-        } catch (error: any) {
-            console.error('Cleanup failed:', error);
-            showToast('Failed to cleanup: ' + (error.message || 'Unknown error'), 'error');
-        } finally {
-            setCleanupConfirmVisible(false);
-        }
-    }
+    // NEW: filtered users based on roleFilter
+    const filteredUsers = users
+        .filter(u => (roleFilter ? u.role === roleFilter : true))
+        .filter(u => {
+            const q = (searchQuery || '').trim().toLowerCase();
+            if (!q) return true;
+            return (u.name || '').toLowerCase().includes(q) || (u.email || '').toLowerCase().includes(q);
+        });
 
     const renderItem = ({ item }: { item: User }) => {
         // Role badge color
@@ -496,9 +464,25 @@ export default function UsersScreen() {
                 >
                     {/* Role badge positioned top-right */}
                     <View style={{ position: 'absolute', top: 8, right: 8, zIndex: 3 }}>
-                        <View style={{ backgroundColor: colors.bg, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 }}>
-                            <Text style={{ color: colors.text, fontSize: 11, fontWeight: '700' }}>{item.role}</Text>
-                        </View>
+                        <TouchableOpacity
+                            onPress={() => {
+                                // Filter users by role
+                                setRoleFilter(roleFilter === item.role ? null : item.role);
+                            }}
+                            style={{
+                                backgroundColor: colors.bg,
+                                paddingHorizontal: 8,
+                                paddingVertical: 3,
+                                borderRadius: 999,
+                                flexDirection: 'row',
+                                alignItems: 'center',
+                                borderWidth: roleFilter === item.role ? 2 : 0,
+                                borderColor: colors.text,
+                            }}
+                        >
+                            <Text style={{ color: colors.text, fontSize: 11, fontWeight: '700', marginRight: 4 }}>{item.role}</Text>
+                            <Text style={{ color: colors.text, fontSize: 11 }}>▾</Text>
+                        </TouchableOpacity>
                     </View>
 
                     {/* Left: avatar + info */}
@@ -572,56 +556,126 @@ export default function UsersScreen() {
                 </View>
             )}
 
-            {/* User count */}
+            {/* User count with breakdown */}
             <View className="px-6 mb-2">
-                <View style={{ backgroundColor: '#F9FAFB', padding: 12, borderRadius: 8 }}>
-                    <Text style={{ color: '#374151', textAlign: 'center' }}>
-                        Total Users: <Text style={{ fontWeight: '700' }}>{users.length}</Text>
-                    </Text>
-                    <Text style={{ color: '#6B7280', textAlign: 'center', fontSize: 12, marginTop: 4 }}>
-                        Check console for detailed user list
-                    </Text>
+                <View style={{ backgroundColor: '#F9FAFB', padding: 10, borderRadius: 8 }}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                        {/* Total Users - leftmost (smaller) */}
+                        <TouchableOpacity onPress={() => setRoleFilter(null)} style={{ flex: 1, alignItems: 'center' }}>
+                            <View style={{
+                                width: 36,
+                                height: 36,
+                                borderRadius: 28,
+                                backgroundColor: roleFilter === null ? '#6366f1' : '#E6EEF8',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                borderWidth: roleFilter === null ? 2 : 0,
+                                borderColor: '#4f46e5'
+                            }}>
+                                <Text style={{ color: roleFilter === null ? '#fff' : '#1f2937', fontWeight: '700', fontSize: 16 }}>{users.length}</Text>
+                            </View>
+                            <Text style={{ marginTop: 6, color: '#374151', fontWeight: '700', fontSize: 12 }}>Total</Text>
+                        </TouchableOpacity>
+
+                        {/* Admin */}
+                        <TouchableOpacity onPress={() => setRoleFilter(roleFilter === 'Admin' ? null : 'Admin')} style={{ flex: 1, alignItems: 'center' }}>
+                            <View style={{
+                                width: 36,
+                                height: 36,
+                                borderRadius: 28,
+                                backgroundColor: roleFilter === 'Admin' ? '#991B1B' : '#FEE2E2',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                borderWidth: roleFilter === 'Admin' ? 2 : 0,
+                                borderColor: '#7f1d1d'
+                            }}>
+                                <Text style={{ color: roleFilter === 'Admin' ? '#fff' : '#991B1B', fontWeight: '700', fontSize: 16 }}>{users.filter(u => u.role === 'Admin').length}</Text>
+                            </View>
+                            <Text style={{ marginTop: 6, color: '#991B1B', fontWeight: '600', fontSize: 12 }}>Admin</Text>
+                        </TouchableOpacity>
+
+                        {/* Staff */}
+                        <TouchableOpacity onPress={() => setRoleFilter(roleFilter === 'Staff' ? null : 'Staff')} style={{ flex: 1, alignItems: 'center' }}>
+                            <View style={{
+                                width: 36,
+                                height: 36,
+                                borderRadius: 28,
+                                backgroundColor: roleFilter === 'Staff' ? '#1E40AF' : '#DBEAFE',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                borderWidth: roleFilter === 'Staff' ? 2 : 0,
+                                borderColor: '#1e3a8a'
+                            }}>
+                                <Text style={{ color: roleFilter === 'Staff' ? '#fff' : '#1E40AF', fontWeight: '700', fontSize: 16 }}>{users.filter(u => u.role === 'Staff').length}</Text>
+                            </View>
+                            <Text style={{ marginTop: 6, color: '#1E40AF', fontWeight: '600', fontSize: 12 }}>Staff</Text>
+                        </TouchableOpacity>
+
+                        {/* Member */}
+                        <TouchableOpacity onPress={() => setRoleFilter(roleFilter === 'Member' ? null : 'Member')} style={{ flex: 1, alignItems: 'center' }}>
+                            <View style={{
+                                width: 36,
+                                height: 36,
+                                borderRadius: 28,
+                                backgroundColor: roleFilter === 'Member' ? '#3730A3' : '#E0E7FF',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                borderWidth: roleFilter === 'Member' ? 2 : 0,
+                                borderColor: '#3730a3'
+                            }}>
+                                <Text style={{ color: roleFilter === 'Member' ? '#fff' : '#3730A3', fontWeight: '700', fontSize: 16 }}>{users.filter(u => u.role === 'Member').length}</Text>
+                            </View>
+                            <Text style={{ marginTop: 6, color: '#3730A3', fontWeight: '600', fontSize: 12 }}>Member</Text>
+                        </TouchableOpacity>
+                    </View>
                 </View>
             </View>
 
             {/* NEW: Add User Button - only for super admin */}
             {canManageUsers && (
-                <View className="px-6 mb-2">
-                    <TouchableOpacity onPress={openAdd}>
-                        <LinearGradient
-                            colors={['#10B981', '#059669']}
-                            start={{ x: 0, y: 0 }}
-                            end={{ x: 1, y: 0 }}
+                <View className="px-6 mb-2" style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                    {/* Left: search (nama / email) */}
+                    <View style={{ flex: 1 }}>
+                        <TextInput
+                            value={searchQuery}
+                            onChangeText={setSearchQuery}
+                            placeholder="Search..."
                             style={{
-                                paddingVertical: 12,
-                                borderRadius: 999,
-                                alignItems: 'center',
-                                elevation: 3,
+                                borderWidth: 1,
+                                borderColor: '#E5E7EB',
+                                borderRadius: 12,
+                                paddingVertical: 10,
+                                paddingHorizontal: 12,
+                                backgroundColor: '#fff',
                             }}
-                        >
-                            <Text style={{ color: '#fff', fontWeight: '700', fontSize: 16 }}>+ Create New User</Text>
-                        </LinearGradient>
-                    </TouchableOpacity>
-                </View>
-            )}
+                            returnKeyType="search"
+                        />
+                    </View>
 
-            {/* Add cleanup button for super admin */}
-            {canManageUsers && (
-                <View className="px-6 mb-2">
-                    <TouchableOpacity
-                        onPress={cleanupDuplicates}
-                        style={{ backgroundColor: '#FEF3C7', padding: 10, borderRadius: 8, borderWidth: 1, borderColor: '#F59E0B' }}
-                    >
-                        <Text style={{ color: '#92400E', textAlign: 'center', fontWeight: '600' }}>
-                            🧹 Cleanup Duplicate Users
-                        </Text>
-                    </TouchableOpacity>
+                    {/* Right: create button */}
+                    <View style={{ width: 160 }}>
+                        <TouchableOpacity onPress={openAdd}>
+                            <LinearGradient
+                                colors={['#10B981', '#059669']}
+                                start={{ x: 0, y: 0 }}
+                                end={{ x: 1, y: 0 }}
+                                style={{
+                                    paddingVertical: 12,
+                                    borderRadius: 999,
+                                    alignItems: 'center',
+                                    elevation: 3,
+                                }}
+                            >
+                                <Text style={{ color: '#fff', fontWeight: '700', fontSize: 16 }}>+ Create New User</Text>
+                            </LinearGradient>
+                        </TouchableOpacity>
+                    </View>
                 </View>
             )}
 
             {/* List */}
             <FlatList
-                data={users}
+                data={filteredUsers}
                 keyExtractor={(i) => i.id}
                 renderItem={renderItem}
                 numColumns={1}
@@ -934,16 +988,6 @@ export default function UsersScreen() {
                 onConfirm={removeConfirmed}
                 onCancel={() => { setDeleteConfirmVisible(false); setItemToDelete(null); }}
                 confirmText="Delete"
-                cancelText="Cancel"
-            />
-
-            <ConfirmDialog
-                visible={cleanupConfirmVisible}
-                title="Cleanup duplicates"
-                message="This will remove duplicate users by email. Continue?"
-                onConfirm={cleanupConfirmed}
-                onCancel={() => setCleanupConfirmVisible(false)}
-                confirmText="Continue"
                 cancelText="Cancel"
             />
         </SafeAreaView>
