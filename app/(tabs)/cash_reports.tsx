@@ -1,8 +1,9 @@
-import * as FileSystem from 'expo-file-system/legacy'; // use legacy API so writeAsStringAsync is available
+import * as FileSystem from 'expo-file-system/legacy';
 import { LinearGradient } from 'expo-linear-gradient';
 import { addDoc, collection, doc, getDocs, orderBy, query, updateDoc } from 'firebase/firestore';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, Modal, PermissionsAndroid, Platform, StatusBar, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, FlatList, Modal, PermissionsAndroid, Platform, ScrollView, StatusBar, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import DateTimePickerModal from 'react-native-modal-datetime-picker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import ConfirmDialog from '../../src/components/ConfirmDialog';
 import { useToast } from '../../src/contexts/ToastContext';
@@ -37,10 +38,13 @@ export default function CashReportsScreen() {
 
     // ADDED: filter state and pickers
     const [filterType, setFilterType] = useState<'all' | 'in' | 'out'>('all');
-    const [filterMonth, setFilterMonth] = useState<number | null>(null); // 1..12 or null
+    const [filterCategory, setFilterCategory] = useState<string | null>(null);
+    const [filterMonth, setFilterMonth] = useState<number | null>(null);
     const [filterYear, setFilterYear] = useState<number | null>(null);
     const [monthPickerVisible, setMonthPickerVisible] = useState(false);
     const [yearPickerVisible, setYearPickerVisible] = useState(false);
+    const [typePickerVisible, setTypePickerVisible] = useState(false);
+    const [categoryPickerVisible, setCategoryPickerVisible] = useState(false);
 
     // ADDED: months & years helpers
     const MONTHS = ['All', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -96,6 +100,10 @@ export default function CashReportsScreen() {
     // kategori hanya placeholder (opsional)
     const [category, setCategory] = useState<string>('');
     const [description, setDescription] = useState<string>('');
+    const [categoryOpen, setCategoryOpen] = useState(false);
+    const [datePickerVisible, setDatePickerVisible] = useState(false);
+
+    const CATEGORIES = ['Zakat', 'Infaq', 'Shadaqah', 'Waqf', 'Qurban', 'Fidyah', 'In-Kind Donation', 'Other'];
 
     // helper: ubah digits menjadi format "Rp X.xxx"
     function formatCurrency(input: string) {
@@ -128,6 +136,7 @@ export default function CashReportsScreen() {
         if (!r.date) return false;
         const d = new Date(r.date);
         if (filterType !== 'all' && r.type !== filterType) return false;
+        if (filterCategory && r.category !== filterCategory) return false;
         if (filterMonth && (d.getMonth() + 1) !== filterMonth) return false;
         if (filterYear && d.getFullYear() !== filterYear) return false;
         return true;
@@ -549,27 +558,78 @@ export default function CashReportsScreen() {
                 </LinearGradient>
             </View>
 
-            {/* FILTERS: Type + Month + Year */}
+            {/* FILTERS: Type + Category + Month + Year */}
             <View className="px-6 mb-3">
-                {/* Type segmented */}
-                <View style={{ flexDirection: 'row', gap: 8, marginBottom: 10 }}>
-                    {(['all', 'in', 'out'] as const).map((t) => (
+                {/* Type & Category - side by side */}
+                <View style={{ flexDirection: 'row', gap: 12, marginBottom: 10 }}>
+                    {/* Type select dropdown */}
+                    <View style={{ flex: 1 }}>
+                        <Text style={{ color: '#6B7280', fontSize: 12, marginBottom: 6 }}>Type</Text>
                         <TouchableOpacity
-                            key={t}
-                            onPress={() => setFilterType(t)}
-                            style={{
-                                flex: t === 'all' ? 1.2 : 1,
-                                borderRadius: 12,
-                                paddingVertical: 8,
-                                alignItems: 'center',
-                                backgroundColor: filterType === t ? '#6366f1' : '#F3F4F6',
-                            }}
+                            onPress={() => setTypePickerVisible(!typePickerVisible)}
+                            className="border rounded-lg px-4 py-3 flex-row justify-between items-center"
                         >
-                            <Text style={{ color: filterType === t ? '#fff' : '#374151', fontWeight: '600' }}>
-                                {t === 'all' ? 'All' : t === 'in' ? 'In' : 'Out'}
-                            </Text>
+                            <Text>{filterType === 'all' ? 'All' : filterType === 'in' ? 'In' : 'Out'}</Text>
+                            <Text className="text-gray-400">▾</Text>
                         </TouchableOpacity>
-                    ))}
+                        {typePickerVisible && (
+                            <View className="bg-gray-50 rounded-lg mt-2 absolute top-16 left-0 right-6 z-10">
+                                {(['all', 'in', 'out'] as const).map((t) => (
+                                    <TouchableOpacity
+                                        key={t}
+                                        onPress={() => {
+                                            setFilterType(t);
+                                            setTypePickerVisible(false);
+                                        }}
+                                        className="px-4 py-3"
+                                    >
+                                        <Text className="text-gray-800">
+                                            {t === 'all' ? 'All' : t === 'in' ? 'In' : 'Out'}
+                                        </Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+                        )}
+                    </View>
+
+                    {/* Category select dropdown */}
+                    <View style={{ flex: 1 }}>
+                        <Text style={{ color: '#6B7280', fontSize: 12, marginBottom: 6 }}>Category</Text>
+                        <TouchableOpacity
+                            onPress={() => setCategoryPickerVisible(!categoryPickerVisible)}
+                            className="border rounded-lg px-4 py-3 flex-row justify-between items-center"
+                        >
+                            <Text>{filterCategory ? filterCategory : 'All'}</Text>
+                            <Text className="text-gray-400">▾</Text>
+                        </TouchableOpacity>
+                        {categoryPickerVisible && (
+                            <View className="bg-gray-50 rounded-lg mt-2 absolute top-16 right-0 left-6 z-10" style={{ maxHeight: 200 }}>
+                                <ScrollView showsVerticalScrollIndicator={true}>
+                                    <TouchableOpacity
+                                        onPress={() => {
+                                            setFilterCategory(null);
+                                            setCategoryPickerVisible(false);
+                                        }}
+                                        className="px-4 py-3"
+                                    >
+                                        <Text className="text-gray-800 font-semibold">All</Text>
+                                    </TouchableOpacity>
+                                    {CATEGORIES.map((cat) => (
+                                        <TouchableOpacity
+                                            key={cat}
+                                            onPress={() => {
+                                                setFilterCategory(cat);
+                                                setCategoryPickerVisible(false);
+                                            }}
+                                            className="px-4 py-3"
+                                        >
+                                            <Text className="text-gray-800">{cat}</Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </ScrollView>
+                            </View>
+                        )}
+                    </View>
                 </View>
 
                 {/* Month & Year selectors as one row (2 columns) */}
@@ -580,26 +640,32 @@ export default function CashReportsScreen() {
                             flex: 1,
                             paddingVertical: 10,
                             paddingHorizontal: 12,
-                            borderRadius: 12,
+                            borderRadius: 8,
                             backgroundColor: '#F3F4F6',
                             alignItems: 'center',
+                            justifyContent: 'center',
+                            borderWidth: 1,
+                            borderColor: '#E5E7EB',
                         }}
                     >
-                        <Text style={{ color: '#374151', fontWeight: '600' }}>{filterMonth ? MONTHS[filterMonth] : 'All months'}</Text>
+                        <Text style={{ color: '#374151', fontWeight: '500', fontSize: 14 }}>{filterMonth ? MONTHS[filterMonth] : 'All Months'}</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
                         onPress={() => setYearPickerVisible(true)}
                         style={{
-                            width: 140,
+                            flex: 1,
                             paddingVertical: 10,
                             paddingHorizontal: 12,
-                            borderRadius: 12,
+                            borderRadius: 8,
                             backgroundColor: '#F3F4F6',
                             alignItems: 'center',
+                            justifyContent: 'center',
+                            borderWidth: 1,
+                            borderColor: '#E5E7EB',
                         }}
                     >
-                        <Text style={{ color: '#374151', fontWeight: '600' }}>{filterYear ? String(filterYear) : 'All years'}</Text>
+                        <Text style={{ color: '#374151', fontWeight: '500', fontSize: 14 }}>{filterYear ? String(filterYear) : 'All Years'}</Text>
                     </TouchableOpacity>
                 </View>
 
@@ -607,7 +673,7 @@ export default function CashReportsScreen() {
                 <Modal visible={monthPickerVisible} transparent animationType="fade">
                     <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'center', padding: 24 }}>
                         <View style={{ backgroundColor: '#fff', borderRadius: 12, padding: 12 }}>
-                            <Text style={{ fontWeight: '700', marginBottom: 8 }}>Pilih Bulan</Text>
+                            <Text style={{ fontWeight: '700', marginBottom: 8 }}>Select Month</Text>
                             {MONTHS.map((m, idx) => {
                                 const monthValue = idx === 0 ? null : idx;
                                 const selected = monthValue === filterMonth || (idx === 0 && filterMonth === null);
@@ -635,7 +701,7 @@ export default function CashReportsScreen() {
                 <Modal visible={yearPickerVisible} transparent animationType="fade">
                     <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'center', padding: 24 }}>
                         <View style={{ backgroundColor: '#fff', borderRadius: 12, padding: 12 }}>
-                            <Text style={{ fontWeight: '700', marginBottom: 8 }}>Pilih Tahun</Text>
+                            <Text style={{ fontWeight: '700', marginBottom: 8 }}>Select Year</Text>
                             <TouchableOpacity
                                 onPress={() => {
                                     setFilterYear(null);
@@ -671,19 +737,6 @@ export default function CashReportsScreen() {
             {/* Add button */}
             <View className="px-6 mb-2" style={{ flexDirection: 'row', gap: 12 }}>
                 <View style={{ flex: 1 }}>
-                    <TouchableOpacity activeOpacity={0.85} onPress={openAdd}>
-                        <LinearGradient
-                            colors={['#6366f1', '#8b5cf6']}
-                            start={{ x: 0, y: 0 }}
-                            end={{ x: 1, y: 0 }}
-                            style={{ borderRadius: 999, paddingVertical: 12, alignItems: 'center', elevation: 3 }}
-                        >
-                            <Text style={{ color: '#fff', fontWeight: '700' }}>+ Add Report</Text>
-                        </LinearGradient>
-                    </TouchableOpacity>
-                </View>
-
-                <View style={{ width: 140 }}>
                     <TouchableOpacity
                         onPress={handleSaveToFolder}
                         disabled={savingSAF}
@@ -703,6 +756,24 @@ export default function CashReportsScreen() {
                         )}
                     </TouchableOpacity>
                 </View>
+
+                <View style={{ flex: 1 }}>
+                    <TouchableOpacity activeOpacity={0.85} onPress={openAdd}>
+                        <LinearGradient
+                            colors={['#10B981', '#059669']}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 0 }}
+                            style={{
+                                paddingVertical: 12,
+                                borderRadius: 999,
+                                alignItems: 'center',
+                                elevation: 3,
+                            }}
+                        >
+                            <Text style={{ color: '#fff', fontWeight: '700' }}>+ Add Report</Text>
+                        </LinearGradient>
+                    </TouchableOpacity>
+                </View>
             </View>
 
             {/* List */}
@@ -717,69 +788,124 @@ export default function CashReportsScreen() {
             {/* Modal Form */}
             <Modal visible={modalVisible} animationType="slide" transparent onRequestClose={() => setModalVisible(false)}>
                 <View className="flex-1 justify-end bg-black/30">
-                    <View className="bg-white rounded-t-3xl p-6">
-                        <Text className="text-xl font-semibold mb-4">{editingId ? 'Edit Report' : 'Add Report'}</Text>
+                    <View className="bg-white rounded-t-3xl p-6" style={{ flex: 1 }}>
+                        <ScrollView scrollEnabled={!categoryOpen} showsVerticalScrollIndicator={false}>
+                            <Text className="text-xl font-semibold mb-4">{editingId ? 'Edit Report' : 'Add Report'}</Text>
 
-                        <Text className="text-sm text-gray-600 mb-1">Type</Text>
-                        <View className="flex-row mb-3">
+                            <Text className="text-sm text-gray-600 mb-1">Type</Text>
+                            <View className="flex-row mb-3">
+                                <TouchableOpacity
+                                    onPress={() => setType('in')}
+                                    className={`flex-1 rounded-xl px-4 py-3 mr-2 items-center ${type === 'in' ? 'bg-[#ECFDF5]' : 'bg-gray-100'}`}
+                                    style={{ borderWidth: type === 'in' ? 1 : 0, borderColor: '#10B981' }}
+                                >
+                                    <Text className={`font-semibold ${type === 'in' ? 'text-[#065F46]' : 'text-gray-700'}`}>In</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    onPress={() => setType('out')}
+                                    className={`flex-1 rounded-xl px-4 py-3 items-center ${type === 'out' ? 'bg-[#FEF2F2]' : 'bg-gray-100'}`}
+                                    style={{ borderWidth: type === 'out' ? 1 : 0, borderColor: '#DC2626' }}
+                                >
+                                    <Text className={`font-semibold ${type === 'out' ? 'text-[#7F1D1D]' : 'text-gray-700'}`}>Out</Text>
+                                </TouchableOpacity>
+                            </View>
+
+                            <Text className="text-sm text-gray-600 mb-1">Date</Text>
                             <TouchableOpacity
-                                onPress={() => setType('in')}
-                                className={`flex-1 rounded-xl px-4 py-3 mr-2 items-center ${type === 'in' ? 'bg-[#ECFDF5]' : 'bg-gray-100'}`}
-                                style={{ borderWidth: type === 'in' ? 1 : 0, borderColor: '#10B981' }}
+                                onPress={() => setDatePickerVisible(true)}
+                                className="border rounded-lg px-4 py-3 mb-3"
                             >
-                                <Text className={`font-semibold ${type === 'in' ? 'text-[#065F46]' : 'text-gray-700'}`}>In</Text>
+                                <Text style={{ color: date ? '#111827' : '#9CA3AF' }}>{date || 'Select date'}</Text>
                             </TouchableOpacity>
+
+                            <Text className="text-sm text-gray-600 mb-1">Nominal</Text>
+                            <TextInput
+                                value={amount}
+                                onChangeText={(v) => {
+                                    const next = formatCurrency(v);
+                                    setAmount(next);
+                                }}
+                                placeholder="Rp 0"
+                                keyboardType={Platform.OS === 'ios' ? 'number-pad' : 'numeric'}
+                                className="border rounded-lg px-4 py-3 mb-3"
+                            />
+
+                            <Text className="text-sm text-gray-600 mb-1">Category</Text>
                             <TouchableOpacity
-                                onPress={() => setType('out')}
-                                className={`flex-1 rounded-xl px-4 py-3 items-center ${type === 'out' ? 'bg-[#FEF2F2]' : 'bg-gray-100'}`}
-                                style={{ borderWidth: type === 'out' ? 1 : 0, borderColor: '#DC2626' }}
+                                onPress={() => setCategoryOpen(!categoryOpen)}
+                                className="border rounded-lg px-4 py-3 mb-3 flex-row justify-between items-center"
                             >
-                                <Text className={`font-semibold ${type === 'out' ? 'text-[#7F1D1D]' : 'text-gray-700'}`}>Out</Text>
+                                <Text>{category || 'Select category'}</Text>
+                                <Text className="text-gray-400">▾</Text>
                             </TouchableOpacity>
-                        </View>
+                            {categoryOpen && (
+                                <View style={{ backgroundColor: '#F9FAFB', borderRadius: 8, marginBottom: 12, height: 250, borderWidth: 1, borderColor: '#E5E7EB' }}>
+                                    <ScrollView scrollEnabled={true} showsVerticalScrollIndicator={true}>
+                                        {CATEGORIES.map((cat) => (
+                                            <TouchableOpacity
+                                                key={cat}
+                                                onPress={() => {
+                                                    setCategory(cat);
+                                                    setCategoryOpen(false);
+                                                }}
+                                                style={{ paddingVertical: 12, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: '#E5E7EB' }}
+                                            >
+                                                <Text style={{ color: category === cat ? '#6366f1' : '#111827', fontWeight: category === cat ? '600' : '400' }}>{cat}</Text>
+                                            </TouchableOpacity>
+                                        ))}
+                                    </ScrollView>
+                                </View>
+                            )}
 
-                        <Text className="text-sm text-gray-600 mb-1">Date</Text>
-                        <TextInput value={date} onChangeText={setDate} placeholder="YYYY-MM-DD" className="border rounded-lg px-4 py-3 mb-3" />
+                            <Text className="text-sm text-gray-600 mb-1">Description</Text>
+                            <TextInput
+                                value={description}
+                                onChangeText={setDescription}
+                                placeholder="Description (optional)"
+                                multiline={true}
+                                numberOfLines={4}
+                                style={{
+                                    borderWidth: 1,
+                                    borderColor: '#E5E7EB',
+                                    borderRadius: 8,
+                                    paddingHorizontal: 12,
+                                    paddingVertical: 10,
+                                    marginBottom: 12,
+                                    textAlignVertical: 'top',
+                                    minHeight: 100,
+                                }}
+                            />
 
-                        <Text className="text-sm text-gray-600 mb-1">Nominal</Text>
-                        <TextInput
-                            value={amount}
-                            onChangeText={(v) => {
-                                // terima input apa saja, ubah ke formatted currency
-                                const next = formatCurrency(v);
-                                setAmount(next);
-                            }}
-                            placeholder="Rp 0"
-                            keyboardType={Platform.OS === 'ios' ? 'number-pad' : 'numeric'}
-                            className="border rounded-lg px-4 py-3 mb-3"
-                        />
-
-                        <Text className="text-sm text-gray-600 mb-1">Category</Text>
-                        <TextInput
-                            value={category}
-                            onChangeText={setCategory}
-                            placeholder="Category (optional)"
-                            className="border rounded-lg px-4 py-3 mb-3"
-                        />
-
-                        <Text className="text-sm text-gray-600 mb-1">Description</Text>
-                        <TextInput value={description} onChangeText={setDescription} placeholder="Description (optional)" className="border rounded-lg px-4 py-3 mb-3" />
-
-                        <View className="flex-row justify-between mt-2" style={{ alignItems: 'center' }}>
-                            <TouchableOpacity onPress={() => !operationLoading && setModalVisible(false)} disabled={operationLoading} style={{ padding: 10, opacity: operationLoading ? 0.6 : 1 }}>
-                                <Text style={{ color: '#6B7280' }}>Cancel</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity disabled={operationLoading} onPress={save} style={{ padding: 10 }}>
-                                {operationLoading ? (
-                                    <ActivityIndicator size="small" color="#4fc3f7" />
-                                ) : (
-                                    <Text style={{ color: '#4fc3f7', fontWeight: '700' }}>{editingId ? 'Save' : 'Add'}</Text>
-                                )}
-                            </TouchableOpacity>
-                        </View>
+                            <View className="flex-row justify-between mt-2" style={{ alignItems: 'center' }}>
+                                <TouchableOpacity onPress={() => !operationLoading && setModalVisible(false)} disabled={operationLoading} style={{ padding: 10, opacity: operationLoading ? 0.6 : 1 }}>
+                                    <Text style={{ color: '#6B7280' }}>Cancel</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity disabled={operationLoading} onPress={save} style={{ padding: 10 }}>
+                                    {operationLoading ? (
+                                        <ActivityIndicator size="small" color="#4fc3f7" />
+                                    ) : (
+                                        <Text style={{ color: '#4fc3f7', fontWeight: '700' }}>{editingId ? 'Save' : 'Add'}</Text>
+                                    )}
+                                </TouchableOpacity>
+                            </View>
+                        </ScrollView>
                     </View>
                 </View>
             </Modal>
+
+            {/* Date Picker Modal */}
+            <DateTimePickerModal
+                isVisible={datePickerVisible}
+                mode="date"
+                onConfirm={(selectedDate: Date) => {
+                    const y = selectedDate.getFullYear();
+                    const m = `${selectedDate.getMonth() + 1}`.padStart(2, '0');
+                    const d = `${selectedDate.getDate()}`.padStart(2, '0');
+                    setDate(`${y}-${m}-${d}`);
+                    setDatePickerVisible(false);
+                }}
+                onCancel={() => setDatePickerVisible(false)}
+            />
 
             <ConfirmDialog
                 visible={deleteConfirmVisible}
