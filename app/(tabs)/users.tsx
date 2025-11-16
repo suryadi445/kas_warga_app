@@ -666,7 +666,7 @@ export default function UsersScreen() {
                                     elevation: 3,
                                 }}
                             >
-                                <Text style={{ color: '#fff', fontWeight: '700', fontSize: 16 }}>+ Add User</Text>
+                                <Text style={{ color: '#fff', fontWeight: '700', fontSize: 16 }}>+ User</Text>
                             </LinearGradient>
                         </TouchableOpacity>
                     </View>

@@ -770,7 +770,7 @@ export default function CashReportsScreen() {
                                 elevation: 3,
                             }}
                         >
-                            <Text style={{ color: '#fff', fontWeight: '700' }}>+ Add Report</Text>
+                            <Text style={{ color: '#fff', fontWeight: '700' }}>+ Report</Text>
                         </LinearGradient>
                     </TouchableOpacity>
                 </View>
