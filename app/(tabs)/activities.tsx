@@ -105,10 +105,9 @@ export default function ActivitiesScreen() {
         setEditingId(null);
         setTitle('');
         setLocation('');
-        const t = new Date();
-        const pad = (n: number) => (n < 10 ? `0${n}` : `${n}`);
-        setDate(`${t.getFullYear()}-${pad(t.getMonth() + 1)}-${pad(t.getDate())}`);
-        setTime('09:00');
+        // Set date/time empty for new activity
+        setDate('');
+        setTime('');
         setDescription('');
         setModalVisible(true);
     }
@@ -118,7 +117,8 @@ export default function ActivitiesScreen() {
         setTitle(a.title);
         setLocation(a.location);
         setDate(a.date);
-        setTime((a as any).time || '09:00');
+        // keep existing time or empty if not present (don't force default on edit)
+        setTime(a.time || '');
         setDescription(a.description);
         setModalVisible(true);
     }
@@ -170,10 +170,97 @@ export default function ActivitiesScreen() {
         }
     }
 
+    // helper: determine activity status based on date (YYYY-MM-DD)
+    function getActivityStatus(a: Activity): 'upcoming' | 'active' | 'expired' | null {
+        if (!a.date) return null;
+        const todayStr = new Date().toISOString().split('T')[0];
+        const today = new Date(todayStr);
+        const start = a.date ? new Date(a.date) : new Date('1970-01-01');
+        // treat a single-day activity: active if today == date
+        // if you want multi-day activities, adapt with endDate field
+        if (today < start) return 'upcoming';
+        if (today > start) return 'expired';
+        return 'active';
+    }
+
+    // ADDED: filtering by status and date-range
+    const [filterStatus, setFilterStatus] = useState<'all' | 'upcoming' | 'active' | 'expired'>('all');
+    const [filterStatusOpen, setFilterStatusOpen] = useState(false);
+    const STATUS_OPTIONS = ['all', 'upcoming', 'active', 'expired'] as const;
+    const STATUS_LABEL: Record<string, string> = { all: 'All', upcoming: 'Upcoming', active: 'Active', expired: 'Expired' };
+
+    // single activity date filter (YYYY-MM-DD). Empty = show all dates
+    const [filterDate, setFilterDate] = useState<string>('');
+    const [filterDatePickerVisible, setFilterDatePickerVisible] = useState(false);
+
+    // compute displayed items: apply status + activity date (single date) filter, then sort by status priority
+    const displayedItems = items
+        .filter(i => {
+            // status filter
+            if (filterStatus !== 'all') {
+                const s = getActivityStatus(i);
+                if (s !== filterStatus) return false;
+            }
+            // activity date filter (single date)
+            if (filterDate) {
+                if (!i.date) return false;
+                if (i.date !== filterDate) return false;
+            }
+            return true;
+        })
+        .sort((a, b) => {
+            const rank: Record<string, number> = { active: 0, upcoming: 1, expired: 2, null: 3 };
+            const sa = getActivityStatus(a) ?? 'null';
+            const sb = getActivityStatus(b) ?? 'null';
+            const ra = rank[sa] ?? 3;
+            const rb = rank[sb] ?? 3;
+            if (ra !== rb) return ra - rb;
+            // same status, most recent date first
+            return b.date.localeCompare(a.date);
+        });
+
+    // counts for summary card
+    const totalActivities = items.length;
+    const counts = items.reduce((acc: Record<string, number>, it) => {
+        const s = getActivityStatus(it) ?? 'none';
+        acc[s] = (acc[s] || 0) + 1;
+        return acc;
+    }, {} as Record<string, number>);
+    const activeCount = counts['active'] || 0;
+    const upcomingCount = counts['upcoming'] || 0;
+    const expiredCount = counts['expired'] || 0;
+
     const renderItem = ({ item }: { item: Activity }) => {
+        const status = getActivityStatus(item);
+        const statusStyles: Record<string, { bg: string; text: string; label: string }> = {
+            upcoming: { bg: '#FEF3C7', text: '#92400E', label: 'Upcoming' },
+            active: { bg: '#ECFDF5', text: '#065F46', label: 'On Going' },
+            expired: { bg: '#FEF2F2', text: '#7F1D1D', label: 'Expired' },
+        };
+
         return (
             <View style={{ marginHorizontal: 16, marginVertical: 8 }}>
-                <View style={{ backgroundColor: '#F9FAFB', borderRadius: 12, padding: 12, elevation: 2, flexDirection: 'row', alignItems: 'center' }}>
+                <View style={{ position: 'relative', backgroundColor: '#F9FAFB', borderRadius: 12, padding: 12, elevation: 2, flexDirection: 'row', alignItems: 'center', paddingRight: 120 }}>
+                    {/* Absolute container at top-right: badge on top, actions below */}
+                    <View style={{ position: 'absolute', top: 8, right: 12, zIndex: 5, alignItems: 'flex-end' }}>
+                        {status ? (
+                            <View style={{ backgroundColor: statusStyles[status].bg, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999, marginBottom: 8 }}>
+                                <Text style={{ color: statusStyles[status].text, fontWeight: '700', fontSize: 10 }}>
+                                    {statusStyles[status].label}
+                                </Text>
+                            </View>
+                        ) : null}
+
+                        <View style={{ alignItems: 'flex-end' }}>
+                            <TouchableOpacity onPress={() => openEdit(item)} style={{ marginBottom: 6 }} disabled={operationLoading}>
+                                <Text style={{ color: '#06B6D4', fontWeight: '600', opacity: operationLoading ? 0.5 : 1 }}>Edit</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity onPress={() => confirmRemove(item.id)} disabled={operationLoading}>
+                                <Text style={{ color: '#EF4444', fontWeight: '600', opacity: operationLoading ? 0.5 : 1 }}>Delete</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+
                     <View style={{ flex: 1 }}>
                         <Text style={{ fontWeight: '700', color: '#111827' }}>{item.title}</Text>
                         <Text style={{ color: '#6B7280', fontSize: 12, marginTop: 6 }}>{item.location}</Text>
@@ -189,15 +276,6 @@ export default function ActivitiesScreen() {
                         </View>
 
                         <Text numberOfLines={2} style={{ color: '#374151', marginTop: 8 }}>{item.description || '—'}</Text>
-                    </View>
-
-                    <View style={{ marginLeft: 8, alignItems: 'flex-end' }}>
-                        <TouchableOpacity onPress={() => openEdit(item)} style={{ marginBottom: 8 }} disabled={operationLoading}>
-                            <Text style={{ color: '#06B6D4', fontWeight: '600', opacity: operationLoading ? 0.5 : 1 }}>Edit</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity onPress={() => confirmRemove(item.id)} disabled={operationLoading}>
-                            <Text style={{ color: '#EF4444', fontWeight: '600', opacity: operationLoading ? 0.5 : 1 }}>Delete</Text>
-                        </TouchableOpacity>
                     </View>
                 </View>
             </View>
@@ -219,12 +297,117 @@ export default function ActivitiesScreen() {
                 </Text>
             </View>
 
-            <View style={{ paddingHorizontal: 16, marginBottom: 12 }}>
-                <TouchableOpacity disabled={operationLoading} onPress={openAdd}>
-                    <LinearGradient colors={['#6366f1', '#8b5cf6']} style={{ paddingVertical: 12, borderRadius: 999, alignItems: 'center' }}>
-                        <Text style={{ color: '#fff', fontWeight: '700' }}>+ Add Activity</Text>
-                    </LinearGradient>
-                </TouchableOpacity>
+            {/* Summary card */}
+            <View className="px-6 mb-3">
+                <LinearGradient
+                    colors={['#ffffff', '#f8fafc']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={{
+                        borderRadius: 14,
+                        padding: 14,
+                        elevation: 3,
+                    }}
+                >
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <View>
+                            <Text style={{ color: '#6B7280', fontSize: 12 }}>Activities</Text>
+                            <Text style={{ fontSize: 20, fontWeight: '700', marginTop: 6, color: activeCount > 0 ? '#065F46' : '#6B7280' }}>
+                                {activeCount} Active
+                            </Text>
+                            <Text style={{ color: '#6B7280', fontSize: 12, marginTop: 6 }}>
+                                Upcoming: {upcomingCount} · Expired: {expiredCount}
+                            </Text>
+                        </View>
+                        <View style={{ backgroundColor: '#F3F4F6', paddingVertical: 6, paddingHorizontal: 12, borderRadius: 999 }}>
+                            <Text style={{ color: '#374151', fontWeight: '600' }}>{totalActivities} Total</Text>
+                        </View>
+                    </View>
+                </LinearGradient>
+            </View>
+
+            {/* FILTERS: Status + Date (two columns) */}
+            <View className="px-6 mb-3">
+                <View style={{ flexDirection: 'row', gap: 12, alignItems: 'flex-start' }}>
+                    {/* Status column (left) */}
+                    <View style={{ flex: 1, position: 'relative' }}>
+                        <Text style={{ color: '#6B7280', fontSize: 12, marginBottom: 6 }}>Status</Text>
+                        <TouchableOpacity
+                            onPress={() => setFilterStatusOpen(!filterStatusOpen)}
+                            style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, paddingVertical: 10, paddingHorizontal: 12, backgroundColor: '#fff', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}
+                        >
+                            <Text>{STATUS_LABEL[filterStatus]}</Text>
+                            <Text style={{ color: '#9CA3AF' }}>▾</Text>
+                        </TouchableOpacity>
+                        {filterStatusOpen && (
+                            <View style={{ position: 'absolute', top: 48, left: 0, right: 0, backgroundColor: '#F9FAFB', borderRadius: 8, zIndex: 30, borderWidth: 1, borderColor: '#E5E7EB' }}>
+                                <ScrollView style={{ maxHeight: 200 }}>
+                                    {STATUS_OPTIONS.map(s => (
+                                        <TouchableOpacity key={s} onPress={() => { setFilterStatus(s); setFilterStatusOpen(false); }} style={{ paddingVertical: 12, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: '#E5E7EB' }}>
+                                            <Text style={{ color: filterStatus === s ? '#6366f1' : '#111827', fontWeight: filterStatus === s ? '600' : '400' }}>
+                                                {STATUS_LABEL[s]}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </ScrollView>
+                            </View>
+                        )}
+                    </View>
+
+                    {/* Date column (right) */}
+                    <View style={{ flex: 1 }}>
+                        <Text style={{ color: '#6B7280', fontSize: 12, marginBottom: 6 }}>Activity Date</Text>
+                        <TouchableOpacity
+                            onPress={() => setFilterDatePickerVisible(true)}
+                            style={{
+                                borderWidth: 1,
+                                borderColor: '#E5E7EB',
+                                borderRadius: 8,
+                                paddingVertical: 10,
+                                paddingHorizontal: 12,
+                                backgroundColor: '#fff',
+                                flexDirection: 'row',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                            }}
+                        >
+                            <Text style={{ color: filterDate ? '#111827' : '#9CA3AF' }}>{filterDate || 'All dates'}</Text>
+                            <Text style={{ color: '#9CA3AF' }}>▾</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </View>
+
+            {/* Filter Date Picker (single date) */}
+            <DateTimePickerModal
+                isVisible={filterDatePickerVisible}
+                mode="date"
+                onConfirm={(d: Date) => {
+                    setFilterDate(dateToYMD(d));
+                    setFilterDatePickerVisible(false);
+                }}
+                onCancel={() => setFilterDatePickerVisible(false)}
+            />
+
+            {/* Row: Create button (aligned right) */}
+            <View style={{ paddingHorizontal: 16, marginBottom: 12, flexDirection: 'row', justifyContent: 'flex-end' }}>
+                <View style={{ width: 160 }}>
+                    <TouchableOpacity disabled={operationLoading} onPress={openAdd}>
+                        <LinearGradient
+                            colors={['#10B981', '#059669']}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 0 }}
+                            style={{
+                                paddingVertical: 12,
+                                borderRadius: 999,
+                                alignItems: 'center',
+                                elevation: 3,
+                            }}
+                        >
+                            <Text style={{ color: '#fff', fontWeight: '700', fontSize: 16 }}>+ Activity</Text>
+                        </LinearGradient>
+                    </TouchableOpacity>
+                </View>
             </View>
 
             {loadingActivities ? (
@@ -232,7 +415,7 @@ export default function ActivitiesScreen() {
                     <ActivityIndicator size="small" color="#6366f1" />
                 </View>
             ) : (
-                <FlatList data={items} keyExtractor={(i) => i.id} renderItem={renderItem} contentContainerStyle={{ paddingBottom: 32 }} />
+                <FlatList data={displayedItems} keyExtractor={(i) => i.id} renderItem={renderItem} contentContainerStyle={{ paddingBottom: 32 }} />
             )}
 
             <Modal visible={modalVisible} animationType="slide" transparent onRequestClose={() => setModalVisible(false)}>
@@ -260,7 +443,7 @@ export default function ActivitiesScreen() {
                             ) : (
                                 <>
                                     <TouchableOpacity onPress={() => setShowDatePicker(true)} style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 12, marginTop: 6 }}>
-                                        <Text style={{ color: '#111827' }}>{formatDateOnly(date)}</Text>
+                                        <Text style={{ color: date ? '#111827' : '#9CA3AF' }}>{date ? formatDateOnly(date) : 'Select date'}</Text>
                                     </TouchableOpacity>
                                     <DateTimePickerModal
                                         isVisible={showDatePicker}
@@ -285,7 +468,7 @@ export default function ActivitiesScreen() {
                                         onPress={() => setShowTimePicker(true)}
                                         style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 12, marginTop: 6 }}
                                     >
-                                        <Text style={{ color: '#111827' }}>{time}</Text>
+                                        <Text style={{ color: time ? '#111827' : '#9CA3AF' }}>{time || 'HH:MM'}</Text>
                                     </TouchableOpacity>
 
                                     <DateTimePickerModal

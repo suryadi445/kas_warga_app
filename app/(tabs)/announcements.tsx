@@ -72,6 +72,19 @@ export default function AnnouncementsScreen() {
         return `${h}:${m}`;
     };
 
+    // NEW: display date as "DD Mon YYYY" e.g. "14 Nov 2025"
+    function displayDateYMonD(dateStr: string) {
+        if (!dateStr) return '';
+        const parts = String(dateStr).split('-');
+        if (parts.length < 3) return dateStr;
+        const [y, m, d] = parts;
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const mi = Number(m) - 1;
+        const mon = months[mi] ?? (m.charAt(0).toUpperCase() + m.slice(1).toLowerCase());
+        const day = String(Number(d)); // remove leading zero
+        return `${day} ${mon} ${y}`;
+    }
+
     // realtime listener
     useEffect(() => {
         setLoadingAnnouncements(true);
@@ -208,7 +221,26 @@ export default function AnnouncementsScreen() {
 
         return (
             <View style={{ marginHorizontal: 16, marginVertical: 8 }}>
-                <View style={{ backgroundColor: '#F9FAFB', borderRadius: 12, padding: 12, elevation: 2 }}>
+                <View style={{ position: 'relative', backgroundColor: '#F9FAFB', borderRadius: 12, padding: 12, elevation: 2, paddingRight: 120 }}>
+                    {/* Absolute column at top-right: badge + actions */}
+                    <View style={{ position: 'absolute', top: 8, right: 12, zIndex: 5, alignItems: 'flex-end' }}>
+                        {status ? (
+                            <View style={{ backgroundColor: statusStyles[status].bg, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999, marginBottom: 8 }}>
+                                <Text style={{ color: statusStyles[status].text, fontWeight: '700', fontSize: 10 }}>
+                                    {statusStyles[status].label}
+                                </Text>
+                            </View>
+                        ) : null}
+                        <View style={{ alignItems: 'flex-end' }}>
+                            <TouchableOpacity disabled={operationLoading} onPress={() => openEdit(item)} style={{ marginBottom: 6 }}>
+                                <Text style={{ color: '#06B6D4', fontWeight: '600', opacity: operationLoading ? 0.5 : 1 }}>Edit</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity disabled={operationLoading} onPress={() => confirmRemove(item.id)}>
+                                <Text style={{ color: '#EF4444', fontWeight: '600', opacity: operationLoading ? 0.5 : 1 }}>Delete</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                         <View style={{ flex: 1 }}>
                             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
@@ -218,30 +250,15 @@ export default function AnnouncementsScreen() {
                                 <View style={{ backgroundColor: '#DDD6FE', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999 }}>
                                     <Text style={{ color: '#4F46E5', fontWeight: '600', fontSize: 10 }}>{item.role}</Text>
                                 </View>
-
-                                {/* status badge */}
-                                {status ? (
-                                    <View style={{ backgroundColor: statusStyles[status].bg, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999 }}>
-                                        <Text style={{ color: statusStyles[status].text, fontWeight: '700', fontSize: 10 }}>
-                                            {statusStyles[status].label}
-                                        </Text>
-                                    </View>
-                                ) : null}
-
-                                <Text style={{ color: '#6B7280', fontSize: 12 }}>{item.date}</Text>
                             </View>
                             <Text style={{ fontWeight: '700', color: '#111827', fontSize: 16 }}>{item.title}</Text>
                             <Text numberOfLines={2} style={{ color: '#374151', marginTop: 6 }}>{item.content}</Text>
-                            <Text style={{ color: '#6B7280', fontSize: 12, marginTop: 6 }}>{item.startDate} {item.startTime} - {item.endDate} {item.endTime}</Text>
-                        </View>
-
-                        <View style={{ marginLeft: 8, alignItems: 'flex-end' }}>
-                            <TouchableOpacity disabled={operationLoading} onPress={() => openEdit(item)} style={{ marginBottom: 8 }}>
-                                <Text style={{ color: '#06B6D4', fontWeight: '600', opacity: operationLoading ? 0.5 : 1 }}>Edit</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity disabled={operationLoading} onPress={() => confirmRemove(item.id)}>
-                                <Text style={{ color: '#EF4444', fontWeight: '600', opacity: operationLoading ? 0.5 : 1 }}>Delete</Text>
-                            </TouchableOpacity>
+                            <Text style={{ color: '#6B7280', fontSize: 12, marginTop: 6 }}>
+                                Start : {displayDateYMonD(item.startDate)} {item.startTime}
+                            </Text>
+                            <Text style={{ color: '#6B7280', fontSize: 12, marginTop: 6 }}>
+                                End : {displayDateYMonD(item.endDate)} {item.endTime}
+                            </Text>
                         </View>
                     </View>
                 </View>
@@ -324,16 +341,16 @@ export default function AnnouncementsScreen() {
                 >
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                         <View>
-                            <Text style={{ color: '#6B7280', fontSize: 12 }}>Active Announcements</Text>
+                            <Text style={{ color: '#6B7280', fontSize: 12 }}>Announcements</Text>
                             <Text style={{ fontSize: 20, fontWeight: '700', marginTop: 6, color: activeCount > 0 ? '#065F46' : '#6B7280' }}>
-                                {activeCount} active
+                                {activeCount} Active
                             </Text>
                             <Text style={{ color: '#6B7280', fontSize: 12, marginTop: 6 }}>
                                 Upcoming: {upcomingCount} · Expired: {expiredCount}
                             </Text>
                         </View>
                         <View style={{ backgroundColor: '#F3F4F6', paddingVertical: 6, paddingHorizontal: 12, borderRadius: 999 }}>
-                            <Text style={{ color: '#374151', fontWeight: '600' }}>{totalAnnouncements} total</Text>
+                            <Text style={{ color: '#374151', fontWeight: '600' }}>{totalAnnouncements} Total</Text>
                         </View>
                     </View>
                 </LinearGradient>
@@ -483,7 +500,7 @@ export default function AnnouncementsScreen() {
                                         onPress={() => setStartDatePickerVisible(true)}
                                         style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 12 }}
                                     >
-                                        <Text style={{ color: startDate ? '#111827' : '#9CA3AF' }}>{startDate || 'YYYY-MM-DD'}</Text>
+                                        <Text style={{ color: startDate ? '#111827' : '#9CA3AF' }}>{startDate ? displayDateYMonD(startDate) : 'Select date'}</Text>
                                     </TouchableOpacity>
                                 </View>
                                 <View style={{ flex: 1 }}>
@@ -492,7 +509,7 @@ export default function AnnouncementsScreen() {
                                         onPress={() => setStartTimePickerVisible(true)}
                                         style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 12 }}
                                     >
-                                        <Text style={{ color: startTime ? '#111827' : '#9CA3AF' }}>{startTime || 'HH:MM'}</Text>
+                                        <Text style={{ color: startTime ? '#111827' : '#9CA3AF' }}>{startTime || 'Select time'}</Text>
                                     </TouchableOpacity>
                                 </View>
                             </View>
@@ -505,7 +522,7 @@ export default function AnnouncementsScreen() {
                                         onPress={() => setEndDatePickerVisible(true)}
                                         style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 12 }}
                                     >
-                                        <Text style={{ color: endDate ? '#111827' : '#9CA3AF' }}>{endDate || 'YYYY-MM-DD'}</Text>
+                                        <Text style={{ color: endDate ? '#111827' : '#9CA3AF' }}>{endDate ? displayDateYMonD(endDate) : 'Select date'}</Text>
                                     </TouchableOpacity>
                                 </View>
                                 <View style={{ flex: 1 }}>
@@ -514,7 +531,7 @@ export default function AnnouncementsScreen() {
                                         onPress={() => setEndTimePickerVisible(true)}
                                         style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 12 }}
                                     >
-                                        <Text style={{ color: endTime ? '#111827' : '#9CA3AF' }}>{endTime || 'HH:MM'}</Text>
+                                        <Text style={{ color: endTime ? '#111827' : '#9CA3AF' }}>{endTime || 'Select time'}</Text>
                                     </TouchableOpacity>
                                 </View>
                             </View>

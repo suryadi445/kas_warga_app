@@ -446,7 +446,7 @@ export default function UsersScreen() {
             <View className="mx-6 my-3">
                 <View
                     style={{
-                        position: 'relative', // enable absolute positioning for badge
+                        position: 'relative', // enable absolute positioning for badge/actions
                         minHeight: 72,
                         borderRadius: 12,
                         paddingHorizontal: 12,
@@ -454,19 +454,19 @@ export default function UsersScreen() {
                         backgroundColor: '#F3F4F6',
                         flexDirection: 'row',
                         alignItems: 'center',
-                        justifyContent: 'space-between',
+                        justifyContent: 'flex-start',
                         elevation: 2,
                         shadowColor: '#000',
                         shadowOpacity: 0.05,
                         shadowRadius: 6,
                         shadowOffset: { width: 0, height: 3 },
+                        paddingRight: 150, // make room for absolute badge/actions
                     }}
                 >
-                    {/* Role badge positioned top-right */}
-                    <View style={{ position: 'absolute', top: 8, right: 8, zIndex: 3 }}>
+                    {/* Absolute column: role badge on top, actions below */}
+                    <View style={{ position: 'absolute', top: 8, right: 8, zIndex: 3, alignItems: 'flex-end' }}>
                         <TouchableOpacity
                             onPress={() => {
-                                // Filter users by role
                                 setRoleFilter(roleFilter === item.role ? null : item.role);
                             }}
                             style={{
@@ -478,11 +478,23 @@ export default function UsersScreen() {
                                 alignItems: 'center',
                                 borderWidth: roleFilter === item.role ? 2 : 0,
                                 borderColor: colors.text,
+                                marginBottom: 8,
                             }}
                         >
                             <Text style={{ color: colors.text, fontSize: 11, fontWeight: '700', marginRight: 4 }}>{item.role}</Text>
                             <Text style={{ color: colors.text, fontSize: 11 }}>▾</Text>
                         </TouchableOpacity>
+
+                        {canManageUsers && (
+                            <View style={{ alignItems: 'flex-end' }}>
+                                <TouchableOpacity style={{ marginBottom: 6 }} onPress={() => openEdit(item)}>
+                                    <Text style={{ color: '#06B6D4', fontWeight: '600' }}>Edit</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity onPress={() => remove(item.id)}>
+                                    <Text style={{ color: '#EF4444', fontWeight: '600' }}>Delete</Text>
+                                </TouchableOpacity>
+                            </View>
+                        )}
                     </View>
 
                     {/* Left: avatar + info */}
@@ -504,18 +516,6 @@ export default function UsersScreen() {
                             {item.phone ? <Text style={{ color: '#6B7280', fontSize: 12 }}>{item.phone}</Text> : null}
                         </View>
                     </View>
-
-                    {/* Right: actions (Edit/Delete) */}
-                    {canManageUsers && (
-                        <View style={{ width: 150, flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center' }}>
-                            <TouchableOpacity style={{ marginRight: 10 }} onPress={() => openEdit(item)}>
-                                <Text style={{ color: '#06B6D4', fontWeight: '600' }}>Edit</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity onPress={() => remove(item.id)}>
-                                <Text style={{ color: '#EF4444', fontWeight: '600' }}>Delete</Text>
-                            </TouchableOpacity>
-                        </View>
-                    )}
                 </View>
             </View>
         );
