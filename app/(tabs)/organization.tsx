@@ -50,6 +50,8 @@ export default function OrganizationScreen() {
     // delete confirm state
     const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false);
     const [itemToDelete, setItemToDelete] = useState<string | null>(null);
+    // NEW: search by name or phone
+    const [searchQuery, setSearchQuery] = useState<string>('');
 
     // realtime listener for organization collection
     useEffect(() => {
@@ -181,31 +183,56 @@ export default function OrganizationScreen() {
         return a.leader ? -1 : 1; // leader true => come first
     });
 
+    // NEW: filter sortedItems by searchQuery (name or phone)
+    const filteredItems = sortedItems.filter((u) => {
+        const q = (searchQuery || '').trim().toLowerCase();
+        if (!q) return true;
+        return (u.name || '').toLowerCase().includes(q) || (u.phone || '').toLowerCase().includes(q);
+    });
+
     const renderItem = ({ item }: { item: Org }) => {
         return (
             <View style={{ marginHorizontal: 16, marginVertical: 8 }}>
-                <View style={{ flexDirection: 'row', backgroundColor: '#F9FAFB', borderRadius: 12, padding: 12, alignItems: 'center', elevation: 2 }}>
+                {/* make container relative so we can position badge+actions absolutely */}
+                <View style={{ position: 'relative', flexDirection: 'row', backgroundColor: '#F9FAFB', borderRadius: 12, padding: 12, alignItems: 'center', elevation: 2 }}>
                     <View style={{ width: 64, height: 64, borderRadius: 8, backgroundColor: '#fff', overflow: 'hidden', marginRight: 12 }}>
                         {item.image ? <Image source={{ uri: item.image }} style={{ width: '100%', height: '100%' }} /> : <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}><Text>👤</Text></View>}
                     </View>
+
                     <View style={{ flex: 1 }}>
                         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                             <View>
                                 <Text style={{ fontWeight: '700', color: '#111827' }}>{item.name}</Text>
                                 <Text style={{ color: '#6B7280', fontSize: 12 }}>{item.title}</Text>
                             </View>
-                            {item.leader && <View style={{ backgroundColor: '#FCE7F3', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999 }}><Text style={{ color: '#9F1239', fontWeight: '700' }}>Leader</Text></View>}
+                            {/* removed inline leader badge (moved to absolute container) */}
                         </View>
                         <Text style={{ color: '#374151', marginTop: 6 }}>{item.phone}</Text>
                     </View>
 
-                    <View style={{ marginLeft: 8, alignItems: 'flex-end' }}>
-                        <TouchableOpacity disabled={operationLoading} onPress={() => openEdit(item)} style={{ marginBottom: 8 }}>
-                            <Text style={{ color: '#06B6D4', fontWeight: '600' }}>Edit</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity disabled={operationLoading} onPress={() => confirmRemove(item.id)}>
-                            <Text style={{ color: '#EF4444', fontWeight: '600' }}>Delete</Text>
-                        </TouchableOpacity>
+                    {/* absolute container at top-right: badge (Leader/Member) above actions */}
+                    <View style={{ position: 'absolute', top: 8, right: 12, zIndex: 5, alignItems: 'flex-end' }}>
+                        {/* show Leader badge or Member badge */}
+                        <View style={{
+                            backgroundColor: item.leader ? '#FCE7F3' : '#E0E7FF',
+                            paddingHorizontal: 8,
+                            paddingVertical: 4,
+                            borderRadius: 999,
+                            marginBottom: 8
+                        }}>
+                            <Text style={{ color: item.leader ? '#9F1239' : '#3730A3', fontWeight: '700' }}>
+                                {item.leader ? 'Leader' : 'Member'}
+                            </Text>
+                        </View>
+
+                        <View style={{ alignItems: 'flex-end' }}>
+                            <TouchableOpacity disabled={operationLoading} onPress={() => openEdit(item)} style={{ marginBottom: 6 }}>
+                                <Text style={{ color: '#06B6D4', fontWeight: '600' }}>Edit</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity disabled={operationLoading} onPress={() => confirmRemove(item.id)}>
+                                <Text style={{ color: '#EF4444', fontWeight: '600' }}>Delete</Text>
+                            </TouchableOpacity>
+                        </View>
                     </View>
                 </View>
             </View>
@@ -225,12 +252,60 @@ export default function OrganizationScreen() {
                 </Text>
             </View>
 
+            {/* Summary card (total members + leaders) */}
+            <View className="px-6 mb-3">
+                <LinearGradient
+                    colors={['#ffffff', '#f8fafc']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={{ borderRadius: 14, padding: 14, elevation: 3 }}
+                >
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <View>
+                            <Text style={{ color: '#6B7280', fontSize: 12 }}>Organization</Text>
+                            <Text style={{ fontSize: 20, fontWeight: '700', marginTop: 6, color: '#6B7280' }}>
+                                {items.length} Members
+                            </Text>
+                            <Text style={{ color: '#6B7280', fontSize: 12, marginTop: 6 }}>
+                                Leaders: {items.filter(i => i.leader).length}
+                            </Text>
+                        </View>
+                        <View style={{ backgroundColor: '#F3F4F6', paddingVertical: 6, paddingHorizontal: 12, borderRadius: 999 }}>
+                            {/* show total non-leader members */}
+                            <Text style={{ color: '#374151', fontWeight: '600' }}>{items.filter(i => !i.leader).length} Non-leaders</Text>
+                        </View>
+                    </View>
+                </LinearGradient>
+            </View>
+
+            {/* Search + Add Member (single row, 2 columns) */}
             <View style={{ paddingHorizontal: 16, marginBottom: 12 }}>
-                <TouchableOpacity disabled={operationLoading} onPress={openAdd}>
-                    <LinearGradient colors={['#6366f1', '#8b5cf6']} style={{ paddingVertical: 12, borderRadius: 999, alignItems: 'center' }}>
-                        <Text style={{ color: '#fff', fontWeight: '700' }}>+ Add Member</Text>
-                    </LinearGradient>
-                </TouchableOpacity>
+                <View style={{ flexDirection: 'row', gap: 12, alignItems: 'center' }}>
+                    {/* Left: Search (50%) */}
+                    <View style={{ flex: 1 }}>
+                        <TextInput
+                            value={searchQuery}
+                            onChangeText={setSearchQuery}
+                            placeholder="Search..."
+                            style={{ height: 48, borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, paddingHorizontal: 12, backgroundColor: '#fff' }}
+                            returnKeyType="search"
+                        />
+                    </View>
+
+                    {/* Right: Add Member (50%) */}
+                    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'flex-end' }}>
+                        <TouchableOpacity disabled={operationLoading} onPress={openAdd} style={{ width: '100%' }}>
+                            <LinearGradient
+                                colors={['#10B981', '#059669']}
+                                start={{ x: 0, y: 0 }}
+                                end={{ x: 1, y: 0 }}
+                                style={{ height: 48, borderRadius: 8, alignItems: 'center', justifyContent: 'center', elevation: 3 }}
+                            >
+                                <Text style={{ color: '#fff', fontWeight: '700' }}>+ Add Member</Text>
+                            </LinearGradient>
+                        </TouchableOpacity>
+                    </View>
+                </View>
             </View>
 
             {loadingOrg ? (
@@ -238,7 +313,7 @@ export default function OrganizationScreen() {
                     <ActivityIndicator size="small" color="#6366f1" />
                 </View>
             ) : (
-                <FlatList data={sortedItems} keyExtractor={(i) => i.id} renderItem={renderItem} contentContainerStyle={{ paddingBottom: 32 }} />
+                <FlatList data={filteredItems} keyExtractor={(i) => i.id} renderItem={renderItem} contentContainerStyle={{ paddingBottom: 32 }} />
             )}
 
             <Modal visible={modalVisible} animationType="slide" transparent onRequestClose={() => setModalVisible(false)}>
