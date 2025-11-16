@@ -39,6 +39,9 @@ export default function DocumentationScreen() {
     const [activityId, setActivityId] = useState('');
     const [activityName, setActivityName] = useState('');
     const [activities, setActivities] = useState<{ id: string; name: string }[]>([]);
+    // filter by activity (null = all)
+    const [filterActivity, setFilterActivity] = useState<string | null>(null);
+    const [filterActivityOpen, setFilterActivityOpen] = useState(false);
     const [images, setImages] = useState<string[]>([]);
     const [description, setDescription] = useState('');
     const [activityOpen, setActivityOpen] = useState(false);
@@ -193,6 +196,14 @@ export default function DocumentationScreen() {
         }
     }
 
+    // compute displayed items filtered by selected activity
+    const filteredItems = items.filter((it) => {
+        if (filterActivity && filterActivity !== 'all') {
+            return it.activityId === filterActivity;
+        }
+        return true;
+    });
+
     const renderItem = ({ item }: { item: Documentation }) => {
         return (
             <View style={{ marginHorizontal: 16, marginVertical: 8 }}>
@@ -240,13 +251,52 @@ export default function DocumentationScreen() {
                 </Text>
             </View>
 
-            {/* Add button */}
+            {/* Filters (2-column): Activity (left) + Add button (right) */}
             <View style={{ paddingHorizontal: 16, marginBottom: 12 }}>
-                <TouchableOpacity disabled={operationLoading} onPress={openAdd}>
-                    <LinearGradient colors={['#6366f1', '#8b5cf6']} style={{ paddingVertical: 12, borderRadius: 999, alignItems: 'center' }}>
-                        <Text style={{ color: '#fff', fontWeight: '700' }}>+ Add Documentation</Text>
-                    </LinearGradient>
-                </TouchableOpacity>
+                {/* alignItems changed to 'flex-end' so the Add button aligns with the input control bottoms */}
+                <View style={{ flexDirection: 'row', gap: 12, alignItems: 'flex-end' }}>
+                    {/* Left: Activity filter */}
+                    <View style={{ flex: 1, position: 'relative' }}>
+                        <Text style={{ color: '#6B7280', fontSize: 12, marginBottom: 6 }}>Activity</Text>
+                        <TouchableOpacity
+                            onPress={() => setFilterActivityOpen(v => !v)}
+                            style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, paddingVertical: 10, paddingHorizontal: 12, backgroundColor: '#fff', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}
+                        >
+                            <Text style={{ color: filterActivity ? '#111827' : '#9CA3AF' }}>
+                                {filterActivity ? (activities.find(a => a.id === filterActivity)?.name ?? 'Selected') : 'All Activities'}
+                            </Text>
+                            <Text style={{ color: '#9CA3AF' }}>▾</Text>
+                        </TouchableOpacity>
+                        {filterActivityOpen && (
+                            <View style={{ position: 'absolute', top: 56, left: 0, right: 0, backgroundColor: '#F9FAFB', borderRadius: 8, zIndex: 40, borderWidth: 1, borderColor: '#E5E7EB' }}>
+                                <ScrollView style={{ maxHeight: 220 }} nestedScrollEnabled>
+                                    <TouchableOpacity onPress={() => { setFilterActivity(null); setFilterActivityOpen(false); }} style={{ paddingVertical: 12, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: '#E5E7EB' }}>
+                                        <Text style={{ color: filterActivity === null ? '#10B981' : '#111827', fontWeight: filterActivity === null ? '600' : '400' }}>All activities</Text>
+                                    </TouchableOpacity>
+                                    {activities.map(act => (
+                                        <TouchableOpacity key={act.id} onPress={() => { setFilterActivity(act.id); setFilterActivityOpen(false); }} style={{ paddingVertical: 12, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: '#E5E7EB' }}>
+                                            <Text style={{ color: filterActivity === act.id ? '#10B981' : '#111827', fontWeight: filterActivity === act.id ? '600' : '400' }}>{act.name}</Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </ScrollView>
+                            </View>
+                        )}
+                    </View>
+
+                    {/* Right: Add Documentation (green like Scheduler) */}
+                    <View style={{ width: 160 }}>
+                        <TouchableOpacity disabled={operationLoading} onPress={openAdd}>
+                            <LinearGradient
+                                colors={['#10B981', '#059669']}
+                                start={{ x: 0, y: 0 }}
+                                end={{ x: 1, y: 0 }}
+                                style={{ paddingVertical: 12, borderRadius: 999, alignItems: 'center', elevation: 3 }}
+                            >
+                                <Text style={{ color: '#fff', fontWeight: '700' }}>+ Documentation</Text>
+                            </LinearGradient>
+                        </TouchableOpacity>
+                    </View>
+                </View>
             </View>
 
             {loadingDocs ? (
@@ -254,7 +304,7 @@ export default function DocumentationScreen() {
                     <ActivityIndicator size="small" color="#6366f1" />
                 </View>
             ) : (
-                <FlatList data={items} keyExtractor={(i) => i.id} renderItem={renderItem} contentContainerStyle={{ paddingBottom: 32 }} />
+                <FlatList data={filteredItems} keyExtractor={(i) => i.id} renderItem={renderItem} contentContainerStyle={{ paddingBottom: 32 }} />
             )}
 
             {/* Modal Form */}
