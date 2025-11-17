@@ -11,13 +11,14 @@ import {
     ScrollView,
     StatusBar,
     Text,
-    TextInput,
     TouchableOpacity,
     View
 } from 'react-native';
 import DateTimePickerModal from 'react-native-modal-datetime-picker';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import ConfirmDialog from '../../src/components/ConfirmDialog';
+import FloatingLabelInput from '../../src/components/FloatingLabelInput';
+import SelectInput from '../../src/components/SelectInput';
 import { useToast } from '../../src/contexts/ToastContext';
 import { db } from '../../src/firebaseConfig';
 import { getCurrentUser } from '../../src/services/authService';
@@ -54,7 +55,9 @@ export default function UsersScreen() {
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
     const [phone, setPhone] = useState('');
-    const [role, setRole] = useState(ROLES[0]);
+    // role empty by default so Add modal shows placeholder "Choose role"
+    const [role, setRole] = useState<string>('');
+    // roleOpen managed inside SelectInput
     const [roleOpen, setRoleOpen] = useState(false);
     const [password, setPassword] = useState(''); // NEW: for creating users
 
@@ -63,9 +66,33 @@ export default function UsersScreen() {
     const [birthday, setBirthday] = useState('');
     const [religion, setReligion] = useState('');
     const [address, setAddress] = useState('');
-    const [maritalStatus, setMaritalStatus] = useState('single');
+    // maritalStatus empty by default so Add modal shows placeholder "Choose marital status"
+    const [maritalStatus, setMaritalStatus] = useState<string>('');
     const [spouseName, setSpouseName] = useState('');
     const [children, setChildren] = useState<Array<{ name: string; birthDate: string; placeOfBirth: string }>>([]);
+
+    // NEW: focused field for outline focus styling
+    const [focusedField, setFocusedField] = useState<string | null>(null);
+
+    // NEW: shared input styles (outline purple style like provided image)
+    const INPUT_BASE: any = {
+        borderWidth: 2,
+        borderColor: '#7c3aed',
+        borderRadius: 12,
+        paddingVertical: 10,
+        paddingHorizontal: 12,
+        backgroundColor: '#fff',
+    };
+    const INPUT_FOCUS: any = {
+        borderColor: '#5b21b6',
+        shadowColor: '#7c3aed',
+        shadowOpacity: 0.15,
+        shadowRadius: 8,
+        elevation: 3,
+    };
+    const INPUT_MULTILINE: any = { minHeight: 80, textAlignVertical: 'top' };
+    // placeholder color consistent with FloatingLabelInput inactive label
+    const PLACEHOLDER_COLOR = '#6B7280';
 
     // NEW: Dropdown states
     const [genderOpen, setGenderOpen] = useState(false);
@@ -136,7 +163,8 @@ export default function UsersScreen() {
                     id: docSnap.id,
                     name: data.nama || data.name || 'No Name',
                     email: data.email || '',
-                    phone: data.phone || '',
+                    // ensure phone is a string (handles numeric values stored previously)
+                    phone: data.phone !== undefined && data.phone !== null ? String(data.phone) : '',
                     role: data.role || 'Member',
                     photo: data.profileImage || data.photo || data.image || '', // NEW: pick available photo field
                 });
@@ -189,6 +217,8 @@ export default function UsersScreen() {
                     setMaritalStatus(data.maritalStatus || 'single');
                     setSpouseName(data.spouseName || '');
                     setChildren(data.children || []);
+                    // ensure phone shown in modal is string
+                    setPhone(data.phone !== undefined && data.phone !== null ? String(data.phone) : '');
                 }
             } catch (error) {
                 console.error('Failed to load user details:', error);
@@ -210,12 +240,12 @@ export default function UsersScreen() {
         setEmail('');
         setPhone('');
         setPassword('');
-        setRole(ROLES[0]); // Default: Member
+        setRole(''); // Default: empty => show "Choose role"
         setGender('');
         setBirthday('');
         setReligion('');
         setAddress('');
-        setMaritalStatus('single');
+        setMaritalStatus(''); // Default: empty => show "Choose marital status"
         setSpouseName('');
         setChildren([]);
         setGenderOpen(false);
@@ -241,6 +271,7 @@ export default function UsersScreen() {
         const d = `${date.getDate()}`.padStart(2, '0');
         setBirthday(`${y}-${m}-${d}`);
         setDatePickerVisible(false);
+        setFocusedField(null); // clear focus after selection
     }
 
     // NEW: handler for child date picker
@@ -254,6 +285,7 @@ export default function UsersScreen() {
         }
         setChildDatePickerVisible(false);
         setEditingChildIndex(null);
+        setFocusedField(null); // clear focus after selection
     }
 
     async function save() {
@@ -465,25 +497,21 @@ export default function UsersScreen() {
                 >
                     {/* Absolute column: role badge on top, actions below */}
                     <View style={{ position: 'absolute', top: 8, right: 8, zIndex: 3, alignItems: 'flex-end' }}>
-                        <TouchableOpacity
-                            onPress={() => {
-                                setRoleFilter(roleFilter === item.role ? null : item.role);
-                            }}
+                        <View
                             style={{
                                 backgroundColor: colors.bg,
-                                paddingHorizontal: 8,
-                                paddingVertical: 3,
+                                paddingHorizontal: 10,
+                                paddingVertical: 4,
                                 borderRadius: 999,
-                                flexDirection: 'row',
+                                // keep single-line label (no arrow)
                                 alignItems: 'center',
                                 borderWidth: roleFilter === item.role ? 2 : 0,
                                 borderColor: colors.text,
                                 marginBottom: 8,
                             }}
                         >
-                            <Text style={{ color: colors.text, fontSize: 11, fontWeight: '700', marginRight: 4 }}>{item.role}</Text>
-                            <Text style={{ color: colors.text, fontSize: 11 }}>▾</Text>
-                        </TouchableOpacity>
+                            <Text style={{ color: colors.text, fontSize: 11, fontWeight: '700' }}>{item.role}</Text>
+                        </View>
 
                         {canManageUsers && (
                             <View style={{ alignItems: 'flex-end' }}>
@@ -520,6 +548,26 @@ export default function UsersScreen() {
             </View>
         );
     };
+
+    // helper: display date like "11-Nov-2025"
+    function formatDateDisplay(dateStr: string) {
+        if (!dateStr) return '';
+        // handle YYYY-MM-DD
+        const isoMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr);
+        if (isoMatch) {
+            const [, y, m, d] = isoMatch;
+            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            const monthName = months[Number(m) - 1] || m;
+            return `${Number(d)}-${monthName}-${y}`;
+        }
+        // try native Date parse fallback
+        const dt = new Date(dateStr);
+        if (!isNaN(dt.getTime())) {
+            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            return `${dt.getDate()}-${months[dt.getMonth()]}-${dt.getFullYear()}`;
+        }
+        return dateStr;
+    }
 
     if (loading) {
         return (
@@ -633,35 +681,30 @@ export default function UsersScreen() {
 
             {/* NEW: Add User Button - only for super admin */}
             {canManageUsers && (
-                <View className="px-6 mb-2" style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                    {/* Left: search (nama / email) */}
-                    <View style={{ flex: 1 }}>
-                        <TextInput
+                <View className="px-6 mb-2" style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    {/* Left: search (50%) */}
+                    <View style={{ flex: 1, marginRight: 12, justifyContent: 'center' }}>
+                        <FloatingLabelInput
+                            label="Search"
                             value={searchQuery}
                             onChangeText={setSearchQuery}
                             placeholder="Search..."
-                            style={{
-                                borderWidth: 1,
-                                borderColor: '#E5E7EB',
-                                borderRadius: 12,
-                                paddingVertical: 10,
-                                paddingHorizontal: 12,
-                                backgroundColor: '#fff',
-                            }}
-                            returnKeyType="search"
+                            containerStyle={{ marginBottom: 0 }}
                         />
                     </View>
 
-                    {/* Right: create button */}
-                    <View style={{ width: 160 }}>
-                        <TouchableOpacity onPress={openAdd}>
+                    {/* Right: create button (50%) */}
+                    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                        <TouchableOpacity onPress={openAdd} activeOpacity={0.9} style={{ width: '100%' }}>
                             <LinearGradient
                                 colors={['#10B981', '#059669']}
                                 start={{ x: 0, y: 0 }}
                                 end={{ x: 1, y: 0 }}
                                 style={{
-                                    paddingVertical: 12,
+                                    width: '100%',
+                                    height: 44,
                                     borderRadius: 999,
+                                    justifyContent: 'center',
                                     alignItems: 'center',
                                     elevation: 3,
                                 }}
@@ -693,194 +736,113 @@ export default function UsersScreen() {
                             <Text className="text-xl font-semibold mb-4">{editingId ? 'Edit User' : 'Create New User'}</Text>
 
                             {/* Basic Info */}
-                            <Text className="text-sm text-gray-600 mb-1">Name *</Text>
-                            <TextInput
+                            <FloatingLabelInput
+                                label="Name *"
                                 value={name}
                                 onChangeText={setName}
                                 placeholder="Full name"
-                                className="border rounded-lg px-4 py-3 mb-3"
                             />
 
-                            <Text className="text-sm text-gray-600 mb-1">Email *</Text>
-                            <TextInput
+                            <FloatingLabelInput
+                                label="Email *"
                                 value={email}
                                 onChangeText={setEmail}
-                                placeholder="email@example.com"
                                 keyboardType="email-address"
-                                className="border rounded-lg px-4 py-3 mb-3"
-                                autoCapitalize="none"
                                 editable={!editingId}
-                                style={{ backgroundColor: editingId ? '#F9FAFB' : '#fff' }}
+                                inputStyle={editingId ? { backgroundColor: '#F9FAFB' } : undefined}
+                                placeholder="email@example.com"
                             />
 
                             {!editingId && (
-                                <>
-                                    <Text className="text-sm text-gray-600 mb-1">Password *</Text>
-                                    <TextInput
-                                        value={password}
-                                        onChangeText={setPassword}
-                                        placeholder="Min. 6 characters"
-                                        secureTextEntry
-                                        className="border rounded-lg px-4 py-3 mb-3"
-                                    />
-                                </>
+                                <FloatingLabelInput
+                                    label="Password *"
+                                    value={password}
+                                    onChangeText={setPassword}
+                                    secureTextEntry
+                                    placeholder="Min. 6 characters"
+                                />
                             )}
 
-                            <Text className="text-sm text-gray-600 mb-1">Phone</Text>
-                            <TextInput
+                            <FloatingLabelInput
+                                label="Phone"
                                 value={phone}
                                 onChangeText={setPhone}
-                                placeholder="08xxxxxxxxxx"
                                 keyboardType={Platform.OS === 'ios' ? 'number-pad' : 'phone-pad'}
-                                className="border rounded-lg px-4 py-3 mb-3"
+                                placeholder="08xxxxxxxxxx"
                             />
 
-                            <Text className="text-sm text-gray-600 mb-1">Role *</Text>
-                            <TouchableOpacity
-                                onPress={() => setRoleOpen((v) => !v)}
-                                className="border rounded-lg px-4 py-3 mb-3 flex-row justify-between items-center"
-                            >
-                                <Text>{role}</Text>
-                                <Text className="text-gray-400">▾</Text>
-                            </TouchableOpacity>
-                            {roleOpen && (
-                                <View className="bg-gray-50 rounded-lg mb-3">
-                                    {ROLES.map((r) => (
-                                        <TouchableOpacity
-                                            key={r}
-                                            onPress={() => {
-                                                setRole(r);
-                                                setRoleOpen(false);
-                                            }}
-                                            className="px-4 py-3"
-                                        >
-                                            <Text className="text-gray-800">{r}</Text>
-                                        </TouchableOpacity>
-                                    ))}
-                                </View>
-                            )}
+                            <SelectInput
+                                label="Role *"
+                                value={role}
+                                options={ROLES}
+                                onValueChange={(v) => setRole(v)}
+                                placeholder="Select role"
+                                onFocus={() => setFocusedField('role')}
+                                onBlur={() => setFocusedField(null)}
+                            />
 
-                            {/* Gender */}
-                            <Text className="text-sm text-gray-600 mb-1">Gender</Text>
-                            <TouchableOpacity
-                                onPress={() => setGenderOpen((v) => !v)}
-                                style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 12, marginBottom: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}
-                            >
-                                <Text style={{ color: gender ? '#111827' : '#9CA3AF' }}>{gender || 'Select gender'}</Text>
-                                <Text style={{ color: '#6B7280' }}>▾</Text>
-                            </TouchableOpacity>
-                            {genderOpen && (
-                                <View style={{ backgroundColor: '#F9FAFB', borderRadius: 8, marginBottom: 12 }}>
-                                    {GENDER_OPTIONS.map((g) => (
-                                        <TouchableOpacity
-                                            key={g}
-                                            onPress={() => { setGender(g); setGenderOpen(false); }}
-                                            style={{ paddingVertical: 12, paddingHorizontal: 12 }}
-                                        >
-                                            <Text style={{ color: '#111827' }}>{g}</Text>
-                                        </TouchableOpacity>
-                                    ))}
-                                </View>
-                            )}
+                            <SelectInput
+                                label="Gender"
+                                value={gender}
+                                options={GENDER_OPTIONS}
+                                onValueChange={(v) => setGender(v)}
+                                placeholder="Select gender"
+                                onFocus={() => setFocusedField('gender')}
+                                onBlur={() => setFocusedField(null)}
+                            />
 
                             {/* Birthday */}
-                            <Text className="text-sm text-gray-600 mb-1">Birthday</Text>
-                            {Platform.OS === 'web' ? (
-                                <TextInput
-                                    value={birthday}
-                                    onChangeText={setBirthday}
-                                    placeholder="YYYY-MM-DD"
-                                    className="border rounded-lg px-4 py-3 mb-3"
-                                />
-                            ) : (
-                                <TouchableOpacity
-                                    onPress={() => setDatePickerVisible(true)}
-                                    style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 12, marginBottom: 12 }}
-                                >
-                                    <Text style={{ color: birthday ? '#111827' : '#9CA3AF' }}>{birthday || 'Select birthday'}</Text>
-                                </TouchableOpacity>
-                            )}
-
-                            {/* Religion */}
-                            <Text className="text-sm text-gray-600 mb-1">Religion</Text>
-                            <TouchableOpacity
-                                onPress={() => setReligionOpen((v) => !v)}
-                                style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 12, marginBottom: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}
-                            >
-                                <Text style={{ color: religion ? '#111827' : '#9CA3AF' }}>{religion || 'Select religion'}</Text>
-                                <Text style={{ color: '#6B7280' }}>▾</Text>
-                            </TouchableOpacity>
-                            {religionOpen && (
-                                <View style={{ backgroundColor: '#F9FAFB', borderRadius: 8, marginBottom: 12 }}>
-                                    {RELIGION_OPTIONS.map((r) => (
-                                        <TouchableOpacity
-                                            key={r}
-                                            onPress={() => { setReligion(r); setReligionOpen(false); }}
-                                            style={{ paddingVertical: 12, paddingHorizontal: 12 }}
-                                        >
-                                            <Text style={{ color: '#111827' }}>{r}</Text>
-                                        </TouchableOpacity>
-                                    ))}
-                                </View>
-                            )}
-
-                            {/* Address */}
-                            <Text className="text-sm text-gray-600 mb-1">Address</Text>
-                            <TextInput
-                                value={address}
-                                onChangeText={setAddress}
-                                placeholder="Full address"
-                                multiline
-                                numberOfLines={3}
-                                style={{
-                                    borderWidth: 1,
-                                    borderColor: '#E5E7EB',
-                                    borderRadius: 8,
-                                    padding: 10,
-                                    marginBottom: 12,
-                                    textAlignVertical: 'top',
-                                    minHeight: 80,
+                            <FloatingLabelInput
+                                label="Birthday"
+                                value={formatDateDisplay(birthday)}
+                                onChangeText={setBirthday}
+                                placeholder="dd-mm-yyyy"
+                                editable={Platform.OS === 'web'}
+                                onPress={() => {
+                                    if (Platform.OS !== 'web') {
+                                        setDatePickerVisible(true);
+                                        setFocusedField('birthday');
+                                    }
                                 }}
                             />
 
-                            {/* Marital Status - Select Option (changed from buttons) */}
-                            <Text className="text-sm text-gray-600 mb-1">Marital Status</Text>
-                            <TouchableOpacity
-                                onPress={() => setMaritalStatusOpen((v) => !v)}
-                                style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 12, marginBottom: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}
-                            >
-                                <Text style={{ color: maritalStatus ? '#111827' : '#9CA3AF' }}>
-                                    {MARITAL_STATUS_OPTIONS.find(o => o.value === maritalStatus)?.label || 'Select marital status'}
-                                </Text>
-                                <Text style={{ color: '#6B7280' }}>▾</Text>
-                            </TouchableOpacity>
-                            {maritalStatusOpen && (
-                                <View style={{ backgroundColor: '#F9FAFB', borderRadius: 8, marginBottom: 12 }}>
-                                    {MARITAL_STATUS_OPTIONS.map((opt) => (
-                                        <TouchableOpacity
-                                            key={opt.value}
-                                            onPress={() => {
-                                                setMaritalStatus(opt.value);
-                                                setMaritalStatusOpen(false);
-                                                if (opt.value !== 'married') setSpouseName('');
-                                            }}
-                                            style={{ paddingVertical: 12, paddingHorizontal: 12 }}
-                                        >
-                                            <Text style={{ color: '#111827' }}>{opt.label}</Text>
-                                        </TouchableOpacity>
-                                    ))}
-                                </View>
-                            )}
+                            <SelectInput
+                                label="Religion"
+                                value={religion}
+                                options={RELIGION_OPTIONS}
+                                onValueChange={(v) => setReligion(v)}
+                                placeholder="Select religion"
+                                onFocus={() => setFocusedField('religion')}
+                                onBlur={() => setFocusedField(null)}
+                            />
+
+                            {/* Address */}
+                            <FloatingLabelInput
+                                label="Address"
+                                value={address}
+                                onChangeText={setAddress}
+                                multiline
+                                placeholder="Full address"
+                            />
+
+                            <SelectInput
+                                label="Marital Status"
+                                value={maritalStatus}
+                                options={MARITAL_STATUS_OPTIONS.map(o => ({ label: o.label, value: o.value }))}
+                                onValueChange={(v) => setMaritalStatus(v)}
+                                placeholder="Select marital status"
+                                onFocus={() => setFocusedField('maritalStatus')}
+                                onBlur={() => setFocusedField(null)}
+                            />
 
                             {/* Spouse Name */}
                             {maritalStatus === 'married' && (
                                 <View style={{ marginBottom: 12 }}>
-                                    <Text className="text-sm text-gray-600 mb-1">Spouse Name</Text>
-                                    <TextInput
+                                    <FloatingLabelInput
+                                        label="Spouse Name"
                                         value={spouseName}
                                         onChangeText={setSpouseName}
                                         placeholder="Spouse full name"
-                                        className="border rounded-lg px-4 py-3"
                                     />
                                 </View>
                             )}
@@ -896,42 +858,38 @@ export default function UsersScreen() {
                                     </View>
                                     {children.map((ch, idx) => (
                                         <View key={idx} style={{ marginBottom: 8, borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 8 }}>
-                                            <Text style={{ color: '#374151', fontSize: 12 }}>Child Name</Text>
-                                            <TextInput
+                                            {/* Child Name (label moved into FloatingLabelInput) */}
+                                            <FloatingLabelInput
+                                                label="Child Name"
                                                 value={ch.name}
                                                 onChangeText={(v) => updateChild(idx, 'name', v)}
+                                                inputStyle={{ borderRadius: 6, padding: 8, marginTop: 4 }}
                                                 placeholder="Child name"
-                                                style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 6, padding: 8, marginTop: 4 }}
                                             />
 
-                                            <Text style={{ color: '#374151', fontSize: 12, marginTop: 8 }}>Birth Date</Text>
-                                            {Platform.OS === 'web' ? (
-                                                <TextInput
-                                                    value={ch.birthDate}
-                                                    onChangeText={(v) => updateChild(idx, 'birthDate', v)}
-                                                    placeholder="YYYY-MM-DD"
-                                                    style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 6, padding: 8, marginTop: 4 }}
-                                                />
-                                            ) : (
-                                                <TouchableOpacity
-                                                    onPress={() => {
+                                            {/* Birth Date (label moved into FloatingLabelInput) */}
+                                            <FloatingLabelInput
+                                                label="Birth Date"
+                                                value={formatDateDisplay(ch.birthDate)}
+                                                onChangeText={(v) => updateChild(idx, 'birthDate', v)}
+                                                inputStyle={{ borderRadius: 6, padding: 8, marginTop: 4 }}
+                                                placeholder="dd-mm-yyyy"
+                                                editable={Platform.OS === 'web'}
+                                                onPress={() => {
+                                                    if (Platform.OS !== 'web') {
                                                         setEditingChildIndex(idx);
                                                         setChildDatePickerVisible(true);
-                                                    }}
-                                                    style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 6, padding: 8, marginTop: 4 }}
-                                                >
-                                                    <Text style={{ color: ch.birthDate ? '#111827' : '#9CA3AF' }}>
-                                                        {ch.birthDate || 'Select birth date'}
-                                                    </Text>
-                                                </TouchableOpacity>
-                                            )}
+                                                    }
+                                                }}
+                                            />
 
-                                            <Text style={{ color: '#374151', fontSize: 12, marginTop: 8 }}>Place of Birth</Text>
-                                            <TextInput
+                                            {/* Place of Birth (label moved into FloatingLabelInput) */}
+                                            <FloatingLabelInput
+                                                label="Place of Birth"
                                                 value={ch.placeOfBirth}
                                                 onChangeText={(v) => updateChild(idx, 'placeOfBirth', v)}
+                                                inputStyle={{ borderRadius: 6, padding: 8, marginTop: 4 }}
                                                 placeholder="City / Hospital"
-                                                style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 6, padding: 8, marginTop: 4 }}
                                             />
 
                                             <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 8 }}>
@@ -966,7 +924,7 @@ export default function UsersScreen() {
                 isVisible={datePickerVisible}
                 mode="date"
                 onConfirm={onDateConfirm}
-                onCancel={() => setDatePickerVisible(false)}
+                onCancel={() => { setDatePickerVisible(false); setFocusedField(null); }}
             />
 
             {/* NEW: Date Picker Modal for Child Birth Date */}
@@ -977,6 +935,7 @@ export default function UsersScreen() {
                 onCancel={() => {
                     setChildDatePickerVisible(false);
                     setEditingChildIndex(null);
+                    setFocusedField(null);
                 }}
             />
 
