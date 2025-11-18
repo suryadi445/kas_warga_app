@@ -208,11 +208,19 @@ export default function DashboardPage() {
                     backgroundColor: '#fff',
                     borderTopLeftRadius: 16,
                     borderTopRightRadius: 16,
-                    elevation: 4,
+                    // borders: top + sides only
+                    borderTopWidth: 1,
+                    borderLeftWidth: 1,
+                    borderRightWidth: 1,
+                    borderBottomWidth: 0,
+                    borderColor: '#E5E7EB',
+                    // shadow mengarah ke atas / samping
                     shadowColor: '#000',
-                    shadowOffset: { width: 0, height: -2 },
-                    shadowOpacity: 0.1,
+                    shadowOffset: { width: 0, height: -3 },
+                    shadowOpacity: 0.09,
                     shadowRadius: 8,
+                    elevation: 4,
+                    overflow: 'hidden',
                 }}>
                     <FlatList
                         data={(cashTotalsFiltered.visible || []).slice(0, 50)}
@@ -306,11 +314,17 @@ export default function DashboardPage() {
                     backgroundColor: '#fff',
                     borderTopLeftRadius: 16,
                     borderTopRightRadius: 16,
-                    elevation: 4,
+                    borderTopWidth: 1,
+                    borderLeftWidth: 1,
+                    borderRightWidth: 1,
+                    borderBottomWidth: 0,
+                    borderColor: '#E5E7EB',
                     shadowColor: '#000',
-                    shadowOffset: { width: 0, height: -2 },
-                    shadowOpacity: 0.1,
+                    shadowOffset: { width: 0, height: -3 },
+                    shadowOpacity: 0.09,
                     shadowRadius: 8,
+                    elevation: 4,
+                    overflow: 'hidden',
                 }}>
                     <FlatList
                         data={announcements.slice(0, 50)}
@@ -380,11 +394,17 @@ export default function DashboardPage() {
                     backgroundColor: '#fff',
                     borderTopLeftRadius: 16,
                     borderTopRightRadius: 16,
+                    borderTopWidth: 1,
+                    borderLeftWidth: 1,
+                    borderRightWidth: 1,
+                    borderBottomWidth: 0,
+                    borderColor: '#E5E7EB',
                     elevation: 4,
                     shadowColor: '#000',
-                    shadowOffset: { width: 0, height: -2 },
-                    shadowOpacity: 0.1,
+                    shadowOffset: { width: 0, height: -3 },
+                    shadowOpacity: 0.09,
                     shadowRadius: 8,
+                    overflow: 'hidden',
                 }}>
                     <FlatList
                         data={schedules.slice(0, 50)}
@@ -466,11 +486,17 @@ export default function DashboardPage() {
                     backgroundColor: '#fff',
                     borderTopLeftRadius: 16,
                     borderTopRightRadius: 16,
+                    borderTopWidth: 1,
+                    borderLeftWidth: 1,
+                    borderRightWidth: 1,
+                    borderBottomWidth: 0,
+                    borderColor: '#E5E7EB',
                     elevation: 4,
                     shadowColor: '#000',
-                    shadowOffset: { width: 0, height: -2 },
-                    shadowOpacity: 0.1,
+                    shadowOffset: { width: 0, height: -3 },
+                    shadowOpacity: 0.09,
                     shadowRadius: 8,
+                    overflow: 'hidden',
                 }}>
                     <FlatList
                         data={activities.slice(0, 50)}

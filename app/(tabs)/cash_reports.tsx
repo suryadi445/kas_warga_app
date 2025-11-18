@@ -2,10 +2,13 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { LinearGradient } from 'expo-linear-gradient';
 import { addDoc, collection, doc, getDocs, orderBy, query, updateDoc } from 'firebase/firestore';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, Modal, PermissionsAndroid, Platform, ScrollView, StatusBar, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Dimensions, FlatList, Modal, PermissionsAndroid, Platform, ScrollView, StatusBar, Text, TouchableOpacity, View } from 'react-native';
 import DateTimePickerModal from 'react-native-modal-datetime-picker';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import CardItem from '../../src/components/CardItem';
 import ConfirmDialog from '../../src/components/ConfirmDialog';
+import FloatingLabelInput from '../../src/components/FloatingLabelInput';
+import SelectInput from '../../src/components/SelectInput';
 import { useToast } from '../../src/contexts/ToastContext';
 import { db } from '../../src/firebaseConfig';
 
@@ -38,18 +41,28 @@ export default function CashReportsScreen() {
 
     // ADDED: filter state and pickers
     const [filterType, setFilterType] = useState<'all' | 'in' | 'out'>('all');
-    const [filterCategory, setFilterCategory] = useState<string | null>(null);
-    const [filterMonth, setFilterMonth] = useState<number | null>(null);
-    const [filterYear, setFilterYear] = useState<number | null>(null);
-    const [monthPickerVisible, setMonthPickerVisible] = useState(false);
-    const [yearPickerVisible, setYearPickerVisible] = useState(false);
-    const [typePickerVisible, setTypePickerVisible] = useState(false);
-    const [categoryPickerVisible, setCategoryPickerVisible] = useState(false);
+    // default to "All" category
+    const [filterCategory, setFilterCategory] = useState<string>('All');
+    // Use 'all' sentinel so selected label ("All Months"/"All Years") renders like other selects
+    const [filterMonth, setFilterMonth] = useState<string>('all');
+    const [filterYear, setFilterYear] = useState<string>('all');
+    // control show / collapse filters card (default = closed)
+    const [filtersOpen, setFiltersOpen] = useState<boolean>(false);
+
+    // Pagination state
+    const [displayedCount, setDisplayedCount] = useState(5);
+    const [loadingMore, setLoadingMore] = useState(false);
+    const ITEMS_PER_PAGE = 5;
 
     // ADDED: months & years helpers
     const MONTHS = ['All', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     const currentYear = new Date().getFullYear();
     const YEARS = Array.from({ length: 6 }).map((_, i) => currentYear - i); // last 6 years
+
+    // Dynamic footer space so last list item always fully visible
+    const { height: SCREEN_HEIGHT } = Dimensions.get('window');
+    const FOOTER_MIN = 120;
+    const footerHeight = Math.max(FOOTER_MIN, Math.round(SCREEN_HEIGHT * 0.12));
 
     // reusable loader
     async function loadReports() {
@@ -95,13 +108,14 @@ export default function CashReportsScreen() {
 
     const [type, setType] = useState<'in' | 'out'>('in');
     const [date, setDate] = useState<string>(defaultDate);
+    // date picker visibility for native date picker modal
+    const [datePickerVisible, setDatePickerVisible] = useState(false);
     // amount sebagai string terformat (mis. "Rp 1.000")
     const [amount, setAmount] = useState<string>('Rp 0');
     // kategori hanya placeholder (opsional)
     const [category, setCategory] = useState<string>('');
     const [description, setDescription] = useState<string>('');
-    const [categoryOpen, setCategoryOpen] = useState(false);
-    const [datePickerVisible, setDatePickerVisible] = useState(false);
+    const [focusedField, setFocusedField] = useState<string | null>(null);
 
     const CATEGORIES = ['Zakat', 'Infaq', 'Shadaqah', 'Waqf', 'Qurban', 'Fidyah', 'In-Kind Donation', 'Other'];
 
@@ -127,6 +141,30 @@ export default function CashReportsScreen() {
         return `${sign}Rp ${abs.toLocaleString('id-ID')}`;
     }
 
+    // helper: display date like "11-Nov-2025"
+    function formatDateDisplay(dateStr: string) {
+        if (!dateStr) return '';
+        // handle YYYY-MM-DD
+        const isoMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr);
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        if (isoMatch) {
+            const [, y, m, d] = isoMatch;
+            const monthName = months[Number(m) - 1] || m;
+            return `${Number(d)}-${monthName}-${y}`;
+        }
+        // try DD-MMM-YYYY (already formatted) or other parsable date
+        const fm = /^(\d{1,2})-([A-Za-z]{3})-(\d{4})$/.exec(dateStr);
+        if (fm) {
+            const [, dd, mAbbr, yyyy] = fm;
+            return `${Number(dd)}-${mAbbr}-${yyyy}`;
+        }
+        const dt = new Date(dateStr);
+        if (!isNaN(dt.getTime())) {
+            return `${dt.getDate()}-${months[dt.getMonth()]}-${dt.getFullYear()}`;
+        }
+        return dateStr;
+    }
+
     // hitung total saldo sekarang (in +, out -)
     const totalSaldo = reports.reduce((acc, r) => acc + (r.type === 'in' ? r.amount : -r.amount), 0);
 
@@ -136,14 +174,36 @@ export default function CashReportsScreen() {
         if (!r.date) return false;
         const d = new Date(r.date);
         if (filterType !== 'all' && r.type !== filterType) return false;
-        if (filterCategory && r.category !== filterCategory) return false;
-        if (filterMonth && (d.getMonth() + 1) !== filterMonth) return false;
-        if (filterYear && d.getFullYear() !== filterYear) return false;
+        // treat 'All' as no-category filter
+        if (filterCategory !== 'All' && r.category !== filterCategory) return false;
+        if (filterMonth !== 'all' && (d.getMonth() + 1) !== Number(filterMonth)) return false;
+        if (filterYear !== 'all' && d.getFullYear() !== Number(filterYear)) return false;
         return true;
     });
 
     // ADDED: total of filtered reports (in = +, out = -)
     const totalFilteredSaldo = filteredReports.reduce((acc, r) => acc + (r.type === 'in' ? r.amount : -r.amount), 0);
+
+    // Paginated data for display
+    const displayedReports = filteredReports.slice(0, displayedCount);
+
+    // Load more handler
+    const handleLoadMore = () => {
+        if (loadingMore) return;
+        if (displayedCount >= filteredReports.length) return;
+
+        setLoadingMore(true);
+        // Simulate loading delay
+        setTimeout(() => {
+            setDisplayedCount(prev => prev + ITEMS_PER_PAGE);
+            setLoadingMore(false);
+        }, 300);
+    };
+
+    // Reset displayed count when filters change
+    useEffect(() => {
+        setDisplayedCount(ITEMS_PER_PAGE);
+    }, [filterType, filterCategory, filterMonth, filterYear]);
 
     function openAdd() {
         setEditingId(null);
@@ -187,9 +247,22 @@ export default function CashReportsScreen() {
                 await loadReports();
                 // make saved entry visible by setting filters to its date (optional)
                 try {
-                    const [yStr, mStr] = date.split('-');
-                    setFilterYear(Number(yStr));
-                    setFilterMonth(Number(mStr));
+                    // try ISO first (YYYY-MM-DD)
+                    const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+                    if (iso) {
+                        // iso[1] = YYYY, iso[2] = MM (maybe "01")
+                        setFilterYear(String(Number(iso[1])));
+                        setFilterMonth(String(Number(iso[2])));
+                    } else {
+                        // try formatted "DD-MMM-YYYY" like "11-Nov-2025"
+                        const fm = /^(\d{1,2})-([A-Za-z]{3})-(\d{4})$/.exec(date);
+                        if (fm) {
+                            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                            const monthIndex = months.indexOf(fm[2]);
+                            setFilterYear(String(Number(fm[3])));
+                            setFilterMonth(monthIndex >= 0 ? String(monthIndex + 1) : 'all');
+                        }
+                    }
                 } catch { /* ignore parse errors */ }
                 setModalVisible(false);
             } catch (err) {
@@ -468,60 +541,48 @@ export default function CashReportsScreen() {
     }
 
     const renderItem = ({ item }: { item: Report }) => {
+        const isIncome = item.type === 'in';
+
         return (
-            <View style={{ marginHorizontal: 16, marginVertical: 8 }}>
-                <View style={{ backgroundColor: '#F9FAFB', borderRadius: 12, padding: 12, elevation: 2 }}>
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                        <View style={{ flex: 1 }}>
-                            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
-                                <View style={{
-                                    backgroundColor: item.type === 'in' ? '#ECFDF5' : '#FEF2F2',
-                                    paddingHorizontal: 8,
-                                    paddingVertical: 4,
-                                    borderRadius: 999,
-                                    marginRight: 8
-                                }}>
-                                    <Text style={{
-                                        color: item.type === 'in' ? '#065F46' : '#7F1D1D',
-                                        fontWeight: '700',
-                                        fontSize: 11
-                                    }}>
-                                        {item.type === 'in' ? 'IN' : 'OUT'}
-                                    </Text>
-                                </View>
-                                <Text style={{ color: '#6B7280', fontSize: 12 }}>{item.date}</Text>
-                            </View>
-
-                            <Text style={{ fontWeight: '700', color: '#111827', fontSize: 16 }}>
-                                {formatAmount(item.type === 'in' ? item.amount : -item.amount)}
-                            </Text>
-
-                            {item.category ? (
-                                <Text style={{ color: '#6B7280', fontSize: 12, marginTop: 4 }}>{item.category}</Text>
-                            ) : null}
-
-                            {item.description ? (
-                                <Text numberOfLines={2} style={{ color: '#374151', marginTop: 4 }}>{item.description}</Text>
-                            ) : null}
-                        </View>
-
-                        <View style={{ marginLeft: 8, alignItems: 'flex-end' }}>
-                            <TouchableOpacity disabled={operationLoading} onPress={() => openEdit(item)} style={{ marginBottom: 8 }}>
-                                <Text style={{ color: '#06B6D4', fontWeight: '600' }}>Edit</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity disabled={operationLoading} onPress={() => confirmRemove(item.id)}>
-                                <Text style={{ color: '#EF4444', fontWeight: '600' }}>Delete</Text>
-                            </TouchableOpacity>
-                        </View>
-                    </View>
-                </View>
-            </View>
+            <CardItem
+                icon={isIncome ? '↑' : '↓'}
+                badge={isIncome ? 'INCOME' : 'EXPENSE'}
+                badgeBg={isIncome ? '#D1FAE5' : '#FEE2E2'}
+                badgeTextColor={isIncome ? '#065F46' : '#991B1B'}
+                badgeBorderColor={isIncome ? '#10B981' : '#EF4444'}
+                date={formatDateDisplay(item.date)}
+                title={formatAmount(item.type === 'in' ? item.amount : -item.amount)}
+                titleColor={isIncome ? '#047857' : '#DC2626'}
+                category={item.category}
+                categoryBg="#F3F4F6"
+                categoryColor="#6B7280"
+                description={item.description}
+                borderLeftColor={isIncome ? '#10B981' : '#EF4444'}
+                actions={[
+                    {
+                        label: 'Edit',
+                        onPress: () => openEdit(item),
+                        bg: '#E0F2FE',
+                        textColor: '#0369A1',
+                        disabled: operationLoading,
+                    },
+                    {
+                        label: 'Delete',
+                        onPress: () => confirmRemove(item.id),
+                        bg: '#FEE2E2',
+                        textColor: '#991B1B',
+                        disabled: operationLoading,
+                    },
+                ]}
+            />
         );
     };
 
     return (
         <SafeAreaView edges={['bottom']} style={{ flex: 1, backgroundColor: '#fff' }}>
             <StatusBar barStyle="dark-content" translucent backgroundColor="transparent" />
+
+            {/* Header */}
             <View style={{ padding: 16, alignItems: 'center' }}>
                 <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: '#6366f1', alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
                     <Text style={{ color: '#fff', fontSize: 32 }}>💰</Text>
@@ -533,7 +594,7 @@ export default function CashReportsScreen() {
             </View>
 
             {/* Saldo Sekarang */}
-            <View className="px-6 mb-3">
+            <View style={{ paddingHorizontal: 16, marginBottom: 12 }}>
                 <LinearGradient
                     colors={['#ffffff', '#f8fafc']}
                     start={{ x: 0, y: 0 }}
@@ -552,186 +613,96 @@ export default function CashReportsScreen() {
                             </Text>
                         </View>
                         <View style={{ backgroundColor: '#F3F4F6', paddingVertical: 6, paddingHorizontal: 12, borderRadius: 999 }}>
-                            <Text style={{ color: '#374151', fontWeight: '600' }}>{filteredReports.length} transactions</Text>
+                            <Text style={{ color: '#374151', fontWeight: '600' }}>{filteredReports.length} Transactions</Text>
                         </View>
                     </View>
                 </LinearGradient>
             </View>
 
-            {/* FILTERS: Type + Category + Month + Year */}
-            <View className="px-6 mb-3">
-                {/* Type & Category - side by side */}
-                <View style={{ flexDirection: 'row', gap: 12, marginBottom: 10 }}>
-                    {/* Type select dropdown */}
-                    <View style={{ flex: 1 }}>
-                        <Text style={{ color: '#6B7280', fontSize: 12, marginBottom: 6 }}>Type</Text>
-                        <TouchableOpacity
-                            onPress={() => setTypePickerVisible(!typePickerVisible)}
-                            className="border rounded-lg px-4 py-3 flex-row justify-between items-center"
-                        >
-                            <Text>{filterType === 'all' ? 'All' : filterType === 'in' ? 'In' : 'Out'}</Text>
-                            <Text className="text-gray-400">▾</Text>
-                        </TouchableOpacity>
-                        {typePickerVisible && (
-                            <View className="bg-gray-50 rounded-lg mt-2 absolute top-16 left-0 right-6 z-10">
-                                {(['all', 'in', 'out'] as const).map((t) => (
-                                    <TouchableOpacity
-                                        key={t}
-                                        onPress={() => {
-                                            setFilterType(t);
-                                            setTypePickerVisible(false);
-                                        }}
-                                        className="px-4 py-3"
-                                    >
-                                        <Text className="text-gray-800">
-                                            {t === 'all' ? 'All' : t === 'in' ? 'In' : 'Out'}
-                                        </Text>
-                                    </TouchableOpacity>
-                                ))}
-                            </View>
-                        )}
-                    </View>
-
-                    {/* Category select dropdown */}
-                    <View style={{ flex: 1 }}>
-                        <Text style={{ color: '#6B7280', fontSize: 12, marginBottom: 6 }}>Category</Text>
-                        <TouchableOpacity
-                            onPress={() => setCategoryPickerVisible(!categoryPickerVisible)}
-                            className="border rounded-lg px-4 py-3 flex-row justify-between items-center"
-                        >
-                            <Text>{filterCategory ? filterCategory : 'All'}</Text>
-                            <Text className="text-gray-400">▾</Text>
-                        </TouchableOpacity>
-                        {categoryPickerVisible && (
-                            <View className="bg-gray-50 rounded-lg mt-2 absolute top-16 right-0 left-6 z-10" style={{ maxHeight: 200 }}>
-                                <ScrollView showsVerticalScrollIndicator={true}>
-                                    <TouchableOpacity
-                                        onPress={() => {
-                                            setFilterCategory(null);
-                                            setCategoryPickerVisible(false);
-                                        }}
-                                        className="px-4 py-3"
-                                    >
-                                        <Text className="text-gray-800 font-semibold">All</Text>
-                                    </TouchableOpacity>
-                                    {CATEGORIES.map((cat) => (
-                                        <TouchableOpacity
-                                            key={cat}
-                                            onPress={() => {
-                                                setFilterCategory(cat);
-                                                setCategoryPickerVisible(false);
-                                            }}
-                                            className="px-4 py-3"
-                                        >
-                                            <Text className="text-gray-800">{cat}</Text>
-                                        </TouchableOpacity>
-                                    ))}
-                                </ScrollView>
-                            </View>
-                        )}
-                    </View>
-                </View>
-
-                {/* Month & Year selectors as one row (2 columns) */}
-                <View style={{ flexDirection: 'row', gap: 12 }}>
+            {/* FILTERS: Card (show / collapse) */}
+            <View style={{ paddingHorizontal: 16, marginBottom: 12 }}>
+                <View style={{
+                    backgroundColor: '#fff',
+                    borderRadius: 12,
+                    borderWidth: 1,
+                    borderColor: '#E5E7EB',
+                    padding: 12,
+                    elevation: 2,
+                    overflow: 'hidden',
+                }}>
                     <TouchableOpacity
-                        onPress={() => setMonthPickerVisible(true)}
-                        style={{
-                            flex: 1,
-                            paddingVertical: 10,
-                            paddingHorizontal: 12,
-                            borderRadius: 8,
-                            backgroundColor: '#F3F4F6',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            borderWidth: 1,
-                            borderColor: '#E5E7EB',
-                        }}
+                        onPress={() => setFiltersOpen(prev => !prev)}
+                        style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}
                     >
-                        <Text style={{ color: '#374151', fontWeight: '500', fontSize: 14 }}>{filterMonth ? MONTHS[filterMonth] : 'All Months'}</Text>
+                        <Text style={{ fontSize: 16, fontWeight: '700', color: '#111827' }}>Filters</Text>
+                        <Text style={{ fontSize: 18, color: '#6B7280' }}>{filtersOpen ? '▾' : '▴'}</Text>
                     </TouchableOpacity>
 
-                    <TouchableOpacity
-                        onPress={() => setYearPickerVisible(true)}
-                        style={{
-                            flex: 1,
-                            paddingVertical: 10,
-                            paddingHorizontal: 12,
-                            borderRadius: 8,
-                            backgroundColor: '#F3F4F6',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            borderWidth: 1,
-                            borderColor: '#E5E7EB',
-                        }}
-                    >
-                        <Text style={{ color: '#374151', fontWeight: '500', fontSize: 14 }}>{filterYear ? String(filterYear) : 'All Years'}</Text>
-                    </TouchableOpacity>
+                    {filtersOpen && (
+                        <View style={{ marginTop: 12 }}>
+                            {/* Type & Category - side by side */}
+                            <View style={{ flexDirection: 'row', gap: 12, marginBottom: 10 }}>
+                                <View style={{ flex: 1 }}>
+                                    <SelectInput
+                                        label="Type"
+                                        value={filterType}
+                                        options={[
+                                            { label: 'All Type', value: 'all' },
+                                            { label: 'In', value: 'in' },
+                                            { label: 'Out', value: 'out' }
+                                        ]}
+                                        onValueChange={(v: string) => setFilterType(v as 'all' | 'in' | 'out')}
+                                        placeholder="Select type"
+                                        containerStyle={{ marginBottom: 0 }}
+                                    />
+                                </View>
+                                <View style={{ flex: 1 }}>
+                                    <SelectInput
+                                        label="Category"
+                                        value={filterCategory}
+                                        options={[
+                                            { label: 'All Categories', value: '' },
+                                            ...CATEGORIES.map(cat => ({ label: cat, value: cat }))
+                                        ]}
+                                        onValueChange={(v: string) => setFilterCategory(v || '')}
+                                        placeholder="Select category"
+                                        containerStyle={{ marginBottom: 0 }}
+                                    />
+                                </View>
+                            </View>
+
+                            {/* Month & Year */}
+                            <View style={{ flexDirection: 'row', gap: 12 }}>
+                                <View style={{ flex: 1 }}>
+                                    <SelectInput
+                                        label="Month"
+                                        value={filterMonth}
+                                        options={[
+                                            { label: 'All Months', value: 'all' },
+                                            ...MONTHS.slice(1).map((m, idx) => ({ label: m, value: String(idx + 1) }))
+                                        ]}
+                                        onValueChange={(v: string) => setFilterMonth(v ? v : 'all')}
+                                        placeholder="All Months"
+                                        containerStyle={{ marginBottom: 0 }}
+                                    />
+                                </View>
+                                <View style={{ flex: 1 }}>
+                                    <SelectInput
+                                        label="Year"
+                                        value={filterYear}
+                                        options={[
+                                            { label: 'All Years', value: 'all' },
+                                            ...YEARS.map(y => ({ label: String(y), value: String(y) }))
+                                        ]}
+                                        onValueChange={(v: string) => setFilterYear(v ? v : 'all')}
+                                        placeholder="All Years"
+                                        containerStyle={{ marginBottom: 0 }}
+                                    />
+                                </View>
+                            </View>
+                        </View>
+                    )}
                 </View>
-
-                {/* Month Picker Modal */}
-                <Modal visible={monthPickerVisible} transparent animationType="fade">
-                    <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'center', padding: 24 }}>
-                        <View style={{ backgroundColor: '#fff', borderRadius: 12, padding: 12 }}>
-                            <Text style={{ fontWeight: '700', marginBottom: 8 }}>Select Month</Text>
-                            {MONTHS.map((m, idx) => {
-                                const monthValue = idx === 0 ? null : idx;
-                                const selected = monthValue === filterMonth || (idx === 0 && filterMonth === null);
-                                return (
-                                    <TouchableOpacity
-                                        key={m}
-                                        onPress={() => {
-                                            setFilterMonth(monthValue);
-                                            setMonthPickerVisible(false);
-                                        }}
-                                        style={{ paddingVertical: 10, paddingHorizontal: 8, borderRadius: 8, backgroundColor: selected ? '#8b5cf6' : 'transparent', marginBottom: 6 }}
-                                    >
-                                        <Text style={{ color: selected ? '#fff' : '#111827', fontWeight: selected ? '700' : '500' }}>{m}</Text>
-                                    </TouchableOpacity>
-                                );
-                            })}
-                            <TouchableOpacity onPress={() => setMonthPickerVisible(false)} style={{ marginTop: 8, alignSelf: 'flex-end' }}>
-                                <Text style={{ color: '#6B7280' }}>Close</Text>
-                            </TouchableOpacity>
-                        </View>
-                    </View>
-                </Modal>
-
-                {/* Year Picker Modal */}
-                <Modal visible={yearPickerVisible} transparent animationType="fade">
-                    <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'center', padding: 24 }}>
-                        <View style={{ backgroundColor: '#fff', borderRadius: 12, padding: 12 }}>
-                            <Text style={{ fontWeight: '700', marginBottom: 8 }}>Select Year</Text>
-                            <TouchableOpacity
-                                onPress={() => {
-                                    setFilterYear(null);
-                                    setYearPickerVisible(false);
-                                }}
-                                style={{ paddingVertical: 10, paddingHorizontal: 8, borderRadius: 8, marginBottom: 6 }}
-                            >
-                                <Text style={{ color: filterYear === null ? '#8b5cf6' : '#111827', fontWeight: filterYear === null ? '700' : '500' }}>All</Text>
-                            </TouchableOpacity>
-                            {YEARS.map((y) => {
-                                const selected = filterYear === y;
-                                return (
-                                    <TouchableOpacity
-                                        key={String(y)}
-                                        onPress={() => {
-                                            setFilterYear(selected ? null : y);
-                                            setYearPickerVisible(false);
-                                        }}
-                                        style={{ paddingVertical: 10, paddingHorizontal: 8, borderRadius: 8, backgroundColor: selected ? '#8b5cf6' : 'transparent', marginBottom: 6 }}
-                                    >
-                                        <Text style={{ color: selected ? '#fff' : '#111827', fontWeight: selected ? '700' : '500' }}>{y}</Text>
-                                    </TouchableOpacity>
-                                );
-                            })}
-                            <TouchableOpacity onPress={() => setYearPickerVisible(false)} style={{ marginTop: 8, alignSelf: 'flex-end' }}>
-                                <Text style={{ color: '#6B7280' }}>Close</Text>
-                            </TouchableOpacity>
-                        </View>
-                    </View>
-                </Modal>
             </View>
 
             {/* Add button */}
@@ -776,104 +747,130 @@ export default function CashReportsScreen() {
                 </View>
             </View>
 
-            {/* List */}
-            <FlatList
-                data={filteredReports}
-                keyExtractor={(i) => i.id}
-                renderItem={renderItem}
-                contentContainerStyle={{ paddingVertical: 8 }}
-                showsVerticalScrollIndicator={false}
-            />
+            {/* List dibungkus card (border: top + sides only, shadow mengarah ke atas/samping) */}
+            <View style={{
+                marginHorizontal: 12,
+                marginBottom: 12,
+                borderTopWidth: 1,
+                borderLeftWidth: 1,
+                borderRightWidth: 1,
+                borderBottomWidth: 0,
+                borderColor: '#E5E7EB',
+                borderTopLeftRadius: 12,
+                borderTopRightRadius: 12,
+                backgroundColor: '#fff',
+                // shadow mengarah ke atas / samping (iOS)
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: -4 },
+                shadowOpacity: 0.08,
+                shadowRadius: 8,
+                // elevation untuk Android
+                elevation: 4,
+                // biarkan overflow visible agar shadow atau last-item tidak terpotong
+                overflow: 'visible',
+                // PENTING: beri wrapper ruang untuk FlatList agar onEndReached terpanggil
+                flex: 1,
+            }}>
+                <FlatList
+                    data={displayedReports}
+                    keyExtractor={(i) => i.id}
+                    renderItem={renderItem}
+                    // biarkan FlatList mengisi ruang dalam card
+                    style={{ flex: 1 }}
+                    contentContainerStyle={{
+                        paddingHorizontal: 1,
+                        paddingTop: 8,
+                        paddingBottom: 80
+                    }}
+                    showsVerticalScrollIndicator={false}
+                    initialNumToRender={5}
+                    maxToRenderPerBatch={5}
+                    windowSize={10}
+                    removeClippedSubviews={false}
+                    onEndReached={handleLoadMore}
+                    // trigger lebih cepat saat mendekati akhir
+                    onEndReachedThreshold={0.2}
+                    ListFooterComponent={() => {
+                        if (loadingMore) {
+                            return (
+                                <View style={{ paddingVertical: 20, alignItems: 'center' }}>
+                                    <ActivityIndicator size="small" color="#6366f1" />
+                                    <Text style={{ color: '#6B7280', fontSize: 13, marginTop: 8 }}>Loading more...</Text>
+                                </View>
+                            );
+                        }
+                        // remove "Showing X of Y" text to avoid label appearing below the card;
+                        // keep minimal spacer so layout doesn't cut last item
+                        return <View style={{ height: 20 }} />;
+                    }}
+                    ListEmptyComponent={() => (
+                        <View style={{ paddingVertical: 60, alignItems: 'center' }}>
+                            <Text style={{ fontSize: 48, marginBottom: 12 }}>📭</Text>
+                            <Text style={{ color: '#6B7280', fontSize: 16, fontWeight: '600' }}>No data available</Text>
+                            <Text style={{ color: '#9CA3AF', fontSize: 13, marginTop: 4, textAlign: 'center' }}>
+                                No cash transactions{(filterMonth !== 'all' || filterYear !== 'all' || filterType !== 'all' || filterCategory !== '') ? ' for selected filters' : ''}
+                            </Text>
+                        </View>
+                    )}
+                />
+            </View>
 
             {/* Modal Form */}
             <Modal visible={modalVisible} animationType="slide" transparent onRequestClose={() => setModalVisible(false)}>
                 <View className="flex-1 justify-end bg-black/30">
                     <View className="bg-white rounded-t-3xl p-6" style={{ flex: 1 }}>
-                        <ScrollView scrollEnabled={!categoryOpen} showsVerticalScrollIndicator={false}>
+                        <ScrollView scrollEnabled={!focusedField} showsVerticalScrollIndicator={false}>
                             <Text className="text-xl font-semibold mb-4">{editingId ? 'Edit Report' : 'Add Report'}</Text>
 
-                            <Text className="text-sm text-gray-600 mb-1">Type</Text>
-                            <View className="flex-row mb-3">
-                                <TouchableOpacity
-                                    onPress={() => setType('in')}
-                                    className={`flex-1 rounded-xl px-4 py-3 mr-2 items-center ${type === 'in' ? 'bg-[#ECFDF5]' : 'bg-gray-100'}`}
-                                    style={{ borderWidth: type === 'in' ? 1 : 0, borderColor: '#10B981' }}
-                                >
-                                    <Text className={`font-semibold ${type === 'in' ? 'text-[#065F46]' : 'text-gray-700'}`}>In</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity
-                                    onPress={() => setType('out')}
-                                    className={`flex-1 rounded-xl px-4 py-3 items-center ${type === 'out' ? 'bg-[#FEF2F2]' : 'bg-gray-100'}`}
-                                    style={{ borderWidth: type === 'out' ? 1 : 0, borderColor: '#DC2626' }}
-                                >
-                                    <Text className={`font-semibold ${type === 'out' ? 'text-[#7F1D1D]' : 'text-gray-700'}`}>Out</Text>
-                                </TouchableOpacity>
-                            </View>
-
-                            <Text className="text-sm text-gray-600 mb-1">Date</Text>
-                            <TouchableOpacity
-                                onPress={() => setDatePickerVisible(true)}
-                                className="border rounded-lg px-4 py-3 mb-3"
-                            >
-                                <Text style={{ color: date ? '#111827' : '#9CA3AF' }}>{date || 'Select date'}</Text>
-                            </TouchableOpacity>
-
-                            <Text className="text-sm text-gray-600 mb-1">Nominal</Text>
-                            <TextInput
-                                value={amount}
-                                onChangeText={(v) => {
-                                    const next = formatCurrency(v);
-                                    setAmount(next);
-                                }}
-                                placeholder="Rp 0"
-                                keyboardType={Platform.OS === 'ios' ? 'number-pad' : 'numeric'}
-                                className="border rounded-lg px-4 py-3 mb-3"
+                            <SelectInput
+                                label="Type"
+                                value={type}
+                                options={[{ label: 'In', value: 'in' }, { label: 'Out', value: 'out' }]}
+                                onValueChange={(v: string) => setType(v as 'in' | 'out')}
+                                placeholder="Select type"
+                                onFocus={() => setFocusedField('type')}
+                                onBlur={() => setFocusedField(null)}
                             />
 
-                            <Text className="text-sm text-gray-600 mb-1">Category</Text>
-                            <TouchableOpacity
-                                onPress={() => setCategoryOpen(!categoryOpen)}
-                                className="border rounded-lg px-4 py-3 mb-3 flex-row justify-between items-center"
-                            >
-                                <Text>{category || 'Select category'}</Text>
-                                <Text className="text-gray-400">▾</Text>
-                            </TouchableOpacity>
-                            {categoryOpen && (
-                                <View style={{ backgroundColor: '#F9FAFB', borderRadius: 8, marginBottom: 12, height: 250, borderWidth: 1, borderColor: '#E5E7EB' }}>
-                                    <ScrollView scrollEnabled={true} showsVerticalScrollIndicator={true}>
-                                        {CATEGORIES.map((cat) => (
-                                            <TouchableOpacity
-                                                key={cat}
-                                                onPress={() => {
-                                                    setCategory(cat);
-                                                    setCategoryOpen(false);
-                                                }}
-                                                style={{ paddingVertical: 12, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: '#E5E7EB' }}
-                                            >
-                                                <Text style={{ color: category === cat ? '#6366f1' : '#111827', fontWeight: category === cat ? '600' : '400' }}>{cat}</Text>
-                                            </TouchableOpacity>
-                                        ))}
-                                    </ScrollView>
-                                </View>
-                            )}
+                            <FloatingLabelInput
+                                label="Date"
+                                value={formatDateDisplay(date)}
+                                onChangeText={setDate}
+                                placeholder="11-Nov-2025"
+                                editable={Platform.OS === 'web'}
+                                onPress={() => {
+                                    if (Platform.OS !== 'web') {
+                                        setDatePickerVisible(true);
+                                        setFocusedField('date');
+                                    }
+                                }}
+                            />
 
-                            <Text className="text-sm text-gray-600 mb-1">Description</Text>
-                            <TextInput
+                            <FloatingLabelInput
+                                label="Nominal"
+                                value={amount}
+                                onChangeText={(v) => setAmount(formatCurrency(v))}
+                                placeholder="Rp 0"
+                                keyboardType={Platform.OS === 'ios' ? 'number-pad' : 'numeric'}
+                            />
+
+                            <SelectInput
+                                label="Category"
+                                value={category}
+                                options={[...CATEGORIES]}
+                                onValueChange={(v: string) => setCategory(v)}
+                                placeholder="Select category"
+                                onFocus={() => setFocusedField('category')}
+                                onBlur={() => setFocusedField(null)}
+                            />
+
+                            <FloatingLabelInput
+                                label="Description"
                                 value={description}
                                 onChangeText={setDescription}
                                 placeholder="Description (optional)"
-                                multiline={true}
-                                numberOfLines={4}
-                                style={{
-                                    borderWidth: 1,
-                                    borderColor: '#E5E7EB',
-                                    borderRadius: 8,
-                                    paddingHorizontal: 12,
-                                    paddingVertical: 10,
-                                    marginBottom: 12,
-                                    textAlignVertical: 'top',
-                                    minHeight: 100,
-                                }}
+                                multiline
+                                inputStyle={{ marginBottom: 12, minHeight: 100, paddingTop: 18 }}
                             />
 
                             <View className="flex-row justify-between mt-2" style={{ alignItems: 'center' }}>
