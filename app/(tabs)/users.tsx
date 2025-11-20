@@ -5,7 +5,6 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
     ActivityIndicator,
     FlatList,
-    Image,
     Modal,
     Platform,
     ScrollView,
@@ -16,8 +15,11 @@ import {
 } from 'react-native';
 import DateTimePickerModal from 'react-native-modal-datetime-picker';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import CardItem from '../../src/components/CardItem';
 import ConfirmDialog from '../../src/components/ConfirmDialog';
 import FloatingLabelInput from '../../src/components/FloatingLabelInput';
+import ListCardWrapper from '../../src/components/ListCardWrapper';
+import LoadMore from '../../src/components/LoadMore';
 import SelectInput from '../../src/components/SelectInput';
 import { useToast } from '../../src/contexts/ToastContext';
 import { db } from '../../src/firebaseConfig';
@@ -51,6 +53,11 @@ export default function UsersScreen() {
 
     // NEW: search query for name/email
     const [searchQuery, setSearchQuery] = useState<string>('');
+
+    // PAGINATION state
+    const USERS_PER_PAGE = 5;
+    const [displayedCount, setDisplayedCount] = useState<number>(USERS_PER_PAGE);
+    const [loadingMore, setLoadingMore] = useState<boolean>(false);
 
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
@@ -129,6 +136,22 @@ export default function UsersScreen() {
             loadUsers();
         }, [])
     );
+
+    // Reset displayed count when users or filters change
+    useEffect(() => {
+        setDisplayedCount(USERS_PER_PAGE);
+    }, [users, roleFilter, searchQuery]);
+
+    // Load more handler
+    const handleLoadMore = () => {
+        if (loadingMore) return;
+        if (displayedCount >= filteredUsers.length) return;
+        setLoadingMore(true);
+        setTimeout(() => {
+            setDisplayedCount(prev => Math.min(prev + USERS_PER_PAGE, filteredUsers.length));
+            setLoadingMore(false);
+        }, 400);
+    };
 
     async function checkPermissions() {
         try {
@@ -465,87 +488,48 @@ export default function UsersScreen() {
             return (u.name || '').toLowerCase().includes(q) || (u.email || '').toLowerCase().includes(q);
         });
 
+    // Paginated users for display
+    const displayedUsers = filteredUsers.slice(0, displayedCount);
+
     const renderItem = ({ item }: { item: User }) => {
         // Role badge color
         const roleColors = {
-            Admin: { bg: '#FEE2E2', text: '#991B1B' },
-            Staff: { bg: '#DBEAFE', text: '#1E40AF' },
-            Member: { bg: '#E0E7FF', text: '#3730A3' },
+            Admin: { bg: '#FEE2E2', text: '#991B1B', border: '#EF4444' },
+            Staff: { bg: '#DBEAFE', text: '#1E40AF', border: '#3B82F6' },
+            Member: { bg: '#E0E7FF', text: '#3730A3', border: '#6366F1' },
         };
         const colors = roleColors[item.role as keyof typeof roleColors] || roleColors.Member;
 
         return (
-            <View className="mx-6 my-3">
-                <View
-                    style={{
-                        position: 'relative', // enable absolute positioning for badge/actions
-                        minHeight: 72,
-                        borderRadius: 12,
-                        paddingHorizontal: 12,
-                        paddingVertical: 10,
-                        backgroundColor: '#F3F4F6',
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        justifyContent: 'flex-start',
-                        elevation: 2,
-                        shadowColor: '#000',
-                        shadowOpacity: 0.05,
-                        shadowRadius: 6,
-                        shadowOffset: { width: 0, height: 3 },
-                        paddingRight: 150, // make room for absolute badge/actions
-                    }}
-                >
-                    {/* Absolute column: role badge on top, actions below */}
-                    <View style={{ position: 'absolute', top: 8, right: 8, zIndex: 3, alignItems: 'flex-end' }}>
-                        <View
-                            style={{
-                                backgroundColor: colors.bg,
-                                paddingHorizontal: 10,
-                                paddingVertical: 4,
-                                borderRadius: 999,
-                                // keep single-line label (no arrow)
-                                alignItems: 'center',
-                                borderWidth: roleFilter === item.role ? 2 : 0,
-                                borderColor: colors.text,
-                                marginBottom: 8,
-                            }}
-                        >
-                            <Text style={{ color: colors.text, fontSize: 11, fontWeight: '700' }}>{item.role}</Text>
-                        </View>
-
-                        {canManageUsers && (
-                            <View style={{ alignItems: 'flex-end' }}>
-                                <TouchableOpacity style={{ marginBottom: 6 }} onPress={() => openEdit(item)}>
-                                    <Text style={{ color: '#06B6D4', fontWeight: '600' }}>Edit</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity onPress={() => remove(item.id)}>
-                                    <Text style={{ color: '#EF4444', fontWeight: '600' }}>Delete</Text>
-                                </TouchableOpacity>
-                            </View>
-                        )}
-                    </View>
-
-                    {/* Left: avatar + info */}
-                    <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}>
-                        <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
-                            {item.photo ? (
-                                <Image
-                                    source={{ uri: item.photo }}
-                                    style={{ width: 48, height: 48, borderRadius: 24 }}
-                                    resizeMode="cover"
-                                />
-                            ) : (
-                                <Text style={{ fontSize: 18 }}>👤</Text>
-                            )}
-                        </View>
-                        <View style={{ flex: 1 }}>
-                            <Text style={{ color: '#111827', fontWeight: '600', marginBottom: 4 }}>{item.name}</Text>
-                            <Text style={{ color: '#6B7280', fontSize: 12 }}>{item.email}</Text>
-                            {item.phone ? <Text style={{ color: '#6B7280', fontSize: 12 }}>{item.phone}</Text> : null}
-                        </View>
-                    </View>
-                </View>
-            </View>
+            <CardItem
+                icon="👤"
+                badge={item.role}
+                badgeBg={colors.bg}
+                badgeTextColor={colors.text}
+                badgeBorderColor={roleFilter === item.role ? colors.border : undefined}
+                title={item.name}
+                titleColor="#111827"
+                subtitle={item.email}
+                subtitleColor="#6B7280"
+                description={item.phone}
+                descriptionColor="#6B7280"
+                borderLeftColor={colors.border}
+                containerStyle={{ marginHorizontal: 0 }}
+                actions={canManageUsers ? [
+                    {
+                        label: 'Edit',
+                        onPress: () => openEdit(item),
+                        bg: '#E0F2FE',
+                        textColor: '#0369A1',
+                    },
+                    {
+                        label: 'Delete',
+                        onPress: () => remove(item.id),
+                        bg: '#FEE2E2',
+                        textColor: '#991B1B',
+                    },
+                ] : undefined}
+            />
         );
     };
 
@@ -716,17 +700,43 @@ export default function UsersScreen() {
                 </View>
             )}
 
-            {/* List */}
-            <FlatList
-                data={filteredUsers}
-                keyExtractor={(i) => i.id}
-                renderItem={renderItem}
-                numColumns={1}
-                style={{ flex: 1 }}
-                contentContainerStyle={{ paddingVertical: 8, paddingHorizontal: 12, paddingBottom: bottomInset }}
-                showsVerticalScrollIndicator={false}
-                keyboardShouldPersistTaps="handled"
-            />
+            {/* List with pagination */}
+            <View style={{ flex: 1, paddingHorizontal: 16, paddingTop: 12 }}>
+                <ListCardWrapper style={{ marginHorizontal: 0 }}>
+                    <FlatList
+                        data={displayedUsers}
+                        keyExtractor={(i) => i.id}
+                        renderItem={renderItem}
+                        numColumns={1}
+                        style={{ flex: 1 }}
+                        contentContainerStyle={{
+                            paddingHorizontal: 16,
+                            paddingTop: 8,
+                            paddingBottom: 80
+                        }}
+                        showsVerticalScrollIndicator={false}
+                        keyboardShouldPersistTaps="handled"
+                        // Load more pagination
+                        onEndReached={handleLoadMore}
+                        onEndReachedThreshold={0.2}
+                        ListFooterComponent={() => (
+                            <LoadMore
+                                loading={loadingMore}
+                                hasMore={displayedCount < filteredUsers.length}
+                            />
+                        )}
+                        ListEmptyComponent={() => (
+                            <View style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: 60 }}>
+                                <Text style={{ fontSize: 48, marginBottom: 12 }}>👤</Text>
+                                <Text style={{ color: '#6B7280', fontSize: 16, fontWeight: '600' }}>No users found</Text>
+                                <Text style={{ color: '#9CA3AF', fontSize: 13, marginTop: 4, textAlign: 'center' }}>
+                                    No users match your filters
+                                </Text>
+                            </View>
+                        )}
+                    />
+                </ListCardWrapper>
+            </View>
 
             {/* Modal Form - Create & Edit */}
             <Modal visible={modalVisible} animationType="slide" transparent onRequestClose={() => setModalVisible(false)}>
