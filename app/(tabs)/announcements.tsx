@@ -15,6 +15,9 @@ import {
 import DateTimePickerModal from 'react-native-modal-datetime-picker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import ConfirmDialog from '../../src/components/ConfirmDialog';
+import ListCardWrapper from '../../src/components/ListCardWrapper';
+import LoadMore from '../../src/components/LoadMore';
+import SelectInput from '../../src/components/SelectInput';
 import { useToast } from '../../src/contexts/ToastContext';
 import { db } from '../../src/firebaseConfig';
 
@@ -57,6 +60,11 @@ export default function AnnouncementsScreen() {
     const [startTimePickerVisible, setStartTimePickerVisible] = useState(false);
     const [endDatePickerVisible, setEndDatePickerVisible] = useState(false);
     const [endTimePickerVisible, setEndTimePickerVisible] = useState(false);
+
+    // PAGINATION state
+    const ANNOUNCEMENTS_PER_PAGE = 5;
+    const [displayedCount, setDisplayedCount] = useState<number>(ANNOUNCEMENTS_PER_PAGE);
+    const [loadingMore, setLoadingMore] = useState<boolean>(false);
 
     // Helper functions for date/time formatting
     const formatDate = (date: Date) => {
@@ -211,76 +219,19 @@ export default function AnnouncementsScreen() {
         return 'active';
     }
 
-    const renderItem = ({ item }: { item: Announcement }) => {
-        const status = getAnnouncementStatus(item);
-        const statusStyles: Record<string, { bg: string; text: string; label: string }> = {
-            upcoming: { bg: '#FEF3C7', text: '#92400E', label: 'Upcoming' },
-            active: { bg: '#ECFDF5', text: '#065F46', label: 'Active' },
-            expired: { bg: '#FEF2F2', text: '#7F1D1D', label: 'Expired' },
-        };
-
-        return (
-            <View style={{ marginHorizontal: 16, marginVertical: 8 }}>
-                <View style={{ position: 'relative', backgroundColor: '#F9FAFB', borderRadius: 12, padding: 12, elevation: 2, paddingRight: 120 }}>
-                    {/* Absolute column at top-right: badge + actions */}
-                    <View style={{ position: 'absolute', top: 8, right: 12, zIndex: 5, alignItems: 'flex-end' }}>
-                        {status ? (
-                            <View style={{ backgroundColor: statusStyles[status].bg, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999, marginBottom: 8 }}>
-                                <Text style={{ color: statusStyles[status].text, fontWeight: '700', fontSize: 10 }}>
-                                    {statusStyles[status].label}
-                                </Text>
-                            </View>
-                        ) : null}
-                        <View style={{ alignItems: 'flex-end' }}>
-                            <TouchableOpacity disabled={operationLoading} onPress={() => openEdit(item)} style={{ marginBottom: 6 }}>
-                                <Text style={{ color: '#06B6D4', fontWeight: '600', opacity: operationLoading ? 0.5 : 1 }}>Edit</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity disabled={operationLoading} onPress={() => confirmRemove(item.id)}>
-                                <Text style={{ color: '#EF4444', fontWeight: '600', opacity: operationLoading ? 0.5 : 1 }}>Delete</Text>
-                            </TouchableOpacity>
-                        </View>
-                    </View>
-
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                        <View style={{ flex: 1 }}>
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
-                                <View style={{ backgroundColor: '#E5E7EB', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999 }}>
-                                    <Text style={{ color: '#374151', fontWeight: '600', fontSize: 10 }}>{item.category}</Text>
-                                </View>
-                                <View style={{ backgroundColor: '#DDD6FE', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999 }}>
-                                    <Text style={{ color: '#4F46E5', fontWeight: '600', fontSize: 10 }}>{item.role}</Text>
-                                </View>
-                            </View>
-                            <Text style={{ fontWeight: '700', color: '#111827', fontSize: 16 }}>{item.title}</Text>
-                            <Text numberOfLines={2} style={{ color: '#374151', marginTop: 6 }}>{item.content}</Text>
-                            <Text style={{ color: '#6B7280', fontSize: 12, marginTop: 6 }}>
-                                Start : {displayDateYMonD(item.startDate)} {item.startTime}
-                            </Text>
-                            <Text style={{ color: '#6B7280', fontSize: 12, marginTop: 6 }}>
-                                End : {displayDateYMonD(item.endDate)} {item.endTime}
-                            </Text>
-                        </View>
-                    </View>
-                </View>
-            </View>
-        );
-    };
-
     // ADDED: role filter state for list
-    const [filterRole, setFilterRole] = useState<string | null>(null);
-    const [filterRoleOpen, setFilterRoleOpen] = useState(false);
+    const [filterRole, setFilterRole] = useState<string>('All');
 
     // ADDED: status filter state for list (all / upcoming / active / expired)
     const [filterStatus, setFilterStatus] = useState<'all' | 'upcoming' | 'active' | 'expired'>('all');
-    const [filterStatusOpen, setFilterStatusOpen] = useState(false);
-    const STATUS_OPTIONS = ['all', 'upcoming', 'active', 'expired'] as const;
-    const STATUS_LABEL: Record<string, string> = { all: 'All', upcoming: 'Upcoming', active: 'Active', expired: 'Expired' };
+    // NEW: control show / collapse filters card (default = closed)
+    const [filtersOpen, setFiltersOpen] = useState<boolean>(false);
 
     // ADDED: compute displayed items based on role & status filter, then sort by status: active -> upcoming -> expired
     const displayedItems = items
         .filter(i => {
             // role filter
-            if (filterRole && filterRole !== 'All' && (i.role || '') !== filterRole) return false;
+            if (filterRole !== 'All' && (i.role || '') !== filterRole) return false;
             // status filter
             if (filterStatus && filterStatus !== 'all') {
                 const s = getAnnouncementStatus(i); // 'upcoming'|'active'|'expired'|null
@@ -300,6 +251,25 @@ export default function AnnouncementsScreen() {
             const db = b.date || '';
             return db.localeCompare(da);
         });
+
+    // Paginated items for display
+    const paginatedItems = displayedItems.slice(0, displayedCount);
+
+    // Reset displayed count when items or filters change
+    useEffect(() => {
+        setDisplayedCount(ANNOUNCEMENTS_PER_PAGE);
+    }, [items, filterRole, filterStatus]);
+
+    // Load more handler
+    const handleLoadMore = () => {
+        if (loadingMore) return;
+        if (displayedCount >= displayedItems.length) return;
+        setLoadingMore(true);
+        setTimeout(() => {
+            setDisplayedCount(prev => Math.min(prev + ANNOUNCEMENTS_PER_PAGE, displayedItems.length));
+            setLoadingMore(false);
+        }, 400);
+    };
 
     // ADDED: counts for statuses
     const totalAnnouncements = items.length;
@@ -328,7 +298,7 @@ export default function AnnouncementsScreen() {
             </View>
 
             {/* Summary card (matches cash_reports style) */}
-            <View className="px-6 mb-3">
+            <View style={{ paddingHorizontal: 16, marginBottom: 12 }}>
                 <LinearGradient
                     colors={['#ffffff', '#f8fafc']}
                     start={{ x: 0, y: 0 }}
@@ -356,59 +326,59 @@ export default function AnnouncementsScreen() {
                 </LinearGradient>
             </View>
 
-            {/* FILTERS: Status + Role (styled like cash_reports) */}
-            <View className="px-6 mb-3">
-                <View style={{ flexDirection: 'row', gap: 12, marginBottom: 10 }}>
-                    {/* Status select */}
-                    <View style={{ flex: 1, position: 'relative' }}>
-                        <Text style={{ color: '#6B7280', fontSize: 12, marginBottom: 6 }}>Status</Text>
-                        <TouchableOpacity
-                            onPress={() => setFilterStatusOpen(!filterStatusOpen)}
-                            style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, paddingVertical: 10, paddingHorizontal: 12, backgroundColor: '#fff', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}
-                        >
-                            <Text>{STATUS_LABEL[filterStatus]}</Text>
-                            <Text style={{ color: '#9CA3AF' }}>▾</Text>
-                        </TouchableOpacity>
-                        {filterStatusOpen && (
-                            <View style={{ position: 'absolute', top: 48, left: 0, right: 0, backgroundColor: '#F9FAFB', borderRadius: 8, zIndex: 30, borderWidth: 1, borderColor: '#E5E7EB' }}>
-                                <ScrollView style={{ maxHeight: 200 }}>
-                                    {STATUS_OPTIONS.map(s => (
-                                        <TouchableOpacity key={s} onPress={() => { setFilterStatus(s); setFilterStatusOpen(false); }} style={{ paddingVertical: 12, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: '#E5E7EB' }}>
-                                            <Text style={{ color: filterStatus === s ? '#6366f1' : '#111827', fontWeight: filterStatus === s ? '600' : '400' }}>
-                                                {STATUS_LABEL[s]}
-                                            </Text>
-                                        </TouchableOpacity>
-                                    ))}
-                                </ScrollView>
-                            </View>
-                        )}
-                    </View>
+            {/* FILTERS: Card (show / collapse) */}
+            <View style={{ paddingHorizontal: 16, marginBottom: 12 }}>
+                <View style={{
+                    backgroundColor: '#fff',
+                    borderRadius: 12,
+                    borderWidth: 1,
+                    borderColor: '#E5E7EB',
+                    padding: 12,
+                    elevation: 2,
+                    overflow: 'hidden',
+                }}>
+                    <TouchableOpacity
+                        onPress={() => setFiltersOpen(prev => !prev)}
+                        style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}
+                    >
+                        <Text style={{ fontSize: 16, fontWeight: '700', color: '#111827' }}>Filters</Text>
+                        <Text style={{ fontSize: 18, color: '#6B7280' }}>{filtersOpen ? '▾' : '▴'}</Text>
+                    </TouchableOpacity>
 
-                    {/* Role select */}
-                    <View style={{ flex: 1, position: 'relative' }}>
-                        <Text style={{ color: '#6B7280', fontSize: 12, marginBottom: 6 }}>Role</Text>
-                        <TouchableOpacity
-                            onPress={() => setFilterRoleOpen(!filterRoleOpen)}
-                            style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, paddingVertical: 10, paddingHorizontal: 12, backgroundColor: '#fff', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}
-                        >
-                            <Text>{filterRole || 'All'}</Text>
-                            <Text style={{ color: '#9CA3AF' }}>▾</Text>
-                        </TouchableOpacity>
-                        {filterRoleOpen && (
-                            <View style={{ position: 'absolute', top: 48, left: 0, right: 0, backgroundColor: '#F9FAFB', borderRadius: 8, zIndex: 20, borderWidth: 1, borderColor: '#E5E7EB' }}>
-                                <ScrollView style={{ maxHeight: 200 }}>
-                                    <TouchableOpacity onPress={() => { setFilterRole(null); setFilterRoleOpen(false); }} style={{ paddingVertical: 12, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: '#E5E7EB' }}>
-                                        <Text style={{ color: filterRole === null ? '#6366f1' : '#111827', fontWeight: filterRole === null ? '600' : '400' }}>All</Text>
-                                    </TouchableOpacity>
-                                    {ROLES.map(r => (
-                                        <TouchableOpacity key={r} onPress={() => { setFilterRole(r); setFilterRoleOpen(false); }} style={{ paddingVertical: 12, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: '#E5E7EB' }}>
-                                            <Text style={{ color: filterRole === r ? '#6366f1' : '#111827', fontWeight: filterRole === r ? '600' : '400' }}>{r}</Text>
-                                        </TouchableOpacity>
-                                    ))}
-                                </ScrollView>
+                    {filtersOpen && (
+                        <View style={{ marginTop: 12 }}>
+                            {/* Status & Role - side by side */}
+                            <View style={{ flexDirection: 'row', gap: 12, marginBottom: 10 }}>
+                                <View style={{ flex: 1 }}>
+                                    <SelectInput
+                                        label="Status"
+                                        value={filterStatus}
+                                        options={[
+                                            { label: 'All Status', value: 'all' },
+                                            { label: 'Upcoming', value: 'upcoming' },
+                                            { label: 'Active', value: 'active' },
+                                            { label: 'Expired', value: 'expired' }
+                                        ]}
+                                        onValueChange={(v: string) => setFilterStatus(v as 'all' | 'upcoming' | 'active' | 'expired')}
+                                        placeholder="Select status"
+                                        containerStyle={{ marginBottom: 0 }}
+                                    />
+                                </View>
+                                <View style={{ flex: 1 }}>
+                                    <SelectInput
+                                        label="Role"
+                                        value={filterRole}
+                                        options={[
+                                            { label: 'All Roles', value: 'All' },
+                                            ...ROLES.filter(r => r !== 'All').map(r => ({ label: r, value: r }))
+                                        ]}
+                                        onValueChange={(v: string) => setFilterRole(v)}
+                                        containerStyle={{ marginBottom: 0 }}
+                                    />
+                                </View>
                             </View>
-                        )}
-                    </View>
+                        </View>
+                    )}
                 </View>
             </View>
 
@@ -438,7 +408,161 @@ export default function AnnouncementsScreen() {
                     <ActivityIndicator size="small" color="#6366f1" />
                 </View>
             ) : (
-                <FlatList data={displayedItems} keyExtractor={(i) => i.id} renderItem={renderItem} contentContainerStyle={{ paddingBottom: 32 }} />
+                <View style={{ flex: 1, paddingHorizontal: 16, paddingTop: 12 }}>
+                    <ListCardWrapper style={{ marginHorizontal: 0 }}>
+                        <FlatList
+                            data={paginatedItems}
+                            keyExtractor={(i) => i.id}
+                            style={{ flex: 1 }}
+                            contentContainerStyle={{
+                                paddingHorizontal: 16,
+                                paddingTop: 8,
+                                paddingBottom: 80
+                            }}
+                            showsVerticalScrollIndicator={false}
+                            renderItem={({ item }) => {
+                                const status = getAnnouncementStatus(item);
+                                const statusColors = {
+                                    active: { bg: '#ECFDF5', text: '#065F46', border: '#10B981', label: '● ACTIVE' },
+                                    upcoming: { bg: '#FEF3C7', text: '#92400E', border: '#F59E0B', label: '◐ UPCOMING' },
+                                    expired: { bg: '#FEF2F2', text: '#7F1D1D', border: '#EF4444', label: '○ EXPIRED' },
+                                };
+                                const colors = status ? statusColors[status] : { bg: '#F3F4F6', text: '#6B7280', border: '#9CA3AF', label: '- NONE' };
+
+                                return (
+                                    <View style={{ marginVertical: 6 }}>
+                                        <View style={{
+                                            position: 'relative',
+                                            backgroundColor: '#fff',
+                                            padding: 16,
+                                            borderRadius: 12,
+                                            elevation: 2,
+                                            shadowColor: '#000',
+                                            shadowOffset: { width: 0, height: 1 },
+                                            shadowOpacity: 0.08,
+                                            shadowRadius: 4,
+                                            borderLeftWidth: 4,
+                                            borderLeftColor: colors.border,
+                                            paddingRight: 120,
+                                        }}>
+                                            {/* Actions - positioned absolute center right */}
+                                            <View style={{ position: 'absolute', top: '50%', right: 12, zIndex: 5, flexDirection: 'column', gap: 8, transform: [{ translateY: -30 }] }}>
+                                                <TouchableOpacity
+                                                    onPress={() => openEdit(item)}
+                                                    disabled={operationLoading}
+                                                    style={{
+                                                        backgroundColor: '#E0F2FE',
+                                                        paddingHorizontal: 12,
+                                                        paddingVertical: 6,
+                                                        borderRadius: 8,
+                                                        opacity: operationLoading ? 0.5 : 1
+                                                    }}
+                                                >
+                                                    <Text style={{ color: '#0369A1', fontWeight: '600', fontSize: 12 }}>Edit</Text>
+                                                </TouchableOpacity>
+                                                <TouchableOpacity
+                                                    onPress={() => confirmRemove(item.id)}
+                                                    disabled={operationLoading}
+                                                    style={{
+                                                        backgroundColor: '#FEE2E2',
+                                                        paddingHorizontal: 12,
+                                                        paddingVertical: 6,
+                                                        borderRadius: 8,
+                                                        opacity: operationLoading ? 0.5 : 1
+                                                    }}
+                                                >
+                                                    <Text style={{ color: '#991B1B', fontWeight: '600', fontSize: 12 }}>Delete</Text>
+                                                </TouchableOpacity>
+                                            </View>
+
+                                            {/* Role Badge */}
+                                            {!!item.role && (
+                                                <View style={{
+                                                    backgroundColor: '#F3F4F6',
+                                                    paddingHorizontal: 8,
+                                                    paddingVertical: 3,
+                                                    borderRadius: 6,
+                                                    alignSelf: 'flex-start',
+                                                    marginBottom: 8
+                                                }}>
+                                                    <Text style={{ color: '#374151', fontSize: 11, fontWeight: '600' }}>
+                                                        {item.role == 'All' ? 'All Roles' : item.role}
+                                                    </Text>
+                                                </View>
+                                            )}
+
+                                            {/* Icon, Status Badge, dan Category Badge */}
+                                            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12, gap: 8 }}>
+                                                <Text style={{ fontSize: 20 }}>📢</Text>
+                                                <View style={{
+                                                    backgroundColor: colors.bg,
+                                                    paddingHorizontal: 10,
+                                                    paddingVertical: 5,
+                                                    borderRadius: 999,
+                                                    borderWidth: 2,
+                                                    borderColor: colors.border
+                                                }}>
+                                                    <Text style={{ color: colors.text, fontWeight: '700', fontSize: 10 }}>
+                                                        {colors.label}
+                                                    </Text>
+                                                </View>
+                                                {!!item.category && (
+                                                    <View style={{
+                                                        backgroundColor: '#F3F4F6',
+                                                        paddingHorizontal: 10,
+                                                        paddingVertical: 5,
+                                                        borderRadius: 999,
+                                                        borderWidth: 1,
+                                                        borderColor: '#D1D5DB'
+                                                    }}>
+                                                        <Text style={{ color: '#374151', fontWeight: '600', fontSize: 10 }}>
+                                                            🏷️ {item.category}
+                                                        </Text>
+                                                    </View>
+                                                )}
+                                            </View>
+
+                                            {/* Title */}
+                                            <Text style={{ fontWeight: '800', fontSize: 16, color: '#111827', marginBottom: 8 }}>
+                                                {item.title}
+                                            </Text>
+
+                                            {/* Content */}
+                                            <Text numberOfLines={2} style={{ color: '#6B7280', fontSize: 13, marginBottom: 8 }}>
+                                                {item.content}
+                                            </Text>
+
+                                            {/* Date/Time Info */}
+                                            <Text style={{ color: '#9CA3AF', fontSize: 12 }}>
+                                                Start: {displayDateYMonD(item.startDate)} {item.startTime}
+                                            </Text>
+                                            <Text style={{ color: '#9CA3AF', fontSize: 12 }}>
+                                                End: {displayDateYMonD(item.endDate)} {item.endTime}
+                                            </Text>
+                                        </View>
+                                    </View>
+                                );
+                            }}
+                            ListEmptyComponent={() => (
+                                <View style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: 60 }}>
+                                    <Text style={{ fontSize: 48, marginBottom: 12 }}>📭</Text>
+                                    <Text style={{ color: '#6B7280', fontSize: 16, fontWeight: '600' }}>No announcements found</Text>
+                                    <Text style={{ color: '#9CA3AF', fontSize: 13, marginTop: 4, textAlign: 'center' }}>
+                                        No announcements match your filters
+                                    </Text>
+                                </View>
+                            )}
+                            onEndReached={handleLoadMore}
+                            onEndReachedThreshold={0.2}
+                            ListFooterComponent={() => (
+                                <LoadMore
+                                    loading={loadingMore}
+                                    hasMore={displayedCount < displayedItems.length}
+                                />
+                            )}
+                        />
+                    </ListCardWrapper>
+                </View>
             )}
 
             <Modal visible={modalVisible} animationType="slide" transparent onRequestClose={() => setModalVisible(false)}>
