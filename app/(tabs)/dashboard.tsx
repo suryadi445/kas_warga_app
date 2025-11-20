@@ -3,6 +3,9 @@ import { collection, onSnapshot, orderBy, query } from 'firebase/firestore';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Dimensions, FlatList, StatusBar, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import ListCardWrapper from '../../src/components/ListCardWrapper';
+// ADDED: LoadMore footer component
+import LoadMore from '../../src/components/LoadMore';
 import { db } from '../../src/firebaseConfig';
 
 /**
@@ -47,6 +50,88 @@ export default function DashboardPage() {
     const [schedules, setSchedules] = useState<Schedule[]>([]);
     const [activities, setActivities] = useState<Activity[]>([]);
 
+    // SCHEDULES pagination (used by renderSchedules)
+    const SCHEDULES_PER_PAGE = 5;
+    const [scheduleDisplayedCount, setScheduleDisplayedCount] = useState<number>(SCHEDULES_PER_PAGE);
+    const [scheduleLoadingMore, setScheduleLoadingMore] = useState<boolean>(false);
+
+    // CASH pagination
+    const CASH_PER_PAGE = 5;
+    const [cashDisplayedCount, setCashDisplayedCount] = useState<number>(CASH_PER_PAGE);
+    const [cashLoadingMore, setCashLoadingMore] = useState<boolean>(false);
+
+    // ANNOUNCEMENTS pagination
+    const ANNOUNCEMENTS_PER_PAGE = 5;
+    const [announcementsDisplayedCount, setAnnouncementsDisplayedCount] = useState<number>(ANNOUNCEMENTS_PER_PAGE);
+    const [announcementsLoadingMore, setAnnouncementsLoadingMore] = useState<boolean>(false);
+
+    // ACTIVITIES pagination
+    const ACTIVITIES_PER_PAGE = 5;
+    const [activitiesDisplayedCount, setActivitiesDisplayedCount] = useState<number>(ACTIVITIES_PER_PAGE);
+    const [activitiesLoadingMore, setActivitiesLoadingMore] = useState<boolean>(false);
+
+    // reset displayed count when schedules update
+    useEffect(() => {
+        setScheduleDisplayedCount(SCHEDULES_PER_PAGE);
+    }, [schedules]);
+
+    // reset displayed count when cash updates
+    useEffect(() => {
+        setCashDisplayedCount(CASH_PER_PAGE);
+    }, [cash, cashFilter]);
+
+    // reset displayed count when announcements update
+    useEffect(() => {
+        setAnnouncementsDisplayedCount(ANNOUNCEMENTS_PER_PAGE);
+    }, [announcements]);
+
+    // reset displayed count when activities update
+    useEffect(() => {
+        setActivitiesDisplayedCount(ACTIVITIES_PER_PAGE);
+    }, [activities]);
+
+    const handleScheduleLoadMore = () => {
+        if (scheduleLoadingMore) return;
+        if (scheduleDisplayedCount >= schedules.length) return;
+        setScheduleLoadingMore(true);
+        // small debounce / simulated load delay
+        setTimeout(() => {
+            setScheduleDisplayedCount(prev => Math.min(prev + SCHEDULES_PER_PAGE, schedules.length));
+            setScheduleLoadingMore(false);
+        }, 400);
+    };
+
+    const handleCashLoadMore = () => {
+        if (cashLoadingMore) return;
+        const visibleLength = cashTotalsFiltered.visible?.length || 0;
+        if (cashDisplayedCount >= visibleLength) return;
+        setCashLoadingMore(true);
+        setTimeout(() => {
+            setCashDisplayedCount(prev => Math.min(prev + CASH_PER_PAGE, visibleLength));
+            setCashLoadingMore(false);
+        }, 400);
+    };
+
+    const handleAnnouncementsLoadMore = () => {
+        if (announcementsLoadingMore) return;
+        if (announcementsDisplayedCount >= announcements.length) return;
+        setAnnouncementsLoadingMore(true);
+        setTimeout(() => {
+            setAnnouncementsDisplayedCount(prev => Math.min(prev + ANNOUNCEMENTS_PER_PAGE, announcements.length));
+            setAnnouncementsLoadingMore(false);
+        }, 400);
+    };
+
+    const handleActivitiesLoadMore = () => {
+        if (activitiesLoadingMore) return;
+        if (activitiesDisplayedCount >= activities.length) return;
+        setActivitiesLoadingMore(true);
+        setTimeout(() => {
+            setActivitiesDisplayedCount(prev => Math.min(prev + ACTIVITIES_PER_PAGE, activities.length));
+            setActivitiesLoadingMore(false);
+        }, 400);
+    };
+
     // NEW: get today's date string (YYYY-MM-DD)
     const getTodayString = () => new Date().toISOString().split('T')[0];
 
@@ -79,17 +164,21 @@ export default function DashboardPage() {
             const qAnn = query(collection(db, 'announcements'), orderBy('date', 'desc'));
             const unsubAnn = onSnapshot(qAnn, snap => {
                 const todayStr = getTodayString();
+                // debug: inspect incoming doc shapes (remove or comment out in production)
+                // console.debug('announcements snapshot docs:', snap.docs.map(d => ({ id: d.id, data: d.data() })));
                 const rows: Announcement[] = snap.docs.map(d => {
                     const data = d.data() as any;
                     return {
                         id: d.id,
-                        title: data.title || '',
-                        content: data.content || '',
-                        startDate: data.startDate || '',
-                        endDate: data.endDate || '',
-                        date: data.date || '',
-                        role: data.role || '',
-                        category: data.category || '',
+                        title: data.title ?? '',
+                        content: data.content ?? '',
+                        startDate: data.startDate ?? '',
+                        endDate: data.endDate ?? '',
+                        date: data.date ?? '',
+                        role: data.role ?? '',
+                        category: data.category ?? '',
+                        // normalize description: try several possible field names
+                        description: data.description ?? data.desc ?? data.details ?? data.body ?? '',
                     };
                 }).filter(item => {
                     // Filter announcements yang aktif hari ini (startDate <= today <= endDate)
@@ -109,16 +198,17 @@ export default function DashboardPage() {
             const unsubSched = onSnapshot(qSched, snap => {
                 const todayStr = getTodayString();
                 const dayOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][new Date().getDay()];
+                // console.debug('schedules snapshot docs:', snap.docs.map(d => ({ id: d.id, data: d.data() })));
                 const rows: Schedule[] = snap.docs.map(d => {
                     const data = d.data() as any;
                     return {
                         id: d.id,
-                        activityName: data.activityName || '',
-                        time: data.time || '',
-                        frequency: data.frequency || '',
+                        activityName: data.activityName ?? '',
+                        time: data.time ?? '',
+                        frequency: data.frequency ?? '',
                         days: Array.isArray(data.days) ? data.days : [],
-                        location: data.location || '',
-                        description: data.description || '',
+                        location: data.location ?? '',
+                        description: data.description ?? data.desc ?? data.details ?? data.body ?? '',
                     };
                 }).filter(item => {
                     // Filter schedules yang applicable hari ini (cek days of week)
@@ -134,15 +224,16 @@ export default function DashboardPage() {
             const qAct = query(collection(db, 'activities'), orderBy('date', 'desc'));
             const unsubAct = onSnapshot(qAct, snap => {
                 const todayStr = getTodayString();
+                // console.debug('activities snapshot docs:', snap.docs.map(d => ({ id: d.id, data: d.data() })));
                 const rows: Activity[] = snap.docs.map(d => {
                     const data = d.data() as any;
                     return {
                         id: d.id,
-                        title: data.title || '',
-                        location: data.location || '',
-                        date: data.date || '',
-                        time: data.time || '',
-                        description: data.description || '',
+                        title: data.title ?? '',
+                        location: data.location ?? '',
+                        date: data.date ?? '',
+                        time: data.time ?? '',
+                        description: data.description ?? data.desc ?? data.details ?? data.body ?? '',
                     };
                 }).filter(item => item.date === todayStr); // Filter hari ini saja
                 setActivities(rows);
@@ -203,29 +294,19 @@ export default function DashboardPage() {
     function renderCash() {
         return (
             <View style={{ flex: 1, paddingHorizontal: 16, paddingTop: 12 }}>
-                <View style={{
-                    flex: 1,
-                    backgroundColor: '#fff',
-                    borderTopLeftRadius: 16,
-                    borderTopRightRadius: 16,
-                    // borders: top + sides only
-                    borderTopWidth: 1,
-                    borderLeftWidth: 1,
-                    borderRightWidth: 1,
-                    borderBottomWidth: 0,
-                    borderColor: '#E5E7EB',
-                    // shadow mengarah ke atas / samping
-                    shadowColor: '#000',
-                    shadowOffset: { width: 0, height: -3 },
-                    shadowOpacity: 0.09,
-                    shadowRadius: 8,
-                    elevation: 4,
-                    overflow: 'hidden',
-                }}>
+                {/* Replaced local wrapper View with reusable ListCardWrapper */}
+                <ListCardWrapper style={{ marginHorizontal: 0 }}>
                     <FlatList
-                        data={(cashTotalsFiltered.visible || []).slice(0, 50)}
+                        // paginated cash: show initial 5, load more on scroll
+                        data={(cashTotalsFiltered.visible || []).slice(0, cashDisplayedCount)}
                         keyExtractor={(i) => i.id}
-                        contentContainerStyle={{ padding: 16, paddingBottom: 100 }}
+                        // ensure card content has horizontal gap from wrapper edges
+                        style={{ flex: 1 }}
+                        contentContainerStyle={{
+                            paddingHorizontal: 16,
+                            paddingTop: 8,
+                            paddingBottom: 80
+                        }}
                         showsVerticalScrollIndicator={false}
                         ListEmptyComponent={() => (
                             <View style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: 60 }}>
@@ -238,7 +319,7 @@ export default function DashboardPage() {
                         )}
                         renderItem={({ item }) => (
                             <View style={{
-                                marginVertical: 8,
+                                marginVertical: 6, // reduced gap between cards
                                 backgroundColor: '#fff',
                                 padding: 16,
                                 borderRadius: 12,
@@ -300,8 +381,17 @@ export default function DashboardPage() {
                                 </View>
                             </View>
                         )}
+                        // load more for cash
+                        onEndReached={handleCashLoadMore}
+                        onEndReachedThreshold={0.2}
+                        ListFooterComponent={() => (
+                            <LoadMore
+                                loading={cashLoadingMore}
+                                hasMore={cashDisplayedCount < (cashTotalsFiltered.visible?.length || 0)}
+                            />
+                        )}
                     />
-                </View>
+                </ListCardWrapper>
             </View>
         );
     }
@@ -309,27 +399,24 @@ export default function DashboardPage() {
     function renderAnnouncements() {
         return (
             <View style={{ flex: 1, paddingHorizontal: 16, paddingTop: 12 }}>
-                <View style={{
-                    flex: 1,
-                    backgroundColor: '#fff',
+                <ListCardWrapper style={{
+                    marginHorizontal: 0,
                     borderTopLeftRadius: 16,
                     borderTopRightRadius: 16,
-                    borderTopWidth: 1,
-                    borderLeftWidth: 1,
-                    borderRightWidth: 1,
-                    borderBottomWidth: 0,
-                    borderColor: '#E5E7EB',
-                    shadowColor: '#000',
                     shadowOffset: { width: 0, height: -3 },
                     shadowOpacity: 0.09,
                     shadowRadius: 8,
                     elevation: 4,
                     overflow: 'hidden',
+                    flex: 1,
+                    backgroundColor: '#fff',
                 }}>
                     <FlatList
-                        data={announcements.slice(0, 50)}
+                        // paginated announcements: show initial 5, load more on scroll
+                        data={announcements.slice(0, announcementsDisplayedCount)}
                         keyExtractor={(i) => i.id}
-                        contentContainerStyle={{ padding: 16, paddingBottom: 100 }}
+                        // give horizontal gap so announcement cards don't touch edges
+                        contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 80 }}
                         showsVerticalScrollIndicator={false}
                         ListEmptyComponent={() => (
                             <View style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: 60 }}>
@@ -347,7 +434,7 @@ export default function DashboardPage() {
                             const borderColor = status === 'active' ? '#10B981' : status === 'upcoming' ? '#F59E0B' : '#EF4444';
                             return (
                                 <View style={{
-                                    marginVertical: 8,
+                                    marginVertical: 6,
                                     backgroundColor: '#fff',
                                     padding: 16,
                                     borderRadius: 12,
@@ -359,7 +446,20 @@ export default function DashboardPage() {
                                     borderLeftWidth: 4,
                                     borderLeftColor: borderColor,
                                 }}>
+                                    {!!item.category && (
+                                        <View style={{
+                                            backgroundColor: '#F3F4F6',
+                                            paddingHorizontal: 8,
+                                            paddingVertical: 3,
+                                            borderRadius: 999,
+                                            alignSelf: 'flex-start',
+                                            marginBottom: 8
+                                        }}>
+                                            <Text style={{ color: '#374151', fontSize: 11, fontWeight: '600' }}>🏷️ {item.category}</Text>
+                                        </View>
+                                    )}
                                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        {/* Title */}
                                         <Text style={{ fontWeight: '800', fontSize: 16, color: '#111827', flex: 1 }}>{item.title}</Text>
                                         <View style={{
                                             backgroundColor: color,
@@ -374,14 +474,39 @@ export default function DashboardPage() {
                                             </Text>
                                         </View>
                                     </View>
-                                    <Text numberOfLines={2} style={{ color: '#6B7280', marginTop: 8, fontSize: 13, lineHeight: 18 }}>
+
+                                    {/* Content */}
+                                    <Text style={{ color: '#6B7280', marginTop: 8, fontSize: 13, lineHeight: 18 }}>
                                         📢 {item.content}
                                     </Text>
+
+                                    {/* Meta: start/end/date/category (exclude role) */}
+                                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
+                                        {!!item.startDate && (
+                                            <View style={{ backgroundColor: '#EFF6FF', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, marginRight: 6 }}>
+                                                <Text style={{ color: '#1E3A8A', fontSize: 11 }}>Start: {item.startDate}</Text>
+                                            </View>
+                                        )}
+                                        {!!item.endDate && (
+                                            <View style={{ backgroundColor: '#FEF3C7', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, marginRight: 6 }}>
+                                                <Text style={{ color: '#92400E', fontSize: 11 }}>End: {item.endDate}</Text>
+                                            </View>
+                                        )}
+                                    </View>
                                 </View>
                             );
                         }}
+                        // load more for announcements
+                        onEndReached={handleAnnouncementsLoadMore}
+                        onEndReachedThreshold={0.2}
+                        ListFooterComponent={() => (
+                            <LoadMore
+                                loading={announcementsLoadingMore}
+                                hasMore={announcementsDisplayedCount < announcements.length}
+                            />
+                        )}
                     />
-                </View>
+                </ListCardWrapper>
             </View>
         );
     }
@@ -389,27 +514,24 @@ export default function DashboardPage() {
     function renderSchedules() {
         return (
             <View style={{ flex: 1, paddingHorizontal: 16, paddingTop: 12 }}>
-                <View style={{
-                    flex: 1,
-                    backgroundColor: '#fff',
+                {/* Replaced local wrapper View with reusable ListCardWrapper */}
+                <ListCardWrapper style={{
+                    marginHorizontal: 0,
                     borderTopLeftRadius: 16,
                     borderTopRightRadius: 16,
-                    borderTopWidth: 1,
-                    borderLeftWidth: 1,
-                    borderRightWidth: 1,
-                    borderBottomWidth: 0,
-                    borderColor: '#E5E7EB',
                     elevation: 4,
-                    shadowColor: '#000',
                     shadowOffset: { width: 0, height: -3 },
                     shadowOpacity: 0.09,
                     shadowRadius: 8,
                     overflow: 'hidden',
+                    flex: 1,
+                    backgroundColor: '#fff',
                 }}>
                     <FlatList
-                        data={schedules.slice(0, 50)}
+                        // paginated schedules: show initial 5, load more on scroll
+                        data={schedules.slice(0, scheduleDisplayedCount)}
                         keyExtractor={(i) => i.id}
-                        contentContainerStyle={{ padding: 16, paddingBottom: 100 }}
+                        contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 80 }}
                         showsVerticalScrollIndicator={false}
                         ListEmptyComponent={() => (
                             <View style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: 60 }}>
@@ -422,7 +544,7 @@ export default function DashboardPage() {
                         )}
                         renderItem={({ item }) => (
                             <View style={{
-                                marginVertical: 8,
+                                marginVertical: 6,
                                 backgroundColor: '#fff',
                                 padding: 16,
                                 borderRadius: 12,
@@ -434,46 +556,82 @@ export default function DashboardPage() {
                                 borderLeftWidth: 4,
                                 borderLeftColor: '#6366F1',
                             }}>
-                                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                                     <Text style={{ fontWeight: '800', fontSize: 16, color: '#111827', flex: 1 }}>
-                                        📅 {item.activityName}
+                                        {item.activityName}
                                     </Text>
-                                    {!!item.time && (
-                                        <View style={{
-                                            backgroundColor: '#EEF2FF',
-                                            paddingHorizontal: 10,
-                                            paddingVertical: 5,
-                                            borderRadius: 999,
-                                            borderWidth: 1,
-                                            borderColor: '#C7D2FE'
-                                        }}>
-                                            <Text style={{ color: '#4338CA', fontWeight: '700', fontSize: 11 }}>🕐 {item.time}</Text>
-                                        </View>
-                                    )}
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                        {!!item.frequency && (
+                                            <View style={{
+                                                backgroundColor: '#FAF7FF',
+                                                paddingHorizontal: 10,
+                                                paddingVertical: 5,
+                                                borderRadius: 999,
+                                                borderWidth: 1,
+                                                borderColor: '#C4B5FD',
+                                                marginLeft: 4
+                                            }}>
+                                                <Text style={{ color: '#6D28D9', fontWeight: '700', fontSize: 11 }}>{item.frequency}</Text>
+                                            </View>
+                                        )}
+                                    </View>
                                 </View>
-                                {!!item.days?.length && (
-                                    <View style={{
-                                        backgroundColor: '#F3F4F6',
-                                        paddingHorizontal: 8,
-                                        paddingVertical: 4,
-                                        borderRadius: 6,
-                                        alignSelf: 'flex-start',
-                                        marginTop: 8
-                                    }}>
-                                        <Text style={{ color: '#4B5563', fontSize: 12, fontWeight: '600' }}>
-                                            📆 {item.days.join(', ')}
-                                        </Text>
+
+                                {/* Time and Days: show side-by-side */}
+                                {(item.time || (item.days && item.days.length > 0)) && (
+                                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', marginTop: 8, gap: 8 }}>
+                                        {!!item.time && (
+                                            <View style={{
+                                                backgroundColor: '#EEF2FF',
+                                                paddingHorizontal: 10,
+                                                paddingVertical: 5,
+                                                borderRadius: 999,
+                                                borderWidth: 1,
+                                                borderColor: '#C7D2FE',
+                                                marginRight: 8
+                                            }}>
+                                                <Text style={{ color: '#4338CA', fontWeight: '700', fontSize: 11 }}>🕐 {item.time}</Text>
+                                            </View>
+                                        )}
+                                        {!!item.days?.length && (
+                                            <View style={{
+                                                backgroundColor: '#F3F4F6',
+                                                paddingHorizontal: 8,
+                                                paddingVertical: 4,
+                                                borderRadius: 6,
+                                                alignSelf: 'flex-start',
+                                            }}>
+                                                <Text style={{ color: '#4B5563', fontSize: 12, fontWeight: '600' }}>
+                                                    📆 {item.days.join(', ')}
+                                                </Text>
+                                            </View>
+                                        )}
                                     </View>
                                 )}
+
+                                {/* Location */}
                                 {!!item.location && (
                                     <Text style={{ color: '#6B7280', marginTop: 8, fontSize: 13 }}>
                                         📍 {item.location}
                                     </Text>
                                 )}
+
+                                {/* Description (if any) */}
+                                {!!item.description && (
+                                    <Text numberOfLines={3} style={{ color: '#6B7280', marginTop: 8, fontSize: 13 }}>
+                                        {item.description}
+                                    </Text>
+                                )}
                             </View>
                         )}
+                        // load more for schedules
+                        onEndReached={handleScheduleLoadMore}
+                        onEndReachedThreshold={0.2}
+                        ListFooterComponent={() => (
+                            <LoadMore loading={scheduleLoadingMore} hasMore={scheduleDisplayedCount < schedules.length} />
+                        )}
                     />
-                </View>
+                </ListCardWrapper>
             </View>
         );
     }
@@ -481,27 +639,23 @@ export default function DashboardPage() {
     function renderActivities() {
         return (
             <View style={{ flex: 1, paddingHorizontal: 16, paddingTop: 12 }}>
-                <View style={{
-                    flex: 1,
-                    backgroundColor: '#fff',
+                <ListCardWrapper style={{
+                    marginHorizontal: 0,
                     borderTopLeftRadius: 16,
                     borderTopRightRadius: 16,
-                    borderTopWidth: 1,
-                    borderLeftWidth: 1,
-                    borderRightWidth: 1,
-                    borderBottomWidth: 0,
-                    borderColor: '#E5E7EB',
                     elevation: 4,
-                    shadowColor: '#000',
                     shadowOffset: { width: 0, height: -3 },
                     shadowOpacity: 0.09,
                     shadowRadius: 8,
                     overflow: 'hidden',
+                    flex: 1,
+                    backgroundColor: '#fff',
                 }}>
                     <FlatList
-                        data={activities.slice(0, 50)}
+                        // paginated activities: show initial 5, load more on scroll
+                        data={activities.slice(0, activitiesDisplayedCount)}
                         keyExtractor={(i) => i.id}
-                        contentContainerStyle={{ padding: 16, paddingBottom: 100 }}
+                        contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 80 }}
                         showsVerticalScrollIndicator={false}
                         ListEmptyComponent={() => (
                             <View style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: 60 }}>
@@ -514,7 +668,7 @@ export default function DashboardPage() {
                         )}
                         renderItem={({ item }) => (
                             <View style={{
-                                marginVertical: 8,
+                                marginVertical: 6,
                                 backgroundColor: '#fff',
                                 padding: 16,
                                 borderRadius: 12,
@@ -560,10 +714,26 @@ export default function DashboardPage() {
                                         📍 {item.location}
                                     </Text>
                                 )}
+
+                                {/* Add description for activity */}
+                                {!!item.description && (
+                                    <Text numberOfLines={3} style={{ color: '#6B7280', marginTop: 8, fontSize: 13 }}>
+                                        {item.description}
+                                    </Text>
+                                )}
                             </View>
                         )}
+                        // load more for activities
+                        onEndReached={handleActivitiesLoadMore}
+                        onEndReachedThreshold={0.2}
+                        ListFooterComponent={() => (
+                            <LoadMore
+                                loading={activitiesLoadingMore}
+                                hasMore={activitiesDisplayedCount < activities.length}
+                            />
+                        )}
                     />
-                </View>
+                </ListCardWrapper>
             </View>
         );
     }

@@ -11,6 +11,8 @@ import FloatingLabelInput from '../../src/components/FloatingLabelInput';
 import SelectInput from '../../src/components/SelectInput';
 import { useToast } from '../../src/contexts/ToastContext';
 import { db } from '../../src/firebaseConfig';
+// ADDED: reusable wrapper component import
+import ListCardWrapper from '../../src/components/ListCardWrapper';
 
 type Report = {
     id: string;
@@ -747,30 +749,8 @@ export default function CashReportsScreen() {
                 </View>
             </View>
 
-            {/* List dibungkus card (border: top + sides only, shadow mengarah ke atas/samping) */}
-            <View style={{
-                marginHorizontal: 12,
-                marginBottom: 12,
-                borderTopWidth: 1,
-                borderLeftWidth: 1,
-                borderRightWidth: 1,
-                borderBottomWidth: 0,
-                borderColor: '#E5E7EB',
-                borderTopLeftRadius: 12,
-                borderTopRightRadius: 12,
-                backgroundColor: '#fff',
-                // shadow mengarah ke atas / samping (iOS)
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: -4 },
-                shadowOpacity: 0.08,
-                shadowRadius: 8,
-                // elevation untuk Android
-                elevation: 4,
-                // biarkan overflow visible agar shadow atau last-item tidak terpotong
-                overflow: 'visible',
-                // PENTING: beri wrapper ruang untuk FlatList agar onEndReached terpanggil
-                flex: 1,
-            }}>
+            {/* List dibungkus card (moved to reusable component) */}
+            <ListCardWrapper>
                 <FlatList
                     data={displayedReports}
                     keyExtractor={(i) => i.id}
@@ -813,7 +793,7 @@ export default function CashReportsScreen() {
                         </View>
                     )}
                 />
-            </View>
+            </ListCardWrapper>
 
             {/* Modal Form */}
             <Modal visible={modalVisible} animationType="slide" transparent onRequestClose={() => setModalVisible(false)}>
