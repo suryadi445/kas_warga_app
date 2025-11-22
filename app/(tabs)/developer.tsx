@@ -1,167 +1,157 @@
+import * as LinearGradientModule from 'expo-linear-gradient';
 import React from 'react';
 import { Image, Linking, ScrollView, StatusBar, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+// safe LinearGradient reference (some environments export default, some named)
+const LinearGradient = (LinearGradientModule as any)?.LinearGradient ?? (LinearGradientModule as any)?.default ?? View;
+
 export default function DeveloperScreen() {
     return (
-        <SafeAreaView edges={['bottom']} style={{ flex: 1, backgroundColor: '#f8fafc' }}>
+        <SafeAreaView edges={['bottom']} style={{ flex: 1, backgroundColor: '#6366f1' }}>
             <StatusBar barStyle="dark-content" translucent backgroundColor="transparent" />
-            <ScrollView contentContainerStyle={{ padding: 24, alignItems: 'center' }}>
-                <View style={{
-                    alignItems: 'center',
-                    marginBottom: 24,
-                    backgroundColor: '#6366f1',
-                    borderRadius: 24,
-                    padding: 20,
-                    shadowColor: '#6366f1',
-                    shadowOpacity: 0.18,
-                    shadowRadius: 12,
-                    elevation: 8,
-                    width: '100%',
-                    maxWidth: 400,
-                    alignSelf: 'center',
-                }}>
-                    <Image
-                        source={{ uri: 'https://ui-avatars.com/api/?name=Suryadi&background=6366f1&color=fff&size=128' }}
-                        style={{
-                            width: 110,
-                            height: 110,
-                            borderRadius: 55,
-                            marginBottom: 12,
-                            borderWidth: 4,
-                            borderColor: '#fff',
-                        }}
-                    />
-                    <Text style={{
-                        fontWeight: '700',
-                        fontSize: 26,
-                        color: '#fff',
-                        marginBottom: 4,
-                        letterSpacing: 1,
-                        textShadowColor: '#312e81',
-                        textShadowOffset: { width: 1, height: 2 },
-                        textShadowRadius: 6,
-                    }}>
-                        Suryadi
-                    </Text>
-                    <View style={{
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        marginBottom: 6,
-                        gap: 8,
-                        flexWrap: 'wrap',
-                        width: '100%',
-                    }}>
-                        <TouchableOpacity
-                            onPress={() => Linking.openURL('https://wa.me/6289678468651')}
-                            activeOpacity={0.7}
-                            style={{
-                                backgroundColor: '#fff',
-                                borderRadius: 999,
-                                paddingHorizontal: 12,
-                                paddingVertical: 6,
-                                marginRight: 4,
-                                flexDirection: 'row',
-                                alignItems: 'center',
-                                elevation: 2,
-                                flexShrink: 1,
-                                maxWidth: '60%',
-                            }}
-                        >
-                            {/* Logo WhatsApp PNG hijau */}
-                            <View style={{ marginRight: 4 }}>
-                                <Image
-                                    source={{ uri: 'https://cdn-icons-png.flaticon.com/512/733/733585.png' }}
-                                    style={{ width: 13, height: 13 }}
-                                />
-                            </View>
-                            <Text style={{ color: '#6366f1', fontWeight: '700', fontSize: 15, flexShrink: 1 }}>
-                                089678468651
-                            </Text>
-                        </TouchableOpacity>
+
+            {/* Full Screen Gradient Background */}
+            <LinearGradient
+                colors={['#6366f1', '#8b5cf6', '#a855f7']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={{ flex: 1 }}
+            >
+                <ScrollView
+                    showsVerticalScrollIndicator={false}
+                    contentContainerStyle={{ paddingTop: 10, paddingBottom: 10, paddingHorizontal: 20 }}
+                >
+                    {/* Avatar Section - Outside Card */}
+                    <View style={{ alignItems: 'center', marginBottom: 16 }}>
                         <View style={{
+                            width: 90,
+                            height: 90,
+                            borderRadius: 45,
                             backgroundColor: '#fff',
-                            borderRadius: 999,
-                            paddingHorizontal: 12,
-                            paddingVertical: 6,
-                            flexDirection: 'row',
                             alignItems: 'center',
-                            elevation: 2,
-                            flexShrink: 1,
-                            maxWidth: '60%',
+                            justifyContent: 'center',
+                            elevation: 6,
+                            shadowColor: '#000',
+                            shadowOffset: { width: 0, height: 3 },
+                            shadowOpacity: 0.15,
+                            shadowRadius: 6,
+                            padding: 3
                         }}>
-                            <Text style={{ color: '#6366f1', fontWeight: '700', fontSize: 15 }}>💳</Text>
-                            <Text style={{
-                                color: '#6366f1', fontWeight: '700', fontSize: 15, marginLeft: 4, flexShrink: 1, textAlign: 'center',
-                            }}>
-                                BCA 0671808478
+                            <Image
+                                source={{ uri: 'https://ui-avatars.com/api/?name=Suryadi&background=6366f1&color=fff&size=128' }}
+                                style={{ width: 84, height: 84, borderRadius: 42 }}
+                            />
+                        </View>
+
+                        <Text style={{ color: '#fff', fontSize: 22, fontWeight: '800', textAlign: 'center', marginTop: 8, marginBottom: 2 }}>
+                            Suryadi
+                        </Text>
+                        <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13, fontWeight: '500', textAlign: 'center' }}>
+                            Developer
+                        </Text>
+                    </View>
+
+                    {/* White Card - Main Content */}
+                    <View style={{
+                        backgroundColor: '#fff',
+                        borderRadius: 24,
+                        padding: 20,
+                        elevation: 8,
+                        shadowColor: '#000',
+                        shadowOffset: { width: 0, height: 4 },
+                        shadowOpacity: 0.12,
+                        shadowRadius: 12,
+                    }}>
+                        {/* Contact Information Section */}
+                        <View style={{ marginBottom: 14 }}>
+                            <Text style={{ color: '#9CA3AF', fontSize: 12, fontWeight: '700', letterSpacing: 1, marginBottom: 10 }}>
+                                CONTACT INFORMATION
+                            </Text>
+
+                            {/* WhatsApp */}
+                            <TouchableOpacity
+                                onPress={() => Linking.openURL('https://wa.me/6289678468651')}
+                                style={{ backgroundColor: '#F9FAFB', borderRadius: 10, padding: 10, marginBottom: 8 }}
+                            >
+                                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                    <View style={{ width: 26, height: 26, borderRadius: 13, backgroundColor: '#D1FAE5', alignItems: 'center', justifyContent: 'center', marginRight: 8 }}>
+                                        <Image
+                                            source={{ uri: 'https://cdn-icons-png.flaticon.com/512/733/733585.png' }}
+                                            style={{ width: 14, height: 14 }}
+                                        />
+                                    </View>
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={{ color: '#9CA3AF', fontSize: 11, fontWeight: '600' }}>WhatsApp</Text>
+                                        <Text style={{ color: '#111827', fontSize: 12, fontWeight: '600' }}>089678468651</Text>
+                                    </View>
+                                </View>
+                            </TouchableOpacity>
+
+                            {/* Bank Account */}
+                            <View style={{ backgroundColor: '#F9FAFB', borderRadius: 10, padding: 10, marginBottom: 8 }}>
+                                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                    <View style={{ width: 26, height: 26, borderRadius: 13, backgroundColor: '#DBEAFE', alignItems: 'center', justifyContent: 'center', marginRight: 8 }}>
+                                        <Text style={{ fontSize: 13 }}>💳</Text>
+                                    </View>
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={{ color: '#9CA3AF', fontSize: 11, fontWeight: '600' }}>Bank Account</Text>
+                                        <Text style={{ color: '#111827', fontSize: 12, fontWeight: '600' }}>BCA 0671808478</Text>
+                                    </View>
+                                </View>
+                            </View>
+
+                            {/* Address */}
+                            <View style={{ backgroundColor: '#F9FAFB', borderRadius: 10, padding: 10 }}>
+                                <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
+                                    <View style={{ width: 26, height: 26, borderRadius: 13, backgroundColor: '#FEF3C7', alignItems: 'center', justifyContent: 'center', marginRight: 8 }}>
+                                        <Text style={{ fontSize: 13 }}>🏠</Text>
+                                    </View>
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={{ color: '#9CA3AF', fontSize: 11, fontWeight: '600', marginBottom: 2 }}>Address</Text>
+                                        <Text style={{ color: '#111827', fontSize: 12, lineHeight: 15 }}>
+                                            Jl. H. Gadung no 20, Pondok Ranji, Ciputat Timur, Tangerang Selatan, Banten
+                                        </Text>
+                                    </View>
+                                </View>
+                            </View>
+                        </View>
+
+                        {/* Quote Section */}
+                        <View style={{ marginBottom: 12 }}>
+                            <Text style={{ color: '#9CA3AF', fontSize: 12, fontWeight: '700', letterSpacing: 1, marginBottom: 10 }}>
+                                INSPIRATION
+                            </Text>
+
+                            <View style={{ backgroundColor: '#F9FAFB', borderRadius: 10, padding: 12 }}>
+                                <Text style={{
+                                    color: '#374151',
+                                    fontStyle: 'italic',
+                                    fontSize: 12,
+                                    lineHeight: 16,
+                                    textAlign: 'center',
+                                    marginBottom: 6
+                                }}>
+                                    "Jika anak Adam meninggal, terputuslah amalnya kecuali dari yang tiga; Sedekah jariyah, ilmu yang bermanfaat, atau anak saleh yang mendoakan."
+                                </Text>
+                                <Text style={{ color: '#6B7280', fontSize: 10, textAlign: 'center', fontWeight: '600' }}>
+                                    (HR. Muslim, no. 1631)
+                                </Text>
+                            </View>
+                        </View>
+
+                        {/* Thank You Section */}
+                        <View style={{ backgroundColor: '#EEF2FF', borderRadius: 10, padding: 12, borderWidth: 1, borderColor: '#C7D2FE' }}>
+                            <Text style={{ color: '#4338CA', fontWeight: '700', fontSize: 13, marginBottom: 4, textAlign: 'center' }}>
+                                Thank you for using this application!
+                            </Text>
+                            <Text style={{ color: '#6366F1', fontSize: 11, textAlign: 'center', lineHeight: 16 }}>
+                                For support, collaboration, or donations, please contact the above contact information.
                             </Text>
                         </View>
                     </View>
-                    <View style={{
-                        backgroundColor: '#fff',
-                        borderRadius: 12,
-                        padding: 10,
-                        marginBottom: 6,
-                        elevation: 1,
-                    }}>
-                        <Text style={{
-                            color: '#6366f1',
-                            fontWeight: '600',
-                            fontSize: 15,
-                            textAlign: 'center',
-                        }}>
-                            🏠 Jl. H. Gadung no 20, Pondok Ranji, Ciputat Timur, Tangerang Selatan, Banten
-                        </Text>
-                    </View>
-                </View>
-                <View style={{
-                    backgroundColor: '#fff',
-                    borderRadius: 16,
-                    padding: 18,
-                    marginBottom: 24,
-                    shadowColor: '#6366f1',
-                    shadowOpacity: 0.08,
-                    shadowRadius: 6,
-                    elevation: 2,
-                }}>
-                    <Text style={{
-                        color: '#6366f1',
-                        fontStyle: 'italic',
-                        fontSize: 17,
-                        textAlign: 'center',
-                        lineHeight: 26,
-                        fontWeight: '600',
-                    }}>
-                        “Jika anak Adam meninggal, terputuslah amalnya kecuali dari yang tiga; Sedekah jariyah, ilmu yang bermanfaat, atau anak saleh yang mendoakan.”
-                        {'\n'}
-                        <Text style={{ color: '#64748b', fontSize: 15, fontWeight: '400' }}>(HR. Muslim, no. 1631)</Text>
-                    </Text>
-                </View>
-                <View style={{
-                    marginTop: 8,
-                    alignItems: 'center',
-                    padding: 12,
-                }}>
-                    <Text style={{
-                        color: '#6366f1',
-                        fontWeight: '700',
-                        fontSize: 18,
-                        marginBottom: 4,
-                        textAlign: 'center',
-                    }}>
-                        Thank you for using this application!
-                    </Text>
-                    <Text style={{
-                        color: '#374151',
-                        fontSize: 15,
-                        textAlign: 'center',
-                    }}>
-                        For support, collaboration, or donations, please contact the above contact information.
-                    </Text>
-                </View>
-            </ScrollView>
+                </ScrollView>
+            </LinearGradient>
         </SafeAreaView>
     );
 }
