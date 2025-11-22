@@ -12,14 +12,14 @@ import {
     ScrollView,
     StatusBar,
     Text,
-    TextInput,
     TouchableOpacity,
-    View,
+    View
 } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import ConfirmDialog from '../../src/components/ConfirmDialog'; // added
-import { useToast } from '../../src/contexts/ToastContext'; // added
+import ConfirmDialog from '../../src/components/ConfirmDialog';
+import FloatingLabelInput from '../../src/components/FloatingLabelInput';
+import { useToast } from '../../src/contexts/ToastContext';
 import { db } from '../../src/firebaseConfig';
 
 const MONTHS = [
@@ -329,69 +329,152 @@ export default function SettingsScreen() {
     return (
         <SafeAreaView edges={['bottom']} style={{ flex: 1, backgroundColor: '#fff' }}>
             <StatusBar barStyle="dark-content" translucent backgroundColor="transparent" />
-            {/* Header */}
-            <View style={{ padding: 16, alignItems: 'center' }}>
-                <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: '#6366f1', alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
-                    <Text style={{ color: '#fff', fontSize: 32 }}>⚙️</Text>
-                </View>
-                <Text style={{ color: '#6366f1', fontSize: 20, fontWeight: '700' }}>App Settings</Text>
-                <Text style={{ color: '#6B7280', marginTop: 4, textAlign: 'center' }}>
-                    Update app details, address, and payment methods.
-                </Text>
-            </View>
 
-            <View style={{ paddingHorizontal: 16 }}>
-                <View style={{ backgroundColor: '#F9FAFB', borderRadius: 12, padding: 14, elevation: 2 }}>
-                    {/* App Image Preview */}
-                    {appImage && (
-                        <View style={{ alignItems: 'center', marginBottom: 10 }}>
-                            <Image source={{ uri: appImage }} style={{ width: 80, height: 80, borderRadius: 40 }} />
+            {/* Gradient Header Background */}
+            <LinearGradient
+                colors={['#6366f1', '#8b5cf6', '#a855f7']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={{ paddingTop: 20, paddingBottom: 100, borderBottomLeftRadius: 30, borderBottomRightRadius: 30 }}
+            >
+                <View style={{ paddingHorizontal: 20, alignItems: 'center' }}>
+                    {/* App Image with elegant frame */}
+                    <View style={{
+                        width: 110,
+                        height: 110,
+                        borderRadius: 55,
+                        backgroundColor: '#fff',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        marginBottom: 6,
+                        elevation: 8,
+                        shadowColor: '#000',
+                        shadowOffset: { width: 0, height: 4 },
+                        shadowOpacity: 0.2,
+                        shadowRadius: 8,
+                        padding: 4
+                    }}>
+                        <View style={{ width: 100, height: 100, borderRadius: 50, backgroundColor: '#F3F4F6', overflow: 'hidden', alignItems: 'center', justifyContent: 'center' }}>
+                            {appImage ? (
+                                <Image source={{ uri: appImage }} style={{ width: '100%', height: '100%' }} />
+                            ) : (
+                                <Text style={{ fontSize: 48 }}>🕌</Text>
+                            )}
+                        </View>
+                    </View>
+
+                    <Text style={{ color: '#fff', fontSize: 24, fontWeight: '800', textAlign: 'center', marginBottom: 6 }}>
+                        {appName}
+                    </Text>
+
+                    <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: 14, fontWeight: '500', textAlign: 'center' }}>
+                        {businessType}
+                    </Text>
+
+                    <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: 14, fontWeight: '500', textAlign: 'center' }}>
+                        {appDescription}
+                    </Text>
+                </View>
+            </LinearGradient>
+
+            {/* Main Content Card - Overlapping with gradient */}
+            <View style={{ marginTop: -70, paddingHorizontal: 16, flex: 1 }}>
+                <View style={{
+                    backgroundColor: '#fff',
+                    borderRadius: 24,
+                    padding: 20,
+                    elevation: 8,
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: 4 },
+                    shadowOpacity: 0.12,
+                    shadowRadius: 12,
+                }}>
+                    {/* Phone - full row */}
+                    <View style={{ backgroundColor: '#F9FAFB', borderRadius: 12, padding: 12, marginBottom: 10 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                            <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: '#DBEAFE', alignItems: 'center', justifyContent: 'center', marginRight: 8 }}>
+                                <Text style={{ fontSize: 14 }}>📞</Text>
+                            </View>
+                            <View style={{ flex: 1 }}>
+                                <Text style={{ color: '#9CA3AF', fontSize: 10, fontWeight: '600' }}>Phone</Text>
+                                <Text numberOfLines={1} style={{ color: '#111827', fontSize: 13, fontWeight: '600' }}>{phone}</Text>
+                            </View>
+                        </View>
+                    </View>
+
+                    {/* Email - full row */}
+                    <View style={{ backgroundColor: '#F9FAFB', borderRadius: 12, padding: 12, marginBottom: 10 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                            <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: '#FEF3C7', alignItems: 'center', justifyContent: 'center', marginRight: 8 }}>
+                                <Text style={{ fontSize: 14 }}>✉️</Text>
+                            </View>
+                            <View style={{ flex: 1 }}>
+                                <Text style={{ color: '#9CA3AF', fontSize: 10, fontWeight: '600' }}>Email</Text>
+                                <Text numberOfLines={1} style={{ color: '#111827', fontSize: 13, fontWeight: '600' }}>{email}</Text>
+                            </View>
+                        </View>
+                    </View>
+
+                    {/* Address - full row */}
+                    <View style={{ backgroundColor: '#F9FAFB', borderRadius: 12, padding: 12, marginBottom: 10 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
+                            <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: '#D1FAE5', alignItems: 'center', justifyContent: 'center', marginRight: 8 }}>
+                                <Text style={{ fontSize: 14 }}>📍</Text>
+                            </View>
+                            <View style={{ flex: 1 }}>
+                                <Text style={{ color: '#9CA3AF', fontSize: 10, fontWeight: '600', marginBottom: 2 }}>Address</Text>
+                                <Text style={{ color: '#111827', fontSize: 12, lineHeight: 16 }}>{address}</Text>
+                            </View>
+                        </View>
+                    </View>
+
+                    {/* Bank Account - full row (if exists) */}
+                    {bankAccount && (
+                        <View style={{ backgroundColor: '#F9FAFB', borderRadius: 12, padding: 12, marginBottom: 10 }}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: '#FCE7F3', alignItems: 'center', justifyContent: 'center', marginRight: 8 }}>
+                                    <Text style={{ fontSize: 14 }}>🏦</Text>
+                                </View>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={{ color: '#9CA3AF', fontSize: 10, fontWeight: '600' }}>Bank Account</Text>
+                                    <Text numberOfLines={1} style={{ color: '#111827', fontSize: 12, fontWeight: '600' }}>{bankAccount}</Text>
+                                </View>
+                            </View>
                         </View>
                     )}
-                    <Text style={{ fontWeight: '700', fontSize: 16 }}>{appName}</Text>
-                    <Text style={{ color: '#6B7280', marginTop: 6 }}>{businessType}</Text>
 
-                    {/* Coordinates preview */}
-                    <View style={{ marginTop: 10 }}>
-                        <Text style={{ color: '#374151', fontSize: 12 }}>Coordinates</Text>
-                        <Text style={{ color: '#6B7280', fontSize: 12, marginTop: 8 }}>
-                            {latitude !== null && longitude !== null ? `${latitude.toFixed(6)}, ${longitude.toFixed(6)}` : 'Not set'}
-                        </Text>
-                    </View>
-                    {/* end location display */}
-
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 12 }}>
-                        <View>
-                            <Text style={{ color: '#374151', fontSize: 12 }}>Phone</Text>
-                            <Text style={{ color: '#111827', marginTop: 4 }}>{phone}</Text>
-                        </View>
-                        <View>
-                            <Text style={{ color: '#374151', fontSize: 12 }}>Email</Text>
-                            <Text style={{ color: '#111827', marginTop: 4 }}>{email}</Text>
-                        </View>
-                    </View>
-
-                    <View style={{ marginTop: 12 }}>
-                        <Text style={{ color: '#374151', fontSize: 12 }}>Address</Text>
-                        <Text style={{ color: '#111827', marginTop: 4 }}>{address}</Text>
-                    </View>
-
-                    <View style={{ marginTop: 12, alignItems: 'flex-end' }}>
-                        <TouchableOpacity onPress={() => { setTmpLat(latitude); setTmpLng(longitude); setModalVisible(true); }}>
-                            <LinearGradient colors={['#6366f1', '#8b5cf6']} style={{ paddingVertical: 8, paddingHorizontal: 14, borderRadius: 999 }}>
-                                <Text style={{ color: '#fff', fontWeight: '700' }}>Edit</Text>
-                            </LinearGradient>
-                        </TouchableOpacity>
-                    </View>
+                    {/* Edit Button - always visible */}
+                    <TouchableOpacity
+                        onPress={() => { setTmpLat(latitude); setTmpLng(longitude); setModalVisible(true); }}
+                        style={{ marginTop: 4 }}
+                    >
+                        <LinearGradient
+                            colors={['#6366f1', '#8b5cf6']}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 0 }}
+                            style={{
+                                paddingVertical: 14,
+                                borderRadius: 12,
+                                alignItems: 'center',
+                                elevation: 4,
+                                shadowColor: '#6366f1',
+                                shadowOffset: { width: 0, height: 2 },
+                                shadowOpacity: 0.3,
+                                shadowRadius: 6
+                            }}
+                        >
+                            <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>✏️ Edit Settings</Text>
+                        </LinearGradient>
+                    </TouchableOpacity>
                 </View>
             </View>
 
-            {/* existing Edit modal */}
+            {/* Edit Settings Modal - Full form */}
             <Modal visible={modalVisible} animationType="slide" transparent onRequestClose={() => setModalVisible(false)}>
                 <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.3)' }}>
-                    <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 18, borderTopRightRadius: 18, padding: 16, maxHeight: '85%' }}>
-                        <ScrollView>
-                            <Text style={{ fontSize: 18, fontWeight: '700', marginBottom: 8 }}>Edit Settings</Text>
+                    <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 16, maxHeight: '90%', flex: 1 }}>
+                        <ScrollView showsVerticalScrollIndicator={false}>
+                            <Text style={{ fontSize: 18, fontWeight: '700', marginBottom: 16 }}>App Settings</Text>
 
                             {/* App Image Section */}
                             <View style={{ alignItems: 'center', marginBottom: 16 }}>
@@ -415,89 +498,152 @@ export default function SettingsScreen() {
                                 </View>
                             </View>
 
-                            <Text style={{ color: '#374151', marginTop: 8 }}>App Name</Text>
-                            <TextInput value={appName} onChangeText={setAppName} placeholder="App name" style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 10, marginTop: 6 }} />
+                            <FloatingLabelInput
+                                label="App Name"
+                                value={appName}
+                                onChangeText={setAppName}
+                                placeholder="Enter app name"
+                            />
 
-                            {/* NEW: App Description */}
-                            <Text style={{ color: '#374151', marginTop: 8 }}>App Description</Text>
-                            <TextInput
+                            <FloatingLabelInput
+                                label="App Description"
                                 value={appDescription}
                                 onChangeText={setAppDescription}
-                                placeholder="Short description shown on the main page"
+                                placeholder="Short description shown on main page"
                                 multiline
-                                numberOfLines={3}
-                                style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 10, marginTop: 6, textAlignVertical: 'top', minHeight: 80 }}
+                                inputStyle={{ minHeight: 80, paddingTop: 18 }}
                             />
 
-                            <Text style={{ color: '#374151', marginTop: 8 }}>Business Type</Text>
-                            <TextInput value={businessType} onChangeText={setBusinessType} placeholder="Business / organization type" style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 10, marginTop: 6 }} />
+                            <FloatingLabelInput
+                                label="Business Type"
+                                value={businessType}
+                                onChangeText={setBusinessType}
+                                placeholder="Business / organization type"
+                            />
 
-                            <Text style={{ color: '#374151', marginTop: 8 }}>Phone</Text>
-                            <TextInput value={phone} onChangeText={setPhone} placeholder="08xxxx" keyboardType="phone-pad" style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 10, marginTop: 6 }} />
+                            <FloatingLabelInput
+                                label="Phone"
+                                value={phone}
+                                onChangeText={setPhone}
+                                placeholder="08xxxx"
+                                keyboardType="phone-pad"
+                            />
 
-                            <Text style={{ color: '#374151', marginTop: 8 }}>Email</Text>
-                            <TextInput value={email} onChangeText={setEmail} placeholder="email@example.com" keyboardType="email-address" autoCapitalize="none" style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 10, marginTop: 6 }} />
+                            <FloatingLabelInput
+                                label="Email"
+                                value={email}
+                                onChangeText={setEmail}
+                                placeholder="email@example.com"
+                                keyboardType="email-address"
+                            />
 
-                            <Text style={{ color: '#374151', marginTop: 8 }}>Address</Text>
-                            {Platform.OS === 'web' ? (
-                                <div style={{ marginTop: 6 }}>
-                                    <textarea value={address} onChange={(e: any) => setAddress(e.target.value)} rows={4} style={{ width: '100%', borderRadius: 8, border: '1px solid #E5E7EB', padding: 10 }} />
-                                </div>
-                            ) : (
-                                <TextInput value={address} onChangeText={setAddress} placeholder="Address" multiline numberOfLines={4} style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 10, marginTop: 6, textAlignVertical: 'top', height: 120 }} />
-                            )}
+                            <FloatingLabelInput
+                                label="Address"
+                                value={address}
+                                onChangeText={setAddress}
+                                placeholder="Enter address"
+                                multiline
+                                inputStyle={{ minHeight: 100, paddingTop: 18 }}
+                            />
 
-                            <View style={{ marginTop: 0, marginLeft: 'auto' }}>
-                                {Platform.OS === 'web' ? (
-                                    <View style={{ marginTop: 6 }}>
-                                        <TextInput value={tmpLat !== null ? String(tmpLat) : ''} onChangeText={(v) => setTmpLat(v ? Number(v) : null)} placeholder="Latitude" keyboardType="numeric" style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 10, marginTop: 6 }} />
-                                        <TextInput value={tmpLng !== null ? String(tmpLng) : ''} onChangeText={(v) => setTmpLng(v ? Number(v) : null)} placeholder="Longitude" keyboardType="numeric" style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 10, marginTop: 6 }} />
-                                        <TouchableOpacity onPress={() => { setMapModalVisible(true); }} style={{ marginTop: 8 }}>
-                                            <Text style={{ color: '#06B6D4', fontWeight: '600' }}>Open map picker</Text>
-                                        </TouchableOpacity>
-                                    </View>
-                                ) : (
-                                    <TouchableOpacity onPress={() => setMapModalVisible(true)} style={{ marginTop: 6 }}>
-                                        <Text style={{ color: '#06B6D4', fontWeight: '600' }}>Pick location on map</Text>
-                                    </TouchableOpacity>
-                                )}
+                            <View style={{ marginTop: -10, marginBottom: 12, alignItems: 'flex-end' }}>
+                                <TouchableOpacity
+                                    onPress={() => setMapModalVisible(true)}
+                                    style={{
+                                        borderWidth: 1,
+                                        borderColor: '#3B82F6',
+                                        borderRadius: 8,
+                                        paddingVertical: 8,
+                                        paddingHorizontal: 12,
+                                        backgroundColor: '#fff'
+                                    }}
+                                >
+                                    <Text style={{ color: '#3B82F6', fontWeight: '600', fontSize: 12 }}>
+                                        📍 Pick location on map
+                                    </Text>
+                                </TouchableOpacity>
                             </View>
 
-                            <Text style={{ color: '#374151', marginTop: 12 }}>Bank Account</Text>
-                            <TextInput
+                            <FloatingLabelInput
+                                label="Bank Account"
                                 value={bankAccount}
                                 onChangeText={setBankAccount}
-                                placeholder="Example: 1234567890 (Bank Name - Account Name)"
-                                style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 10, marginTop: 6 }}
+                                placeholder="1234567890 (Bank Name - Account Name)"
                             />
 
-                            {/* dynamic payment methods */}
-                            <Text style={{ color: '#374151', marginTop: 12, marginBottom: 6 }}>Payment Methods</Text>
-                            {paymentMethods.map((pm) => (
-                                <View key={pm.id} style={{ marginBottom: 8, borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 8 }}>
-                                    <TextInput
-                                        value={pm.number}
-                                        onChangeText={(v) => updatePaymentMethod(pm.id, 'number', v)}
-                                        placeholder="Phone number (e.g. 0899xxxxxx)"
-                                        keyboardType="phone-pad"
-                                        style={{ borderWidth: 0, paddingVertical: 6 }}
-                                    />
-                                    <TextInput
-                                        value={pm.provider}
-                                        onChangeText={(v) => updatePaymentMethod(pm.id, 'provider', v)}
-                                        placeholder="Provider (e.g. OVO / GoPay / Dana)"
-                                        style={{ borderWidth: 0, paddingVertical: 6, marginTop: 4 }}
-                                    />
-                                    <View style={{ flexDirection: 'row', justifyContent: 'flex-end' }}>
-                                        <TouchableOpacity onPress={() => confirmRemovePaymentMethod(pm.id)} style={{ padding: 6 }}>
-                                            <Text style={{ color: '#EF4444', fontWeight: '600' }}>Remove</Text>
-                                        </TouchableOpacity>
-                                    </View>
+                            {/* Payment Methods - wrapped with FloatingLabel style */}
+                            <View style={{ position: 'relative', marginBottom: 16, marginTop: 2 }}>
+                                {/* Floating Label */}
+                                <View style={{
+                                    position: 'absolute',
+                                    top: -8,
+                                    left: 12,
+                                    backgroundColor: '#fff',
+                                    paddingHorizontal: 6,
+                                    zIndex: 10
+                                }}>
+                                    <Text style={{
+                                        color: '#6B7280',
+                                        fontSize: 12,
+                                        fontWeight: '600'
+                                    }}>
+                                        Payment Methods
+                                    </Text>
                                 </View>
-                            ))}
-                            <TouchableOpacity onPress={addPaymentMethod} style={{ marginTop: 6, paddingVertical: 10 }}>
-                                <Text style={{ color: '#06B6D4', fontWeight: '700' }}>+ Add payment method</Text>
-                            </TouchableOpacity>
+
+                                {/* Container with border */}
+                                <View style={{
+                                    borderWidth: 2,
+                                    borderColor: '#7c3aed',
+                                    borderRadius: 12,
+                                    padding: 12,
+                                }}>
+
+                                    {/* Payment methods list */}
+                                    {paymentMethods.map((pm) => (
+                                        <View key={pm.id} style={{
+                                            marginBottom: 12,
+                                            paddingTop: 8,
+                                            backgroundColor: '#fff'
+                                        }}>
+                                            <FloatingLabelInput
+                                                label="Phone Number"
+                                                value={pm.number}
+                                                onChangeText={(v) => updatePaymentMethod(pm.id, 'number', v)}
+                                                placeholder="e.g. 0899xxxxxx"
+                                                keyboardType="phone-pad"
+                                                containerStyle={{ marginBottom: 8 }}
+                                            />
+                                            <FloatingLabelInput
+                                                label="Provider"
+                                                value={pm.provider}
+                                                onChangeText={(v) => updatePaymentMethod(pm.id, 'provider', v)}
+                                                placeholder="e.g. OVO / GoPay / Dana"
+                                                containerStyle={{ marginBottom: 0 }}
+                                            />
+                                            <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 4 }}>
+                                                <TouchableOpacity onPress={() => confirmRemovePaymentMethod(pm.id)} style={{ padding: 6 }}>
+                                                    <Text style={{ color: '#EF4444', fontWeight: '600', fontSize: 13 }}>✕ Remove</Text>
+                                                </TouchableOpacity>
+                                            </View>
+                                        </View>
+                                    ))}
+
+                                    {/* Add button */}
+                                    <TouchableOpacity
+                                        onPress={addPaymentMethod}
+                                        style={{
+                                            borderWidth: 1,
+                                            borderColor: '#3B82F6',
+                                            borderRadius: 8,
+                                            paddingVertical: 12,
+                                            alignItems: 'center',
+                                        }}
+                                    >
+                                        <Text style={{ color: '#3B82F6', fontWeight: '700', fontSize: 14 }}>+ Add Payment Method</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            </View>
 
                             <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 16 }}>
                                 <TouchableOpacity onPress={() => setModalVisible(false)} disabled={savingSettings} style={{ padding: 10, opacity: savingSettings ? 0.6 : 1 }}>
@@ -510,116 +656,127 @@ export default function SettingsScreen() {
                         </ScrollView>
                     </View>
                 </View>
-            </Modal >
+            </Modal>
 
             {/* Map picker modal */}
-            < Modal visible={mapModalVisible} animationType="slide" transparent onRequestClose={() => setMapModalVisible(false)
-            }>
-                <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.3)' }}>
-                    <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 18, borderTopRightRadius: 18, padding: 12, height: Platform.OS === 'web' ? 420 : 480 }}>
-                        <Text style={{ fontWeight: '700', fontSize: 16, marginBottom: 8 }}>Pick location</Text>
-                        {Platform.OS !== 'web' ? (
-                            <View style={{ flex: 1 }}>
-                                <MapView
-                                    style={{ flex: 1, borderRadius: 8 }}
-                                    initialRegion={{
-                                        latitude: tmpLat ?? (latitude ?? -6.200000),
-                                        longitude: tmpLng ?? (longitude ?? 106.816666),
-                                        latitudeDelta: 0.01,
-                                        longitudeDelta: 0.01,
-                                    }}
-                                    onPress={(e: any) => {
-                                        const { latitude: lat, longitude: lng } = e.nativeEvent.coordinate;
-                                        setTmpLat(lat);
-                                        setTmpLng(lng);
-                                    }}
-                                >
-                                    {tmpLat != null && tmpLng != null ? <Marker coordinate={{ latitude: tmpLat, longitude: tmpLng }} /> : null}
-                                </MapView>
+            <Modal visible={mapModalVisible} animationType="slide" transparent onRequestClose={() => setMapModalVisible(false)}>
+                <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.7)' }}>
+                    <View style={{
+                        width: '90%',
+                        maxWidth: 400,
+                        backgroundColor: '#fff',
+                        borderRadius: 24,
+                        padding: 20,
+                        elevation: 8,
+                        shadowColor: '#000',
+                        shadowOffset: { width: 0, height: 4 },
+                        shadowOpacity: 0.2,
+                        shadowRadius: 8,
+                    }}>
+                        <Text style={{ fontSize: 18, fontWeight: '700', marginBottom: 16, color: '#111827' }}>
+                            Select Location on Map
+                        </Text>
 
-                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 }}>
-                                    <TouchableOpacity onPress={() => { setMapModalVisible(false); }} style={{ padding: 10 }}>
-                                        <Text style={{ color: '#6B7280' }}>Cancel</Text>
-                                    </TouchableOpacity>
-                                    <TouchableOpacity
-                                        onPress={async () => {
-                                            if (tmpLat != null && tmpLng != null) {
-                                                // reverse geocode tmp coords and set address
-                                                try {
-                                                    const addr = await reverseGeocode(tmpLat, tmpLng);
-                                                    const coordLabel = `${tmpLat.toFixed(6)}, ${tmpLng.toFixed(6)}`;
-                                                    setLatitude(tmpLat);
-                                                    setLongitude(tmpLng);
-                                                    setAddress(addr ?? coordLabel);
-                                                    setLocation(addr ?? coordLabel);
-                                                } catch {
-                                                    // fallback to coords
-                                                    const coordLabel = `${tmpLat.toFixed(6)}, ${tmpLng.toFixed(6)}`;
-                                                    setLatitude(tmpLat);
-                                                    setLongitude(tmpLng);
-                                                    setAddress(coordLabel);
-                                                    setLocation(coordLabel);
-                                                }
-                                            }
-                                            setMapModalVisible(false);
-                                        }}
-                                    >
-                                        <Text style={{ color: '#4fc3f7', fontWeight: '700' }}>Select</Text>
-                                    </TouchableOpacity>
-                                </View>
+                        {/* Map View for selecting location */}
+                        <View style={{ width: '100%', height: 200, borderRadius: 12, overflow: 'hidden', marginBottom: 16 }}>
+                            <MapView
+                                style={{ width: '100%', height: '100%' }}
+                                initialRegion={{
+                                    latitude: latitude ?? 0,
+                                    longitude: longitude ?? 0,
+                                    latitudeDelta: 0.005,
+                                    longitudeDelta: 0.005,
+                                }}
+                                onRegionChangeComplete={(region: { latitude: number; longitude: number; latitudeDelta: number; longitudeDelta: number }) => {
+                                    setTmpLat(region.latitude);
+                                    setTmpLng(region.longitude);
+                                }}
+                            >
+                                {latitude !== null && longitude !== null && (
+                                    <Marker
+                                        coordinate={{ latitude, longitude }}
+                                        title="Selected Location"
+                                        description={address}
+                                        pinColor="#6366f1"
+                                    />
+                                )}
+                            </MapView>
+                        </View>
+
+                        {/* Address and Coordinates Display */}
+                        <View style={{ marginBottom: 16 }}>
+                            <Text style={{ color: '#6B7280', fontSize: 12, marginBottom: 4 }}>Selected Address:</Text>
+                            <Text style={{ color: '#111827', fontSize: 14, fontWeight: '500' }}>
+                                {address || 'No address selected'}
+                            </Text>
+                        </View>
+
+                        <View style={{ flexDirection: 'row', marginBottom: 2, marginTop: 12 }}>
+                            <View style={{ flex: 1 }}>
+                                <FloatingLabelInput
+                                    label="Latitude"
+                                    value={String(tmpLat ?? '')}
+                                    onChangeText={(text) => setTmpLat(parseFloat(text))}
+                                    keyboardType="numeric"
+                                    containerStyle={{ backgroundColor: '#F9FAFB', borderRadius: 12 }}
+                                />
                             </View>
-                        ) : (
-                            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-                                <Text style={{ color: '#374151', textAlign: 'center', marginBottom: 12 }}>
-                                    To select a location, use the map below or enter coordinates manually.
+                        </View>
+
+                        <View style={{ flexDirection: 'row', marginBottom: 10 }}>
+                            <View style={{ flex: 1 }}>
+                                <FloatingLabelInput
+                                    label="Longitude"
+                                    value={String(tmpLng ?? '')}
+                                    onChangeText={(text) => setTmpLng(parseFloat(text))}
+                                    keyboardType="numeric"
+                                    containerStyle={{ backgroundColor: '#F9FAFB', borderRadius: 12 }}
+                                />
+                            </View>
+                        </View>
+
+                        {/* Save and Cancel Buttons */}
+                        <View style={{ flexDirection: 'row', justifyContent: 'flex-end' }}>
+                            <TouchableOpacity
+                                onPress={() => setMapModalVisible(false)}
+                                style={{
+                                    backgroundColor: '#F3F4F6',
+                                    borderRadius: 12,
+                                    paddingVertical: 10,
+                                    paddingHorizontal: 16,
+                                    marginRight: 10,
+                                    elevation: 2,
+                                    shadowColor: '#000',
+                                    shadowOffset: { width: 0, height: 2 },
+                                    shadowOpacity: 0.1,
+                                    shadowRadius: 4,
+                                }}
+                            >
+                                <Text style={{ color: '#111827', fontWeight: '500' }}>Cancel</Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                onPress={save}
+                                style={{
+                                    backgroundColor: '#6366f1',
+                                    borderRadius: 12,
+                                    paddingVertical: 10,
+                                    paddingHorizontal: 16,
+                                    elevation: 2,
+                                    shadowColor: '#000',
+                                    shadowOffset: { width: 0, height: 2 },
+                                    shadowOpacity: 0.3,
+                                    shadowRadius: 4,
+                                }}
+                            >
+                                <Text style={{ color: '#fff', fontWeight: '700' }}>
+                                    {savingSettings ? <ActivityIndicator color="#fff" size="small" /> : 'Save Location'}
                                 </Text>
-                                <View style={{ flexDirection: 'row', width: '100%', marginBottom: 12 }}>
-                                    <TextInput
-                                        value={tmpLat !== null ? String(tmpLat) : ''}
-                                        onChangeText={(v) => setTmpLat(v ? Number(v) : null)}
-                                        placeholder="Latitude"
-                                        keyboardType="numeric"
-                                        style={{ flex: 1, borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 10, marginRight: 8 }}
-                                    />
-                                    <TextInput
-                                        value={tmpLng !== null ? String(tmpLng) : ''}
-                                        onChangeText={(v) => setTmpLng(v ? Number(v) : null)}
-                                        placeholder="Longitude"
-                                        keyboardType="numeric"
-                                        style={{ flex: 1, borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 10 }}
-                                    />
-                                </View>
-                                <TouchableOpacity
-                                    onPress={async () => {
-                                        if (tmpLat != null && tmpLng != null) {
-                                            // reverse geocode tmp coords and set address
-                                            try {
-                                                const addr = await reverseGeocode(tmpLat, tmpLng);
-                                                const coordLabel = `${tmpLat.toFixed(6)}, ${tmpLng.toFixed(6)}`;
-                                                setLatitude(tmpLat);
-                                                setLongitude(tmpLng);
-                                                setAddress(addr ?? coordLabel);
-                                                setLocation(addr ?? coordLabel);
-                                            } catch {
-                                                // fallback to coords
-                                                const coordLabel = `${tmpLat.toFixed(6)}, ${tmpLng.toFixed(6)}`;
-                                                setLatitude(tmpLat);
-                                                setLongitude(tmpLng);
-                                                setAddress(coordLabel);
-                                                setLocation(coordLabel);
-                                            }
-                                        }
-                                        setMapModalVisible(false);
-                                    }}
-                                    style={{ marginTop: 12, paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8, backgroundColor: '#4fc3f7' }}
-                                >
-                                    <Text style={{ color: '#fff', fontWeight: '700' }}>Select this location</Text>
-                                </TouchableOpacity>
-                            </View>
-                        )}
+                            </TouchableOpacity>
+                        </View>
                     </View>
                 </View>
-            </Modal >
+            </Modal>
 
             <ConfirmDialog
                 visible={pmDeleteVisible}
@@ -631,7 +788,6 @@ export default function SettingsScreen() {
                 cancelText="Cancel"
             />
 
-            {/* Permission dialog when gallery permission is denied */}
             <ConfirmDialog
                 visible={permDialogVisible}
                 title="Gallery permission required"
@@ -646,6 +802,6 @@ export default function SettingsScreen() {
                 confirmText="Open settings"
                 cancelText="Cancel"
             />
-        </SafeAreaView >
+        </SafeAreaView>
     );
 }
