@@ -9,13 +9,16 @@ import {
     ScrollView,
     StatusBar,
     Text,
-    TextInput,
     TouchableOpacity,
-    View,
+    View
 } from 'react-native';
 import DateTimePickerModal from 'react-native-modal-datetime-picker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import ConfirmDialog from '../../src/components/ConfirmDialog';
+import FloatingLabelInput from '../../src/components/FloatingLabelInput';
+import ListCardWrapper from '../../src/components/ListCardWrapper';
+import LoadMore from '../../src/components/LoadMore';
+import SelectInput from '../../src/components/SelectInput';
 import { useToast } from '../../src/contexts/ToastContext';
 import { db } from '../../src/firebaseConfig';
 
@@ -230,53 +233,121 @@ export default function ActivitiesScreen() {
     const upcomingCount = counts['upcoming'] || 0;
     const expiredCount = counts['expired'] || 0;
 
+    // PAGINATION state
+    const ACTIVITIES_PER_PAGE = 5;
+    const [displayedCount, setDisplayedCount] = useState<number>(ACTIVITIES_PER_PAGE);
+    const [loadingMore, setLoadingMore] = useState<boolean>(false);
+
+    // Reset displayed count when items or filters change
+    useEffect(() => {
+        setDisplayedCount(ACTIVITIES_PER_PAGE);
+    }, [items, filterStatus, filterDate]);
+
+    // Load more handler
+    const handleLoadMore = () => {
+        if (loadingMore) return;
+        if (displayedCount >= displayedItems.length) return;
+        setLoadingMore(true);
+        setTimeout(() => {
+            setDisplayedCount(prev => Math.min(prev + ACTIVITIES_PER_PAGE, displayedItems.length));
+            setLoadingMore(false);
+        }, 400);
+    };
+
     const renderItem = ({ item }: { item: Activity }) => {
         const status = getActivityStatus(item);
-        const statusStyles: Record<string, { bg: string; text: string; label: string }> = {
-            upcoming: { bg: '#FEF3C7', text: '#92400E', label: 'Upcoming' },
-            active: { bg: '#ECFDF5', text: '#065F46', label: 'On Going' },
-            expired: { bg: '#FEF2F2', text: '#7F1D1D', label: 'Expired' },
+        const statusStyles: Record<string, { bg: string; text: string; label: string; border: string }> = {
+            upcoming: { bg: '#FEF3C7', text: '#92400E', label: 'UPCOMING', border: '#F59E0B' },
+            active: { bg: '#ECFDF5', text: '#065F46', label: 'ON GOING', border: '#10B981' },
+            expired: { bg: '#FEF2F2', text: '#7F1D1D', label: 'EXPIRED', border: '#EF4444' },
         };
+        const colors = status ? statusStyles[status] : { bg: '#F3F4F6', text: '#6B7280', label: 'NONE', border: '#9CA3AF' };
 
         return (
-            <View style={{ marginHorizontal: 16, marginVertical: 8 }}>
-                <View style={{ position: 'relative', backgroundColor: '#F9FAFB', borderRadius: 12, padding: 12, elevation: 2, flexDirection: 'row', alignItems: 'center', paddingRight: 120 }}>
-                    {/* Absolute container at top-right: badge on top, actions below */}
-                    <View style={{ position: 'absolute', top: 8, right: 12, zIndex: 5, alignItems: 'flex-end' }}>
-                        {status ? (
-                            <View style={{ backgroundColor: statusStyles[status].bg, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999, marginBottom: 8 }}>
-                                <Text style={{ color: statusStyles[status].text, fontWeight: '700', fontSize: 10 }}>
-                                    {statusStyles[status].label}
-                                </Text>
-                            </View>
-                        ) : null}
+            <View style={{ marginVertical: 6 }}>
+                <View style={{
+                    position: 'relative',
+                    backgroundColor: '#fff',
+                    padding: 16,
+                    borderRadius: 12,
+                    elevation: 2,
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: 1 },
+                    shadowOpacity: 0.08,
+                    shadowRadius: 4,
+                    borderLeftWidth: 4,
+                    borderLeftColor: colors.border,
+                    paddingRight: 110,
+                }}>
+                    {/* Actions - positioned absolute center right */}
+                    <View style={{ position: 'absolute', top: '50%', right: 12, zIndex: 5, flexDirection: 'column', gap: 8, transform: [{ translateY: -30 }] }}>
+                        <TouchableOpacity
+                            onPress={() => openEdit(item)}
+                            disabled={operationLoading}
+                            style={{
+                                backgroundColor: '#E0F2FE',
+                                paddingHorizontal: 12,
+                                paddingVertical: 6,
+                                borderRadius: 8,
+                                opacity: operationLoading ? 0.5 : 1
+                            }}
+                        >
+                            <Text style={{ color: '#0369A1', fontWeight: '600', fontSize: 12 }}>Edit</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            onPress={() => confirmRemove(item.id)}
+                            disabled={operationLoading}
+                            style={{
+                                backgroundColor: '#FEE2E2',
+                                paddingHorizontal: 12,
+                                paddingVertical: 6,
+                                borderRadius: 8,
+                                opacity: operationLoading ? 0.5 : 1
+                            }}
+                        >
+                            <Text style={{ color: '#991B1B', fontWeight: '600', fontSize: 12 }}>Delete</Text>
+                        </TouchableOpacity>
+                    </View>
 
-                        <View style={{ alignItems: 'flex-end' }}>
-                            <TouchableOpacity onPress={() => openEdit(item)} style={{ marginBottom: 6 }} disabled={operationLoading}>
-                                <Text style={{ color: '#06B6D4', fontWeight: '600', opacity: operationLoading ? 0.5 : 1 }}>Edit</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity onPress={() => confirmRemove(item.id)} disabled={operationLoading}>
-                                <Text style={{ color: '#EF4444', fontWeight: '600', opacity: operationLoading ? 0.5 : 1 }}>Delete</Text>
-                            </TouchableOpacity>
+                    {/* Status badge & Title */}
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 8 }}>
+                        <Text style={{ fontSize: 20 }}>🎯</Text>
+                        <View style={{
+                            backgroundColor: colors.bg,
+                            paddingHorizontal: 10,
+                            paddingVertical: 5,
+                            borderRadius: 999,
+                            borderWidth: 2,
+                            borderColor: colors.border
+                        }}>
+                            <Text style={{ color: colors.text, fontWeight: '700', fontSize: 10 }}>
+                                {colors.label}
+                            </Text>
                         </View>
                     </View>
 
-                    <View style={{ flex: 1 }}>
-                        <Text style={{ fontWeight: '700', color: '#111827' }}>{item.title}</Text>
-                        <Text style={{ color: '#6B7280', fontSize: 12, marginTop: 6 }}>{item.location}</Text>
+                    <Text style={{ fontWeight: '800', fontSize: 16, color: '#111827', marginBottom: 8 }}>
+                        {item.title}
+                    </Text>
 
-                        {/* date + time row */}
-                        <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 6 }}>
-                            <Text style={{ color: '#6B7280', fontSize: 12 }}>{formatDateOnly(item.date)}</Text>
+                    <Text style={{ color: '#6B7280', fontSize: 13, marginBottom: 8 }}>
+                        📍 {item.location}
+                    </Text>
 
-                            {/* time pill */}
-                            <View style={{ marginLeft: 8, backgroundColor: '#F3F4F6', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, borderWidth: 1, borderColor: '#E5E7EB' }}>
-                                <Text style={{ color: '#111827', fontWeight: '600', fontSize: 12 }}>{item.time}</Text>
-                            </View>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                        <View style={{ backgroundColor: '#FEF3C7', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 }}>
+                            <Text style={{ color: '#92400E', fontSize: 11, fontWeight: '600' }}>📅 {formatDateOnly(item.date)}</Text>
                         </View>
-
-                        <Text numberOfLines={2} style={{ color: '#374151', marginTop: 8 }}>{item.description || '—'}</Text>
+                        <View style={{ backgroundColor: '#DBEAFE', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 }}>
+                            <Text style={{ color: '#1E40AF', fontSize: 11, fontWeight: '600' }}>🕐 {item.time}</Text>
+                        </View>
                     </View>
+
+                    {!!item.description && (
+                        <Text numberOfLines={2} style={{ color: '#6B7280', fontSize: 13 }}>
+                            {item.description}
+                        </Text>
+                    )}
                 </View>
             </View>
         );
@@ -298,7 +369,7 @@ export default function ActivitiesScreen() {
             </View>
 
             {/* Summary card */}
-            <View className="px-6 mb-3">
+            <View style={{ paddingHorizontal: 16, marginBottom: 12 }}>
                 <LinearGradient
                     colors={['#ffffff', '#f8fafc']}
                     start={{ x: 0, y: 0 }}
@@ -311,8 +382,7 @@ export default function ActivitiesScreen() {
                 >
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                         <View>
-                            <Text style={{ color: '#6B7280', fontSize: 12 }}>Activities</Text>
-                            <Text style={{ fontSize: 20, fontWeight: '700', marginTop: 6, color: activeCount > 0 ? '#065F46' : '#6B7280' }}>
+                            <Text style={{ fontSize: 20, fontWeight: '700', marginTop: 1, color: activeCount > 0 ? '#065F46' : '#6B7280' }}>
                                 {activeCount} Active
                             </Text>
                             <Text style={{ color: '#6B7280', fontSize: 12, marginTop: 6 }}>
@@ -327,53 +397,36 @@ export default function ActivitiesScreen() {
             </View>
 
             {/* FILTERS: Status + Date (two columns) */}
-            <View className="px-6 mb-3">
+            <View style={{ paddingHorizontal: 16, marginBottom: 12 }}>
                 <View style={{ flexDirection: 'row', gap: 12, alignItems: 'flex-start' }}>
                     {/* Status column (left) */}
-                    <View style={{ flex: 1, position: 'relative' }}>
-                        <Text style={{ color: '#6B7280', fontSize: 12, marginBottom: 6 }}>Status</Text>
-                        <TouchableOpacity
-                            onPress={() => setFilterStatusOpen(!filterStatusOpen)}
-                            style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, paddingVertical: 10, paddingHorizontal: 12, backgroundColor: '#fff', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}
-                        >
-                            <Text>{STATUS_LABEL[filterStatus]}</Text>
-                            <Text style={{ color: '#9CA3AF' }}>▾</Text>
-                        </TouchableOpacity>
-                        {filterStatusOpen && (
-                            <View style={{ position: 'absolute', top: 48, left: 0, right: 0, backgroundColor: '#F9FAFB', borderRadius: 8, zIndex: 30, borderWidth: 1, borderColor: '#E5E7EB' }}>
-                                <ScrollView style={{ maxHeight: 200 }}>
-                                    {STATUS_OPTIONS.map(s => (
-                                        <TouchableOpacity key={s} onPress={() => { setFilterStatus(s); setFilterStatusOpen(false); }} style={{ paddingVertical: 12, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: '#E5E7EB' }}>
-                                            <Text style={{ color: filterStatus === s ? '#6366f1' : '#111827', fontWeight: filterStatus === s ? '600' : '400' }}>
-                                                {STATUS_LABEL[s]}
-                                            </Text>
-                                        </TouchableOpacity>
-                                    ))}
-                                </ScrollView>
-                            </View>
-                        )}
+                    <View style={{ flex: 1 }}>
+                        <SelectInput
+                            label="Status"
+                            value={filterStatus}
+                            options={[
+                                { label: 'All Status', value: 'all' },
+                                { label: 'Upcoming', value: 'upcoming' },
+                                { label: 'Active', value: 'active' },
+                                { label: 'Expired', value: 'expired' }
+                            ]}
+                            onValueChange={(v: string) => setFilterStatus(v as 'all' | 'upcoming' | 'active' | 'expired')}
+                            placeholder="Select status"
+                            containerStyle={{ marginBottom: 0 }}
+                        />
                     </View>
 
                     {/* Date column (right) */}
                     <View style={{ flex: 1 }}>
-                        <Text style={{ color: '#6B7280', fontSize: 12, marginBottom: 6 }}>Activity Date</Text>
-                        <TouchableOpacity
+                        <FloatingLabelInput
+                            label="Activity Date"
+                            value={filterDate ? formatDateOnly(filterDate) : ''}
+                            onChangeText={() => { }}
+                            placeholder="All dates"
+                            editable={false}
                             onPress={() => setFilterDatePickerVisible(true)}
-                            style={{
-                                borderWidth: 1,
-                                borderColor: '#E5E7EB',
-                                borderRadius: 8,
-                                paddingVertical: 10,
-                                paddingHorizontal: 12,
-                                backgroundColor: '#fff',
-                                flexDirection: 'row',
-                                justifyContent: 'space-between',
-                                alignItems: 'center',
-                            }}
-                        >
-                            <Text style={{ color: filterDate ? '#111827' : '#9CA3AF' }}>{filterDate || 'All dates'}</Text>
-                            <Text style={{ color: '#9CA3AF' }}>▾</Text>
-                        </TouchableOpacity>
+                            containerStyle={{ marginBottom: 0 }}
+                        />
                     </View>
                 </View>
             </View>
@@ -415,109 +468,205 @@ export default function ActivitiesScreen() {
                     <ActivityIndicator size="small" color="#6366f1" />
                 </View>
             ) : (
-                <FlatList data={displayedItems} keyExtractor={(i) => i.id} renderItem={renderItem} contentContainerStyle={{ paddingBottom: 32 }} />
+                <View style={{ flex: 1, paddingHorizontal: 16, paddingTop: 12 }}>
+                    <ListCardWrapper style={{ marginHorizontal: 0 }}>
+                        <FlatList
+                            data={displayedItems.slice(0, displayedCount)}
+                            keyExtractor={(i) => i.id}
+                            style={{ flex: 1 }}
+                            contentContainerStyle={{
+                                paddingHorizontal: 16,
+                                paddingTop: 8,
+                                paddingBottom: 80
+                            }}
+                            showsVerticalScrollIndicator={false}
+                            ListEmptyComponent={() => (
+                                <View style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: 60 }}>
+                                    <Text style={{ fontSize: 48, marginBottom: 12 }}>📭</Text>
+                                    <Text style={{ color: '#6B7280', fontSize: 16, fontWeight: '600' }}>No activities found</Text>
+                                    <Text style={{ color: '#9CA3AF', fontSize: 13, marginTop: 4, textAlign: 'center' }}>
+                                        No activities match your filters
+                                    </Text>
+                                </View>
+                            )}
+                            renderItem={({ item }) => {
+                                const status = getActivityStatus(item);
+                                const statusStyles: Record<string, { bg: string; text: string; label: string; border: string }> = {
+                                    upcoming: { bg: '#FEF3C7', text: '#92400E', label: 'UPCOMING', border: '#F59E0B' },
+                                    active: { bg: '#ECFDF5', text: '#065F46', label: 'ON GOING', border: '#10B981' },
+                                    expired: { bg: '#FEF2F2', text: '#7F1D1D', label: 'EXPIRED', border: '#EF4444' },
+                                };
+                                const colors = status ? statusStyles[status] : { bg: '#F3F4F6', text: '#6B7280', label: 'NONE', border: '#9CA3AF' };
+
+                                return (
+                                    <View style={{ marginVertical: 6 }}>
+                                        <View style={{
+                                            position: 'relative',
+                                            backgroundColor: '#fff',
+                                            padding: 16,
+                                            borderRadius: 12,
+                                            elevation: 2,
+                                            shadowColor: '#000',
+                                            shadowOffset: { width: 0, height: 1 },
+                                            shadowOpacity: 0.08,
+                                            shadowRadius: 4,
+                                            borderLeftWidth: 4,
+                                            borderLeftColor: colors.border,
+                                            paddingRight: 110,
+                                        }}>
+                                            {/* Actions - positioned absolute center right */}
+                                            <View style={{ position: 'absolute', top: '50%', right: 12, zIndex: 5, flexDirection: 'column', gap: 8, transform: [{ translateY: -30 }] }}>
+                                                <TouchableOpacity
+                                                    onPress={() => openEdit(item)}
+                                                    disabled={operationLoading}
+                                                    style={{
+                                                        backgroundColor: '#E0F2FE',
+                                                        paddingHorizontal: 12,
+                                                        paddingVertical: 6,
+                                                        borderRadius: 8,
+                                                        opacity: operationLoading ? 0.5 : 1
+                                                    }}
+                                                >
+                                                    <Text style={{ color: '#0369A1', fontWeight: '600', fontSize: 12 }}>Edit</Text>
+                                                </TouchableOpacity>
+                                                <TouchableOpacity
+                                                    onPress={() => confirmRemove(item.id)}
+                                                    disabled={operationLoading}
+                                                    style={{
+                                                        backgroundColor: '#FEE2E2',
+                                                        paddingHorizontal: 12,
+                                                        paddingVertical: 6,
+                                                        borderRadius: 8,
+                                                        opacity: operationLoading ? 0.5 : 1
+                                                    }}
+                                                >
+                                                    <Text style={{ color: '#991B1B', fontWeight: '600', fontSize: 12 }}>Delete</Text>
+                                                </TouchableOpacity>
+                                            </View>
+
+                                            {/* Status badge & Title */}
+                                            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 8 }}>
+                                                <View style={{
+                                                    backgroundColor: colors.bg,
+                                                    paddingHorizontal: 10,
+                                                    paddingVertical: 5,
+                                                    borderRadius: 999,
+                                                    borderWidth: 2,
+                                                    borderColor: colors.border
+                                                }}>
+                                                    <Text style={{ color: colors.text, fontWeight: '700', fontSize: 10 }}>
+                                                        {colors.label}
+                                                    </Text>
+                                                </View>
+                                            </View>
+
+                                            <Text style={{ fontWeight: '800', fontSize: 16, color: '#111827', marginBottom: 8 }}>
+                                                {item.title}
+                                            </Text>
+
+                                            <Text style={{ color: '#6B7280', fontSize: 13, marginBottom: 8 }}>
+                                                📍 {item.location}
+                                            </Text>
+
+                                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                                                <View style={{ backgroundColor: '#FEF3C7', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 }}>
+                                                    <Text style={{ color: '#92400E', fontSize: 11, fontWeight: '600' }}>📅 {formatDateOnly(item.date)}</Text>
+                                                </View>
+                                                <View style={{ backgroundColor: '#DBEAFE', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 }}>
+                                                    <Text style={{ color: '#1E40AF', fontSize: 11, fontWeight: '600' }}>🕐 {item.time}</Text>
+                                                </View>
+                                            </View>
+
+                                            {!!item.description && (
+                                                <Text numberOfLines={2} style={{ color: '#6B7280', fontSize: 13 }}>
+                                                    {item.description}
+                                                </Text>
+                                            )}
+                                        </View>
+                                    </View>
+                                );
+                            }}
+                            onEndReached={handleLoadMore}
+                            onEndReachedThreshold={0.2}
+                            ListFooterComponent={() => (
+                                <LoadMore
+                                    loading={loadingMore}
+                                    hasMore={displayedCount < displayedItems.length}
+                                />
+                            )}
+                        />
+                    </ListCardWrapper>
+                </View>
             )}
 
             <Modal visible={modalVisible} animationType="slide" transparent onRequestClose={() => setModalVisible(false)}>
                 <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.3)' }}>
-                    <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 18, borderTopRightRadius: 18, padding: 16, maxHeight: '85%' }}>
-                        <ScrollView>
-                            <Text style={{ fontSize: 18, fontWeight: '700', marginBottom: 8 }}>{editingId ? 'Edit Activity' : 'Add Activity'}</Text>
+                    <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 16, maxHeight: '90%', flex: 1 }}>
+                        <ScrollView showsVerticalScrollIndicator={false}>
+                            <Text style={{ fontSize: 18, fontWeight: '700', marginBottom: 16 }}>{editingId ? 'Edit Activity' : 'Add Activity'}</Text>
 
-                            <Text style={{ color: '#374151', marginTop: 8 }}>Activity Name</Text>
-                            <TextInput value={title} onChangeText={setTitle} placeholder="Activity title" style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 10, marginTop: 6 }} />
-
-                            <Text style={{ color: '#374151', marginTop: 8 }}>Location</Text>
-                            <TextInput
-                                value={location}
-                                onChangeText={setLocation}
-                                placeholder="Location label or address (optional)"
-                                style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 10, marginTop: 6 }}
+                            <FloatingLabelInput
+                                label="Activity Name"
+                                value={title}
+                                onChangeText={setTitle}
+                                placeholder="Enter activity title"
                             />
 
-                            <Text style={{ color: '#374151', marginTop: 8 }}>Date</Text>
-                            {Platform.OS === 'web' ? (
-                                <div style={{ marginTop: 6 }}>
-                                    <input type="date" value={date} onChange={(e: any) => setDate(e.target.value)} style={{ width: '100%', borderRadius: 8, border: '1px solid #E5E7EB', padding: 10 }} />
-                                </div>
-                            ) : (
-                                <>
-                                    <TouchableOpacity onPress={() => setShowDatePicker(true)} style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 12, marginTop: 6 }}>
-                                        <Text style={{ color: date ? '#111827' : '#9CA3AF' }}>{date ? formatDateOnly(date) : 'Select date'}</Text>
-                                    </TouchableOpacity>
-                                    <DateTimePickerModal
-                                        isVisible={showDatePicker}
-                                        mode="date"
-                                        onConfirm={(d: Date) => {
-                                            setShowDatePicker(false);
-                                            setDate(dateToYMD(d));
-                                        }}
-                                        onCancel={() => setShowDatePicker(false)}
-                                    />
-                                </>
-                            )}
+                            <FloatingLabelInput
+                                label="Location"
+                                value={location}
+                                onChangeText={setLocation}
+                                placeholder="Enter location"
+                            />
 
-                            <Text style={{ color: '#374151', marginTop: 8 }}>Time</Text>
-                            {Platform.OS === 'web' ? (
-                                <div style={{ marginTop: 6 }}>
-                                    <input type="time" value={time} onChange={(e: any) => setTime(e.target.value)} style={{ width: '100%', borderRadius: 8, border: '1px solid #E5E7EB', padding: 10 }} />
-                                </div>
-                            ) : (
-                                <>
-                                    <TouchableOpacity
-                                        onPress={() => setShowTimePicker(true)}
-                                        style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 12, marginTop: 6 }}
-                                    >
-                                        <Text style={{ color: time ? '#111827' : '#9CA3AF' }}>{time || 'HH:MM'}</Text>
-                                    </TouchableOpacity>
+                            <FloatingLabelInput
+                                label="Date"
+                                value={date ? formatDateOnly(date) : ''}
+                                onChangeText={() => { }}
+                                placeholder="Select date"
+                                editable={Platform.OS === 'web'}
+                                onPress={Platform.OS === 'web' ? undefined : () => setShowDatePicker(true)}
+                            />
 
-                                    <DateTimePickerModal
-                                        isVisible={showTimePicker}
-                                        mode="time"
-                                        onConfirm={(d: Date) => {
-                                            setShowTimePicker(false);
-                                            setTime(dateToHM(d));
-                                        }}
-                                        onCancel={() => setShowTimePicker(false)}
-                                    />
-                                </>
-                            )}
+                            {/* Date picker for mobile */}
+                            <DateTimePickerModal
+                                isVisible={showDatePicker}
+                                mode="date"
+                                onConfirm={(d: Date) => {
+                                    setShowDatePicker(false);
+                                    setDate(dateToYMD(d));
+                                }}
+                                onCancel={() => setShowDatePicker(false)}
+                            />
 
-                            <Text style={{ color: '#374151', marginTop: 8 }}>Description</Text>
-                            {Platform.OS === 'web' ? (
-                                <div style={{ marginTop: 6 }}>
-                                    <textarea
-                                        value={description}
-                                        onChange={(e: any) => setDescription(e.target.value)}
-                                        placeholder="Description (optional)"
-                                        rows={6}
-                                        style={{
-                                            width: '100%',
-                                            borderRadius: 8,
-                                            border: '1px solid #E5E7EB',
-                                            padding: 10,
-                                            resize: 'vertical',
-                                        }}
-                                    />
-                                </div>
-                            ) : (
-                                <TextInput
-                                    value={description}
-                                    onChangeText={setDescription}
-                                    placeholder="Description (optional)"
-                                    multiline
-                                    numberOfLines={6}
-                                    style={{
-                                        borderWidth: 1,
-                                        borderColor: '#E5E7EB',
-                                        borderRadius: 8,
-                                        padding: 10,
-                                        marginTop: 6,
-                                        textAlignVertical: 'top',
-                                        height: 140,
-                                    }}
-                                />
-                            )}
+                            <FloatingLabelInput
+                                label="Time"
+                                value={time}
+                                onChangeText={() => { }}
+                                placeholder="Select time"
+                                editable={Platform.OS === 'web'}
+                                onPress={Platform.OS === 'web' ? undefined : () => setShowTimePicker(true)}
+                            />
+
+                            {/* Time picker for mobile */}
+                            <DateTimePickerModal
+                                isVisible={showTimePicker}
+                                mode="time"
+                                onConfirm={(d: Date) => {
+                                    setShowTimePicker(false);
+                                    setTime(dateToHM(d));
+                                }}
+                                onCancel={() => setShowTimePicker(false)}
+                            />
+
+                            <FloatingLabelInput
+                                label="Description"
+                                value={description}
+                                onChangeText={setDescription}
+                                placeholder="Enter description (optional)"
+                                multiline
+                                inputStyle={{ minHeight: 120, paddingTop: 18 }}
+                            />
 
                             <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 16 }}>
                                 <TouchableOpacity onPress={() => !operationLoading && setModalVisible(false)} disabled={operationLoading} style={{ padding: 10, opacity: operationLoading ? 0.6 : 1 }}>
