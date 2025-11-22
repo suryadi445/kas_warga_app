@@ -8,13 +8,13 @@ import {
     ScrollView,
     StatusBar,
     Text,
-    TextInput,
     TouchableOpacity,
     View
 } from 'react-native';
 import DateTimePickerModal from 'react-native-modal-datetime-picker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import ConfirmDialog from '../../src/components/ConfirmDialog';
+import FloatingLabelInput from '../../src/components/FloatingLabelInput';
 import ListCardWrapper from '../../src/components/ListCardWrapper';
 import LoadMore from '../../src/components/LoadMore';
 import SelectInput from '../../src/components/SelectInput';
@@ -571,92 +571,86 @@ export default function AnnouncementsScreen() {
                         <ScrollView scrollEnabled={!roleOpen} showsVerticalScrollIndicator={false}>
                             <Text style={{ fontSize: 18, fontWeight: '700', marginBottom: 16 }}>{editingId ? 'Edit Announcement' : 'Create Announcement'}</Text>
 
-                            {/* Role - Dropdown */}
-                            <Text style={{ color: '#374151', marginBottom: 6, fontWeight: '500' }}>Role *</Text>
-                            <TouchableOpacity
-                                onPress={() => setRoleOpen(!roleOpen)}
-                                style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}
-                            >
-                                <Text style={{ color: role ? '#111827' : '#9CA3AF' }}>{role || 'Select role'}</Text>
-                                <Text style={{ color: '#6B7280' }}>▾</Text>
-                            </TouchableOpacity>
-                            {roleOpen && (
-                                <View style={{ backgroundColor: '#F9FAFB', borderRadius: 8, marginBottom: 12, height: 200, borderWidth: 1, borderColor: '#E5E7EB' }}>
-                                    <ScrollView showsVerticalScrollIndicator={true}>
-                                        {ROLES.map((r) => (
-                                            <TouchableOpacity
-                                                key={r}
-                                                onPress={() => {
-                                                    setRole(r);
-                                                    setRoleOpen(false);
-                                                }}
-                                                style={{ paddingVertical: 12, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: '#E5E7EB' }}
-                                            >
-                                                <Text style={{ color: role === r ? '#6366f1' : '#111827', fontWeight: role === r ? '600' : '400' }}>{r}</Text>
-                                            </TouchableOpacity>
-                                        ))}
-                                    </ScrollView>
-                                </View>
-                            )}
+                            {/* Role - SelectInput */}
+                            <SelectInput
+                                label="Role"
+                                value={role}
+                                options={ROLES.filter(r => r !== 'All')}
+                                onValueChange={(v: string) => setRole(v)}
+                                placeholder="Select role"
+                            />
 
-                            {/* Category - Text Input */}
-                            <Text style={{ color: '#374151', marginBottom: 6, fontWeight: '500' }}>Category *</Text>
-                            <TextInput
+                            {/* Category - FloatingLabelInput */}
+                            <FloatingLabelInput
+                                label="Category"
                                 value={category}
                                 onChangeText={setCategory}
                                 placeholder="Enter category"
-                                style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 12, marginBottom: 12 }}
                             />
 
-                            {/* Title */}
-                            <Text style={{ color: '#374151', marginBottom: 6, fontWeight: '500' }}>Title *</Text>
-                            <TextInput value={title} onChangeText={setTitle} placeholder="Enter announcement title" style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 12, marginBottom: 12 }} />
+                            {/* Title - FloatingLabelInput */}
+                            <FloatingLabelInput
+                                label="Title"
+                                value={title}
+                                onChangeText={setTitle}
+                                placeholder="Enter announcement title"
+                            />
 
-                            {/* Content */}
-                            <Text style={{ color: '#374151', marginBottom: 6, fontWeight: '500' }}>Content *</Text>
-                            <TextInput value={content} onChangeText={setContent} placeholder="Enter announcement content" multiline numberOfLines={4} style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 12, marginBottom: 12, textAlignVertical: 'top', minHeight: 100 }} />
+                            {/* Content - FloatingLabelInput multiline */}
+                            <FloatingLabelInput
+                                label="Content"
+                                value={content}
+                                onChangeText={setContent}
+                                placeholder="Enter announcement content"
+                                multiline
+                                inputStyle={{ minHeight: 100, paddingTop: 18 }}
+                            />
 
                             {/* Start Date & Time */}
                             <View style={{ flexDirection: 'row', gap: 12, marginBottom: 12 }}>
                                 <View style={{ flex: 1 }}>
-                                    <Text style={{ color: '#374151', marginBottom: 6, fontWeight: '500' }}>Start Date *</Text>
-                                    <TouchableOpacity
+                                    <FloatingLabelInput
+                                        label="Start Date"
+                                        value={startDate ? displayDateYMonD(startDate) : ''}
+                                        onChangeText={() => { }}
+                                        placeholder="Select date"
+                                        editable={false}
                                         onPress={() => setStartDatePickerVisible(true)}
-                                        style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 12 }}
-                                    >
-                                        <Text style={{ color: startDate ? '#111827' : '#9CA3AF' }}>{startDate ? displayDateYMonD(startDate) : 'Select date'}</Text>
-                                    </TouchableOpacity>
+                                    />
                                 </View>
                                 <View style={{ flex: 1 }}>
-                                    <Text style={{ color: '#374151', marginBottom: 6, fontWeight: '500' }}>Start Time *</Text>
-                                    <TouchableOpacity
+                                    <FloatingLabelInput
+                                        label="Start Time"
+                                        value={startTime}
+                                        onChangeText={() => { }}
+                                        placeholder="Select time"
+                                        editable={false}
                                         onPress={() => setStartTimePickerVisible(true)}
-                                        style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 12 }}
-                                    >
-                                        <Text style={{ color: startTime ? '#111827' : '#9CA3AF' }}>{startTime || 'Select time'}</Text>
-                                    </TouchableOpacity>
+                                    />
                                 </View>
                             </View>
 
                             {/* End Date & Time */}
                             <View style={{ flexDirection: 'row', gap: 12, marginBottom: 16 }}>
                                 <View style={{ flex: 1 }}>
-                                    <Text style={{ color: '#374151', marginBottom: 6, fontWeight: '500' }}>End Date *</Text>
-                                    <TouchableOpacity
+                                    <FloatingLabelInput
+                                        label="End Date"
+                                        value={endDate ? displayDateYMonD(endDate) : ''}
+                                        onChangeText={() => { }}
+                                        placeholder="Select date"
+                                        editable={false}
                                         onPress={() => setEndDatePickerVisible(true)}
-                                        style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 12 }}
-                                    >
-                                        <Text style={{ color: endDate ? '#111827' : '#9CA3AF' }}>{endDate ? displayDateYMonD(endDate) : 'Select date'}</Text>
-                                    </TouchableOpacity>
+                                    />
                                 </View>
                                 <View style={{ flex: 1 }}>
-                                    <Text style={{ color: '#374151', marginBottom: 6, fontWeight: '500' }}>End Time *</Text>
-                                    <TouchableOpacity
+                                    <FloatingLabelInput
+                                        label="End Time"
+                                        value={endTime}
+                                        onChangeText={() => { }}
+                                        placeholder="Select time"
+                                        editable={false}
                                         onPress={() => setEndTimePickerVisible(true)}
-                                        style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 12 }}
-                                    >
-                                        <Text style={{ color: endTime ? '#111827' : '#9CA3AF' }}>{endTime || 'Select time'}</Text>
-                                    </TouchableOpacity>
+                                    />
                                 </View>
                             </View>
 
