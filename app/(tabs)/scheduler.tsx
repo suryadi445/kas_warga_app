@@ -5,16 +5,18 @@ import {
     ActivityIndicator,
     FlatList,
     Modal,
-    Platform,
     ScrollView,
     StatusBar,
     Text,
-    TextInput,
     TouchableOpacity,
-    View,
+    View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import ConfirmDialog from '../../src/components/ConfirmDialog';
+import FloatingLabelInput from '../../src/components/FloatingLabelInput';
+import ListCardWrapper from '../../src/components/ListCardWrapper';
+import LoadMore from '../../src/components/LoadMore';
+import SelectInput from '../../src/components/SelectInput';
 import { useToast } from '../../src/contexts/ToastContext';
 import { db } from '../../src/firebaseConfig';
 
@@ -42,9 +44,7 @@ export default function SchedulerScreen() {
     const [items, setItems] = useState<Schedule[]>([]); // now loaded from Firestore
     // filters -> days + frequency
     const [filterDays, setFilterDays] = useState<string[]>([]); // e.g. ['Sunday','Tuesday']
-    const [filterDaysOpen, setFilterDaysOpen] = useState(false);
     const [filterFrequency, setFilterFrequency] = useState<'all' | Schedule['frequency']>('all');
-    const [filterFrequencyOpen, setFilterFrequencyOpen] = useState(false);
 
     const [modalVisible, setModalVisible] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
@@ -64,6 +64,16 @@ export default function SchedulerScreen() {
     const WEEK_DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const [selectedDays, setSelectedDays] = useState<string[]>([]);
     const [selectedDaysOpen, setSelectedDaysOpen] = useState(false); // NEW: dropdown open state
+
+    // PAGINATION state
+    const SCHEDULES_PER_PAGE = 5;
+    const [displayedCount, setDisplayedCount] = useState<number>(SCHEDULES_PER_PAGE);
+    const [loadingMore, setLoadingMore] = useState<boolean>(false);
+
+    // Reset displayed count when items or filters change
+    useEffect(() => {
+        setDisplayedCount(SCHEDULES_PER_PAGE);
+    }, [items, filterFrequency, filterDays]);
 
     // realtime listener for schedules collection
     useEffect(() => {
@@ -102,6 +112,17 @@ export default function SchedulerScreen() {
         }
         return true;
     });
+
+    // Load more handler
+    const handleLoadMore = () => {
+        if (loadingMore) return;
+        if (displayedCount >= displayedItems.length) return;
+        setLoadingMore(true);
+        setTimeout(() => {
+            setDisplayedCount(prev => Math.min(prev + SCHEDULES_PER_PAGE, displayedItems.length));
+            setLoadingMore(false);
+        }, 400);
+    };
 
     function openAdd() {
         setEditingId(null);
@@ -170,59 +191,6 @@ export default function SchedulerScreen() {
         }
     }
 
-    const renderItem = ({ item }: { item: Schedule }) => {
-        const freqLabel = FREQUENCY_OPTIONS.find((f) => f.value === item.frequency)?.label ?? item.frequency;
-        const freqColors: Record<string, { bg: string; text: string }> = {
-            daily: { bg: '#FEF9C3', text: '#92400E' },
-            weekly: { bg: '#DBEAFE', text: '#1E40AF' },
-            month_twice: { bg: '#E6FFFA', text: '#065F46' },
-            monthly: { bg: '#EFF6FF', text: '#3730A3' },
-            quarter: { bg: '#FEF2F2', text: '#7F1D1D' },
-            yearly: { bg: '#F0FDF4', text: '#065F46' },
-        };
-        const colors = freqColors[item.frequency] ?? { bg: '#F3F4F6', text: '#374151' };
-        return (
-            <View style={{ marginHorizontal: 16, marginVertical: 8 }}>
-                <View style={{ position: 'relative', backgroundColor: '#F9FAFB', borderRadius: 12, padding: 12, elevation: 2, paddingRight: 120 }}>
-                    {/* Badge + actions absolute at top-right */}
-                    <View style={{ position: 'absolute', top: 8, right: 12, zIndex: 5, alignItems: 'flex-end' }}>
-                        <View style={{ backgroundColor: colors.bg, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999, marginBottom: 8 }}>
-                            <Text style={{ color: colors.text, fontWeight: '700', fontSize: 10 }}>{freqLabel}</Text>
-                        </View>
-                        <View style={{ alignItems: 'flex-end' }}>
-                            <TouchableOpacity onPress={() => openEdit(item)} style={{ marginBottom: 6 }}>
-                                <Text style={{ color: '#06B6D4', fontWeight: '600' }}>Edit</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity onPress={() => confirmRemove(item.id)}>
-                                <Text style={{ color: '#EF4444', fontWeight: '600' }}>Delete</Text>
-                            </TouchableOpacity>
-                        </View>
-                    </View>
-
-                    <View style={{ flex: 1 }}>
-                        <Text style={{ fontWeight: '700', color: '#111827' }}>{item.activityName}</Text>
-                        <Text style={{ color: '#6B7280', fontSize: 12, marginTop: 6 }}>{item.location}</Text>
-
-                        <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 6 }}>
-                            <View style={{ backgroundColor: '#F3F4F6', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, borderWidth: 1, borderColor: '#E5E7EB', marginRight: 8 }}>
-                                <Text style={{ color: '#111827', fontWeight: '600', fontSize: 12 }}>{item.time}</Text>
-                            </View>
-
-                            {/* show selected days summary */}
-                            {item.days && item.days.length > 0 ? (
-                                <View style={{ marginLeft: 8, backgroundColor: '#F3F4F6', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999 }}>
-                                    <Text style={{ color: '#374151', fontSize: 12, fontWeight: '600' }}>{item.days.join(', ')}</Text>
-                                </View>
-                            ) : null}
-                        </View>
-
-                        <Text numberOfLines={2} style={{ color: '#374151', marginTop: 8 }}>{item.description || '—'}</Text>
-                    </View>
-                </View>
-            </View>
-        );
-    };
-
     return (
         <SafeAreaView edges={['bottom']} style={{ flex: 1, backgroundColor: '#fff' }}>
             <StatusBar barStyle="dark-content" translucent backgroundColor="transparent" />
@@ -239,7 +207,7 @@ export default function SchedulerScreen() {
             </View>
 
             {/* Summary card */}
-            <View className="px-6 mb-3">
+            <View style={{ paddingHorizontal: 16, marginBottom: 12 }}>
                 <LinearGradient
                     colors={['#ffffff', '#f8fafc']}
                     start={{ x: 0, y: 0 }}
@@ -248,8 +216,7 @@ export default function SchedulerScreen() {
                 >
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                         <View>
-                            <Text style={{ color: '#6B7280', fontSize: 12 }}>Schedules</Text>
-                            <Text style={{ fontSize: 20, fontWeight: '700', marginTop: 6, color: '#6B7280' }}>
+                            <Text style={{ fontSize: 20, fontWeight: '700', marginTop: 1, color: '#6B7280' }}>
                                 {items.length} Schedules
                             </Text>
                             <Text style={{ color: '#6B7280', fontSize: 12, marginTop: 6 }}>
@@ -264,68 +231,34 @@ export default function SchedulerScreen() {
             </View>
 
             {/* Filters: Row 1 = Date + Frequency ; Row 2 = Add */}
-            <View className="px-6 mb-3">
+            <View style={{ paddingHorizontal: 16, marginBottom: 12 }}>
                 {/* Row 1: Days and Frequency */}
                 <View style={{ flexDirection: 'row', gap: 12, marginBottom: 8 }}>
-                    {/* Days filter (multi-select) */}
-                    <View style={{ flex: 1, position: 'relative' }}>
-                        <Text style={{ color: '#6B7280', fontSize: 12, marginBottom: 6 }}>Days</Text>
-                        <TouchableOpacity
-                            onPress={() => setFilterDaysOpen(v => !v)}
-                            style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, paddingVertical: 10, paddingHorizontal: 12, backgroundColor: '#fff', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}
-                        >
-                            <Text style={{ color: filterDays.length ? '#111827' : '#9CA3AF' }}>{filterDays.length ? filterDays.join(', ') : 'All days'}</Text>
-                            <Text style={{ color: '#9CA3AF' }}>▾</Text>
-                        </TouchableOpacity>
-                        {filterDaysOpen && (
-                            <View style={{ position: 'absolute', top: 48, left: 0, right: 0, backgroundColor: '#F9FAFB', borderRadius: 8, zIndex: 30, borderWidth: 1, borderColor: '#E5E7EB' }}>
-                                <ScrollView style={{ maxHeight: 220 }} nestedScrollEnabled={true}>
-                                    {WEEK_DAYS.map((d) => {
-                                        const active = filterDays.includes(d);
-                                        return (
-                                            <TouchableOpacity key={d} onPress={() => setFilterDays(prev => prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d])} style={{ paddingVertical: 12, paddingHorizontal: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: '#E5E7EB' }}>
-                                                <Text style={{ color: active ? '#6366f1' : '#111827', fontWeight: active ? '600' : '400' }}>{d}</Text>
-                                                {active ? <Text style={{ color: '#6366f1', fontWeight: '700' }}>✓</Text> : null}
-                                            </TouchableOpacity>
-                                        );
-                                    })}
-                                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 12, paddingHorizontal: 12 }}>
-                                        <TouchableOpacity onPress={() => { setFilterDays([]); setFilterDaysOpen(false); }} style={{ paddingVertical: 10, paddingHorizontal: 14 }}>
-                                            <Text style={{ color: '#DC2626', fontWeight: '600' }}>Clear</Text>
-                                        </TouchableOpacity>
-                                        <TouchableOpacity onPress={() => setFilterDaysOpen(false)} style={{ paddingVertical: 10, paddingHorizontal: 14 }}>
-                                            <Text style={{ color: '#6366f1', fontWeight: '700' }}>OK</Text>
-                                        </TouchableOpacity>
-                                    </View>
-                                </ScrollView>
-                            </View>
-                        )}
+                    {/* Days filter - using FloatingLabelInput (read-only, shows text summary) */}
+                    <View style={{ flex: 1 }}>
+                        <FloatingLabelInput
+                            label="Days"
+                            value={filterDays.length ? filterDays.join(', ') : ''}
+                            onChangeText={() => { }}
+                            placeholder="All days"
+                            editable={false}
+                            containerStyle={{ marginBottom: 0 }}
+                        />
                     </View>
 
-                    {/* Frequency filter */}
-                    <View style={{ flex: 1, position: 'relative' }}>
-                        <Text style={{ color: '#6B7280', fontSize: 12, marginBottom: 6 }}>Frequency</Text>
-                        <TouchableOpacity
-                            onPress={() => setFilterFrequencyOpen(v => !v)}
-                            style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, paddingVertical: 10, paddingHorizontal: 12, backgroundColor: '#fff', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}
-                        >
-                            <Text>{filterFrequency === 'all' ? 'All' : FREQUENCY_OPTIONS.find(f => f.value === filterFrequency)?.label}</Text>
-                            <Text style={{ color: '#9CA3AF' }}>▾</Text>
-                        </TouchableOpacity>
-                        {filterFrequencyOpen && (
-                            <View style={{ position: 'absolute', top: 48, left: 0, right: 0, backgroundColor: '#F9FAFB', borderRadius: 8, zIndex: 30, borderWidth: 1, borderColor: '#E5E7EB' }}>
-                                <ScrollView style={{ maxHeight: 200 }}>
-                                    <TouchableOpacity onPress={() => { setFilterFrequency('all'); setFilterFrequencyOpen(false); }} style={{ paddingVertical: 12, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: '#E5E7EB' }}>
-                                        <Text style={{ color: filterFrequency === 'all' ? '#6366f1' : '#111827', fontWeight: filterFrequency === 'all' ? '600' : '400' }}>All</Text>
-                                    </TouchableOpacity>
-                                    {FREQUENCY_OPTIONS.map(opt => (
-                                        <TouchableOpacity key={opt.value} onPress={() => { setFilterFrequency(opt.value as any); setFilterFrequencyOpen(false); }} style={{ paddingVertical: 12, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: '#E5E7EB' }}>
-                                            <Text style={{ color: filterFrequency === opt.value ? '#6366f1' : '#111827', fontWeight: filterFrequency === opt.value ? '600' : '400' }}>{opt.label}</Text>
-                                        </TouchableOpacity>
-                                    ))}
-                                </ScrollView>
-                            </View>
-                        )}
+                    {/* Frequency filter - using SelectInput */}
+                    <View style={{ flex: 1 }}>
+                        <SelectInput
+                            label="Frequency"
+                            value={filterFrequency}
+                            options={[
+                                { label: 'All Frequency', value: 'all' },
+                                ...FREQUENCY_OPTIONS
+                            ]}
+                            onValueChange={(v: string) => setFilterFrequency(v as any)}
+                            placeholder="Select frequency"
+                            containerStyle={{ marginBottom: 0 }}
+                        />
                     </View>
                 </View>
 
@@ -355,44 +288,181 @@ export default function SchedulerScreen() {
                     <ActivityIndicator size="small" color="#6366f1" />
                 </View>
             ) : (
-                <FlatList data={displayedItems} keyExtractor={(i) => i.id} renderItem={renderItem} contentContainerStyle={{ paddingBottom: 32 }} />
+                <View style={{ flex: 1, paddingHorizontal: 16, paddingTop: 12 }}>
+                    <ListCardWrapper style={{ marginHorizontal: 0 }}>
+                        <FlatList
+                            data={displayedItems.slice(0, displayedCount)}
+                            keyExtractor={(i) => i.id}
+                            style={{ flex: 1 }}
+                            contentContainerStyle={{
+                                paddingHorizontal: 16,
+                                paddingTop: 8,
+                                paddingBottom: 80
+                            }}
+                            showsVerticalScrollIndicator={false}
+                            ListEmptyComponent={() => (
+                                <View style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: 60 }}>
+                                    <Text style={{ fontSize: 48, marginBottom: 12 }}>📭</Text>
+                                    <Text style={{ color: '#6B7280', fontSize: 16, fontWeight: '600' }}>No schedules found</Text>
+                                    <Text style={{ color: '#9CA3AF', fontSize: 13, marginTop: 4, textAlign: 'center' }}>
+                                        No schedules match your filters
+                                    </Text>
+                                </View>
+                            )}
+                            renderItem={({ item }) => {
+                                const freqLabel = FREQUENCY_OPTIONS.find((f) => f.value === item.frequency)?.label ?? item.frequency;
+                                const freqColors: Record<string, { bg: string; text: string; border: string }> = {
+                                    daily: { bg: '#FEF9C3', text: '#92400E', border: '#FDE047' },
+                                    weekly: { bg: '#DBEAFE', text: '#1E40AF', border: '#60A5FA' },
+                                    month_twice: { bg: '#E6FFFA', text: '#065F46', border: '#34D399' },
+                                    monthly: { bg: '#EFF6FF', text: '#3730A3', border: '#818CF8' },
+                                    quarter: { bg: '#FEF2F2', text: '#7F1D1D', border: '#F87171' },
+                                    yearly: { bg: '#F0FDF4', text: '#065F46', border: '#22C55E' },
+                                };
+                                const colors = freqColors[item.frequency] ?? { bg: '#F3F4F6', text: '#374151', border: '#9CA3AF' };
+
+                                return (
+                                    <View style={{ marginVertical: 6 }}>
+                                        <View style={{
+                                            position: 'relative',
+                                            backgroundColor: '#fff',
+                                            padding: 16,
+                                            borderRadius: 12,
+                                            elevation: 2,
+                                            shadowColor: '#000',
+                                            shadowOffset: { width: 0, height: 1 },
+                                            shadowOpacity: 0.08,
+                                            shadowRadius: 4,
+                                            borderLeftWidth: 4,
+                                            borderLeftColor: colors.border,
+                                            paddingRight: 110,
+                                        }}>
+                                            {/* Actions - positioned absolute center right */}
+                                            <View style={{ position: 'absolute', top: '50%', right: 12, zIndex: 5, flexDirection: 'column', gap: 8, transform: [{ translateY: -30 }] }}>
+                                                <TouchableOpacity
+                                                    onPress={() => openEdit(item)}
+                                                    disabled={operationLoading}
+                                                    style={{
+                                                        backgroundColor: '#E0F2FE',
+                                                        paddingHorizontal: 12,
+                                                        paddingVertical: 6,
+                                                        borderRadius: 8,
+                                                        opacity: operationLoading ? 0.5 : 1
+                                                    }}
+                                                >
+                                                    <Text style={{ color: '#0369A1', fontWeight: '600', fontSize: 12 }}>Edit</Text>
+                                                </TouchableOpacity>
+                                                <TouchableOpacity
+                                                    onPress={() => confirmRemove(item.id)}
+                                                    disabled={operationLoading}
+                                                    style={{
+                                                        backgroundColor: '#FEE2E2',
+                                                        paddingHorizontal: 12,
+                                                        paddingVertical: 6,
+                                                        borderRadius: 8,
+                                                        opacity: operationLoading ? 0.5 : 1
+                                                    }}
+                                                >
+                                                    <Text style={{ color: '#991B1B', fontWeight: '600', fontSize: 12 }}>Delete</Text>
+                                                </TouchableOpacity>
+                                            </View>
+
+                                            {/* Frequency badge */}
+                                            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 8 }}>
+                                                <View style={{
+                                                    backgroundColor: colors.bg,
+                                                    paddingHorizontal: 10,
+                                                    paddingVertical: 5,
+                                                    borderRadius: 999,
+                                                    borderWidth: 2,
+                                                    borderColor: colors.border
+                                                }}>
+                                                    <Text style={{ color: colors.text, fontWeight: '700', fontSize: 10 }}>
+                                                        {freqLabel}
+                                                    </Text>
+                                                </View>
+                                            </View>
+
+                                            <Text style={{ fontWeight: '800', fontSize: 16, color: '#111827', marginBottom: 8 }}>
+                                                {item.activityName}
+                                            </Text>
+
+                                            <Text style={{ color: '#6B7280', fontSize: 13, marginBottom: 8 }}>
+                                                📍 {item.location}
+                                            </Text>
+
+                                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                                                {!!item.time && (
+                                                    <View style={{ backgroundColor: '#EEF2FF', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 }}>
+                                                        <Text style={{ color: '#4338CA', fontSize: 11, fontWeight: '600' }}>🕐 {item.time}</Text>
+                                                    </View>
+                                                )}
+                                                {!!item.days?.length && (
+                                                    <View style={{ backgroundColor: '#F3F4F6', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 }}>
+                                                        <Text style={{ color: '#4B5563', fontSize: 11, fontWeight: '600' }}>📆 {item.days.join(', ')}</Text>
+                                                    </View>
+                                                )}
+                                            </View>
+
+                                            {!!item.description && (
+                                                <Text numberOfLines={2} style={{ color: '#6B7280', fontSize: 13 }}>
+                                                    {item.description}
+                                                </Text>
+                                            )}
+                                        </View>
+                                    </View>
+                                );
+                            }}
+                            onEndReached={handleLoadMore}
+                            onEndReachedThreshold={0.2}
+                            ListFooterComponent={() => (
+                                <LoadMore
+                                    loading={loadingMore}
+                                    hasMore={displayedCount < displayedItems.length}
+                                />
+                            )}
+                        />
+                    </ListCardWrapper>
+                </View>
             )}
 
             {/* Modal Form */}
             <Modal visible={modalVisible} animationType="slide" transparent onRequestClose={() => setModalVisible(false)}>
                 <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.3)' }}>
-                    <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 18, borderTopRightRadius: 18, padding: 16, maxHeight: '85%' }}>
+                    <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 16, maxHeight: '90%', flex: 1 }}>
                         {/* disable parent scrolling while a dropdown list is open so child ScrollView can handle touch */}
                         <ScrollView scrollEnabled={!selectedDaysOpen && !frequencyOpen} showsVerticalScrollIndicator={false}>
-                            <Text style={{ fontSize: 18, fontWeight: '700', marginBottom: 8 }}>{editingId ? 'Edit Schedule' : 'Add Schedule'}</Text>
+                            <Text style={{ fontSize: 18, fontWeight: '700', marginBottom: 16 }}>{editingId ? 'Edit Schedule' : 'Add Schedule'}</Text>
 
-                            <Text style={{ color: '#374151', marginTop: 8 }}>Activity Name</Text>
-                            <TextInput value={activityName} onChangeText={setActivityName} placeholder="e.g. Morning Exercise" style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 10, marginTop: 6 }} />
+                            <FloatingLabelInput
+                                label="Activity Name"
+                                value={activityName}
+                                onChangeText={setActivityName}
+                                placeholder="Enter activity name"
+                            />
 
-                            <Text style={{ color: '#374151', marginTop: 12 }}>Time</Text>
-                            {Platform.OS === 'web' ? (
-                                <View style={{ marginTop: 6 }}>
-                                    <TextInput value={time} onChangeText={setTime} placeholder="HH:MM" style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 10 }} />
-                                </View>
-                            ) : (
-                                <TextInput value={time} onChangeText={setTime} placeholder="HH:MM" keyboardType="numbers-and-punctuation" style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 10, marginTop: 6 }} />
-                            )}
+                            <FloatingLabelInput
+                                label="Time"
+                                value={time}
+                                onChangeText={setTime}
+                                placeholder="HH:MM"
+                                keyboardType="numbers-and-punctuation"
+                            />
 
                             {/* Days (dropdown multi-select, placed under Time) */}
-                            <Text style={{ color: '#374151', marginTop: 12 }}>Days</Text>
-                            <View style={{ position: 'relative' }}>
-                                <TouchableOpacity
-                                    onPress={() => setSelectedDaysOpen(v => !v)}
-                                    style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 12, marginTop: 6, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#fff' }}
-                                >
-                                    <Text style={{ color: selectedDays.length ? '#111827' : '#9CA3AF' }}>
-                                        {selectedDays.length ? selectedDays.join(', ') : 'All days'}
-                                    </Text>
-                                    <Text style={{ color: '#6B7280' }}>▾</Text>
-                                </TouchableOpacity>
+                            <FloatingLabelInput
+                                label="Days"
+                                value={selectedDays.length ? selectedDays.join(', ') : ''}
+                                onChangeText={() => { }}
+                                placeholder="All days"
+                                editable={false}
+                                onPress={() => setSelectedDaysOpen(v => !v)}
+                            />
 
-                                {selectedDaysOpen && (
-                                    <View style={{ position: 'absolute', top: 56, left: 0, right: 0, backgroundColor: '#F9FAFB', borderRadius: 8, zIndex: 1000, borderWidth: 1, borderColor: '#E5E7EB' }}>
+                            {/* Days dropdown (when opened) */}
+                            {selectedDaysOpen && (
+                                <View style={{ position: 'relative' }}>
+                                    <View style={{ backgroundColor: '#F9FAFB', borderRadius: 8, marginTop: -8, marginBottom: 12, zIndex: 1000, borderWidth: 1, borderColor: '#E5E7EB' }}>
                                         {/* nestedScrollEnabled allows the inner ScrollView to scroll when inside another ScrollView (Android) */}
                                         <ScrollView style={{ maxHeight: 220 }} nestedScrollEnabled={true}>
                                             {WEEK_DAYS.map((d) => {
@@ -428,29 +498,32 @@ export default function SchedulerScreen() {
                                             </View>
                                         </ScrollView>
                                     </View>
-                                )}
-                            </View>
-
-                            <Text style={{ color: '#374151', marginTop: 12 }}>Frequency</Text>
-                            <TouchableOpacity onPress={() => setFrequencyOpen((v) => !v)} style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 12, marginTop: 6, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <Text>{FREQUENCY_OPTIONS.find((f) => f.value === frequency)?.label ?? frequency}</Text>
-                                <Text style={{ color: '#6B7280' }}>▾</Text>
-                            </TouchableOpacity>
-                            {frequencyOpen && (
-                                <View style={{ backgroundColor: '#F9FAFB', borderRadius: 8, marginTop: 6 }}>
-                                    {FREQUENCY_OPTIONS.map((opt) => (
-                                        <TouchableOpacity key={opt.value} onPress={() => { setFrequency(opt.value as Schedule['frequency']); setFrequencyOpen(false); }} style={{ paddingVertical: 12, paddingHorizontal: 12 }}>
-                                            <Text style={{ color: '#111827' }}>{opt.label}</Text>
-                                        </TouchableOpacity>
-                                    ))}
                                 </View>
                             )}
 
-                            <Text style={{ color: '#374151', marginTop: 12 }}>Location</Text>
-                            <TextInput value={location} onChangeText={setLocation} placeholder="Location (optional)" style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 10, marginTop: 6 }} />
+                            <SelectInput
+                                label="Frequency"
+                                value={frequency}
+                                options={FREQUENCY_OPTIONS}
+                                onValueChange={(v: string) => setFrequency(v as Schedule['frequency'])}
+                                placeholder="Select frequency"
+                            />
 
-                            <Text style={{ color: '#374151', marginTop: 12 }}>Description</Text>
-                            <TextInput value={description} onChangeText={setDescription} placeholder="Description (optional)" multiline numberOfLines={4} style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 10, marginTop: 6, textAlignVertical: 'top', minHeight: 100 }} />
+                            <FloatingLabelInput
+                                label="Location"
+                                value={location}
+                                onChangeText={setLocation}
+                                placeholder="Enter location"
+                            />
+
+                            <FloatingLabelInput
+                                label="Description"
+                                value={description}
+                                onChangeText={setDescription}
+                                placeholder="Enter description (optional)"
+                                multiline
+                                inputStyle={{ minHeight: 120, paddingTop: 18 }}
+                            />
 
                             <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 16 }}>
                                 <TouchableOpacity onPress={() => !operationLoading && setModalVisible(false)} disabled={operationLoading} style={{ padding: 10, opacity: operationLoading ? 0.6 : 1 }}>
