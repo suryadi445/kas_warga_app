@@ -28,7 +28,7 @@ export default function DeveloperScreen() {
                             width: 90,
                             height: 90,
                             borderRadius: 45,
-                            backgroundColor: '#fff',
+                            backgroundColor: 'black',
                             alignItems: 'center',
                             justifyContent: 'center',
                             elevation: 6,
@@ -36,11 +36,13 @@ export default function DeveloperScreen() {
                             shadowOffset: { width: 0, height: 3 },
                             shadowOpacity: 0.15,
                             shadowRadius: 6,
-                            padding: 3
+                            padding: 3,
+                            overflow: 'hidden'
                         }}>
                             <Image
-                                source={{ uri: 'https://ui-avatars.com/api/?name=Suryadi&background=6366f1&color=fff&size=128' }}
-                                style={{ width: 84, height: 84, borderRadius: 42 }}
+                                source={require('../../assets/images/suryadi.png')}
+                                style={{ width: 90, height: 90, borderRadius: 40, overflow: 'hidden' }}
+                                resizeMode="center"
                             />
                         </View>
 
