@@ -1,17 +1,49 @@
 import { Slot, usePathname, useRouter } from 'expo-router';
-import React from 'react';
+import { collection, onSnapshot, query } from 'firebase/firestore';
+import React, { useEffect } from 'react';
 import { Platform, StatusBar, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { db } from '../../src/firebaseConfig';
+import { startNotificationListeners } from '../../src/services/NotificationService';
 
 export default function TabsLayout({ children }: { children: React.ReactNode }) {
     const router = useRouter();
     const pathname = usePathname() ?? '';
     const insets = useSafeAreaInsets();
 
+    // NEW: state for unread notifications count
+    const [unreadCount, setUnreadCount] = React.useState(0);
+
+    // NEW: start notification service on mount (background listener)
+    useEffect(() => {
+        const cleanup = startNotificationListeners();
+        return cleanup;
+    }, []);
+
+    // NEW: listen to notifications collection for unread count
+    useEffect(() => {
+        let unsub: (() => void) | null = null;
+        try {
+            const q = query(collection(db, 'notifications'));
+            unsub = onSnapshot(q, snap => {
+                const unread = snap.docs.filter(d => {
+                    const data = d.data() as any;
+                    return !data.read;
+                }).length;
+                setUnreadCount(unread);
+            }, err => {
+                console.warn('notifications unread count err', err);
+            });
+        } catch (e) {
+            console.error('Failed to listen notifications unread count:', e);
+        }
+        return () => { if (unsub) unsub(); };
+    }, []);
+
     const tabs = [
         { id: 'home', label: 'Home', icon: '🏠', route: '/(tabs)/dashboard' },
         { id: 'menu', label: 'Menu', icon: '☰', route: '/(tabs)' },
-        { id: 'notifications', label: 'Notifikasi', icon: '🔔', route: '/(tabs)/notifications' },
+        { id: 'notifications', label: 'Notifikasi', icon: '🔔', route: '/(tabs)/notifications', badge: unreadCount },
         { id: 'profile', label: 'Akun', icon: '👤', route: '/(tabs)/profile' },
     ];
 
@@ -63,8 +95,33 @@ export default function TabsLayout({ children }: { children: React.ReactNode }) 
                             style={{ alignItems: 'center', justifyContent: 'center', flex: 1 }}
                             activeOpacity={0.8}
                         >
-                            <View style={{ alignItems: 'center', justifyContent: 'center' }}>
+                            <View style={{ alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
                                 <Text style={{ fontSize: 20, lineHeight: 24 }}>{t.icon}</Text>
+                                {/* Badge for unread count */}
+                                {t.id === 'notifications' && unreadCount > 0 && (
+                                    <View style={{
+                                        position: 'absolute',
+                                        top: -4,
+                                        right: -8,
+                                        backgroundColor: '#EF4444',
+                                        borderRadius: 10,
+                                        minWidth: 20,
+                                        height: 20,
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        paddingHorizontal: 5,
+                                        borderWidth: 2,
+                                        borderColor: '#fff',
+                                    }}>
+                                        <Text style={{
+                                            color: '#fff',
+                                            fontSize: 11,
+                                            fontWeight: '700',
+                                        }}>
+                                            {unreadCount > 99 ? '99+' : unreadCount}
+                                        </Text>
+                                    </View>
+                                )}
                                 <Text
                                     style={{
                                         fontSize: 12,
