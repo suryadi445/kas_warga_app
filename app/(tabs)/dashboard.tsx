@@ -164,8 +164,6 @@ export default function DashboardPage() {
             const qAnn = query(collection(db, 'announcements'), orderBy('date', 'desc'));
             const unsubAnn = onSnapshot(qAnn, snap => {
                 const todayStr = getTodayString();
-                // debug: inspect incoming doc shapes (remove or comment out in production)
-                // console.debug('announcements snapshot docs:', snap.docs.map(d => ({ id: d.id, data: d.data() })));
                 const rows: Announcement[] = snap.docs.map(d => {
                     const data = d.data() as any;
                     return {
@@ -177,7 +175,6 @@ export default function DashboardPage() {
                         date: data.date ?? '',
                         role: data.role ?? '',
                         category: data.category ?? '',
-                        // normalize description: try several possible field names
                         description: data.description ?? data.desc ?? data.details ?? data.body ?? '',
                     };
                 }).filter(item => {

@@ -1,9 +1,10 @@
 import { Slot, usePathname, useRouter } from 'expo-router';
 import { collection, onSnapshot, query } from 'firebase/firestore';
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Platform, StatusBar, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { db } from '../../src/firebaseConfig';
+import { getCurrentUser } from '../../src/services/authService';
 import { startNotificationListeners } from '../../src/services/NotificationService';
 
 export default function TabsLayout({ children }: { children: React.ReactNode }) {
@@ -12,23 +13,36 @@ export default function TabsLayout({ children }: { children: React.ReactNode }) 
     const insets = useSafeAreaInsets();
 
     // NEW: state for unread notifications count
-    const [unreadCount, setUnreadCount] = React.useState(0);
+    const [unreadCount, setUnreadCount] = useState(0);
+    const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+
+    // Get current user
+    useEffect(() => {
+        const user = getCurrentUser();
+        if (user) setCurrentUserId(user.uid);
+    }, []);
 
     // NEW: start notification service on mount (background listener)
     useEffect(() => {
+        // NOTE: Pastikan di dalam NotificationService.ts TIDAK ada logika yang mereset field readBy
         const cleanup = startNotificationListeners();
         return cleanup;
     }, []);
 
     // NEW: listen to notifications collection for unread count
     useEffect(() => {
+        if (!currentUserId) return; // Wait for user ID
+
         let unsub: (() => void) | null = null;
         try {
             const q = query(collection(db, 'notifications'));
             unsub = onSnapshot(q, snap => {
                 const unread = snap.docs.filter(d => {
                     const data = d.data() as any;
-                    return !data.read;
+                    // Check per-user read status (readBy array)
+                    const readBy = Array.isArray(data.readBy) ? data.readBy : [];
+                    // Unread if user ID is NOT in readBy array
+                    return !readBy.includes(currentUserId);
                 }).length;
                 setUnreadCount(unread);
             }, err => {
@@ -38,7 +52,7 @@ export default function TabsLayout({ children }: { children: React.ReactNode }) 
             console.error('Failed to listen notifications unread count:', e);
         }
         return () => { if (unsub) unsub(); };
-    }, []);
+    }, [currentUserId]); // Re-run when user ID changes
 
     const tabs = [
         { id: 'home', label: 'Home', icon: '🏠', route: '/(tabs)/dashboard' },

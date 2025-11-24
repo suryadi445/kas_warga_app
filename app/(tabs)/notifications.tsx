@@ -1,5 +1,5 @@
 import * as LinearGradientModule from 'expo-linear-gradient';
-import { collection, doc, onSnapshot, orderBy, query, updateDoc } from 'firebase/firestore';
+import { collection, doc, getDoc, onSnapshot, orderBy, query, updateDoc } from 'firebase/firestore';
 import React, { useEffect, useState } from 'react';
 import {
     FlatList,
@@ -11,7 +11,9 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import ListCardWrapper from '../../src/components/ListCardWrapper';
 import LoadMore from '../../src/components/LoadMore';
+import { useToast } from '../../src/contexts/ToastContext';
 import { db } from '../../src/firebaseConfig';
+import { getCurrentUser } from '../../src/services/authService';
 
 // safe LinearGradient reference
 const LinearGradient = (LinearGradientModule as any)?.LinearGradient ?? (LinearGradientModule as any)?.default ?? View;
@@ -28,6 +30,9 @@ type Notification = {
 };
 
 export default function NotificationsScreen() {
+    const { showToast } = useToast();
+    const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState<'all' | 'unread'>('all');
@@ -37,27 +42,40 @@ export default function NotificationsScreen() {
     const [loadingMore, setLoadingMore] = useState(false);
     const ITEMS_PER_PAGE = 10;
 
-    // Helper: get today string
-    const getTodayString = () => new Date().toISOString().split('T')[0];
-
-    // Load notifications from multiple Firestore collections
+    // Get current user ID on mount
     useEffect(() => {
+        const user = getCurrentUser();
+        if (user) {
+            setCurrentUserId(user.uid);
+        }
+    }, []);
+
+    // Load notifications from Firestore
+    useEffect(() => {
+        if (!currentUserId) return; // Wait for user ID
+
         const unsubs: (() => void)[] = [];
 
         (async () => {
             try {
-                // Listen to notifications collection (for read status)
+                // Listen to notifications collection
                 const qNotif = query(collection(db, 'notifications'), orderBy('date', 'desc'));
                 const unsubNotif = onSnapshot(qNotif, snap => {
                     const rows: Notification[] = snap.docs.map(d => {
                         const data = d.data() as any;
+
+                        // Check if current user has read this notification
+                        // We look at the 'readBy' array field
+                        const readBy = Array.isArray(data.readBy) ? data.readBy : [];
+                        const isReadByCurrentUser = readBy.includes(currentUserId);
+
                         return {
                             id: d.id,
                             title: data.title ?? '',
                             message: data.message ?? '',
                             type: data.type ?? 'info',
                             date: data.date ?? '',
-                            read: !!data.read,
+                            read: isReadByCurrentUser, // Determine read status based on user ID
                             category: data.category ?? '',
                             sourceCollection: data.sourceCollection ?? '',
                         };
@@ -76,15 +94,27 @@ export default function NotificationsScreen() {
         })();
 
         return () => unsubs.forEach(u => u());
-    }, []);
+    }, [currentUserId]); // Re-run when user ID changes
 
     // Handler: mark notification as read
     async function markAsRead(notifId: string) {
+        if (!currentUserId) return;
+
         try {
             const ref = doc(db, 'notifications', notifId);
-            await updateDoc(ref, { read: true });
-            // Update local state
-            setNotifications(prev => prev.map(n => n.id === notifId ? { ...n, read: true } : n));
+
+            const docSnap = await getDoc(ref);
+            if (docSnap.exists()) {
+                const data = docSnap.data();
+                const readBy = Array.isArray(data.readBy) ? data.readBy : [];
+
+                if (!readBy.includes(currentUserId)) {
+                    await updateDoc(ref, {
+                        readBy: [...readBy, currentUserId],
+                        read: true // Legacy support
+                    });
+                }
+            }
         } catch (e) {
             console.error('Failed to mark as read:', e);
         }
@@ -92,15 +122,34 @@ export default function NotificationsScreen() {
 
     // Handler: mark all displayed notifications as read
     async function markAllRead() {
+        if (!currentUserId) return;
+
         try {
-            const toMark = filteredNotifications.filter(n => !n.read).map(n => n.id);
+            // Only process unread ones
+            const toMark = notifications.filter(n => !n.read).map(n => n.id);
             if (toMark.length === 0) return;
-            // update each doc (could be batched if needed)
-            await Promise.all(toMark.map(id => updateDoc(doc(db, 'notifications', id), { read: true })));
-            // update local state for instant feedback
-            setNotifications(prev => prev.map(n => toMark.includes(n.id) ? { ...n, read: true } : n));
+
+            // Update each doc to include currentUserId in readBy
+            const updatePromises = toMark.map(async (id) => {
+                const ref = doc(db, 'notifications', id);
+                const docSnap = await getDoc(ref);
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    const readBy = Array.isArray(data.readBy) ? data.readBy : [];
+                    if (!readBy.includes(currentUserId)) {
+                        await updateDoc(ref, {
+                            readBy: [...readBy, currentUserId!],
+                            read: true
+                        });
+                    }
+                }
+            });
+
+            await Promise.all(updatePromises);
+            showToast(`${toMark.length} notifications marked as read`, 'success');
         } catch (e) {
             console.error('Failed to mark all read:', e);
+            showToast('Failed to mark all as read', 'error');
         }
     }
 
