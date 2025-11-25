@@ -55,7 +55,7 @@ try {
 }
 
 const MENU_ITEMS = [
-    { id: 'dashboard', label: 'Dashboard', icon: '🏠' },
+    { id: 'dashboard', label: 'Dashboard', icon: '🗂️' },
     { id: 'users', label: 'Users', icon: '👥' },
     { id: 'cash_reports', label: 'Cash Reports', icon: '💰' },
     { id: 'announcements', label: 'Announcements', icon: '📢' },

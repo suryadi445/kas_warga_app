@@ -55,8 +55,8 @@ export default function TabsLayout({ children }: { children: React.ReactNode }) 
     }, [currentUserId]); // Re-run when user ID changes
 
     const tabs = [
-        { id: 'home', label: 'Home', icon: '🏠', route: '/(tabs)/dashboard' },
-        { id: 'menu', label: 'Menu', icon: '☰', route: '/(tabs)' },
+        { id: 'dashboard', label: 'Dashboard', icon: '🗂️', route: '/(tabs)/dashboard' },
+        { id: 'home', label: 'Home', icon: '🏠', route: '/(tabs)' },
         { id: 'notifications', label: 'Notifikasi', icon: '🔔', route: '/(tabs)/notifications', badge: unreadCount },
         { id: 'profile', label: 'Akun', icon: '👤', route: '/(tabs)/profile' },
     ];
