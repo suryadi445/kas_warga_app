@@ -7,6 +7,7 @@ import {
     FlatList,
     Image,
     Modal,
+    RefreshControl,
     ScrollView,
     StatusBar,
     Text,
@@ -20,6 +21,7 @@ import ListCardWrapper from '../../src/components/ListCardWrapper';
 import LoadMore from '../../src/components/LoadMore';
 import { useToast } from '../../src/contexts/ToastContext';
 import { db } from '../../src/firebaseConfig';
+import { useRefresh } from '../../src/hooks/useRefresh';
 
 type Org = {
     id: string;
@@ -59,6 +61,7 @@ export default function OrganizationScreen() {
     const MEMBERS_PER_PAGE = 5;
     const [displayedCount, setDisplayedCount] = useState<number>(MEMBERS_PER_PAGE);
     const [loadingMore, setLoadingMore] = useState<boolean>(false);
+    const [refreshTrigger, setRefreshTrigger] = useState(0);
 
     // realtime listener for organization collection
     useEffect(() => {
@@ -83,7 +86,11 @@ export default function OrganizationScreen() {
             setLoadingOrg(false);
         });
         return () => unsub();
-    }, []);
+    }, [refreshTrigger]);
+
+    const { refreshing, onRefresh } = useRefresh(async () => {
+        setRefreshTrigger(prev => prev + 1);
+    });
 
     // Reset displayed count when items or search changes
     useEffect(() => {
@@ -405,6 +412,9 @@ export default function OrganizationScreen() {
                                 paddingBottom: 80
                             }}
                             showsVerticalScrollIndicator={false}
+                            refreshControl={
+                                <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#6366f1']} />
+                            }
                             ListEmptyComponent={() => (
                                 <View style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: 60 }}>
                                     <Text style={{ fontSize: 48, marginBottom: 12 }}>📭</Text>

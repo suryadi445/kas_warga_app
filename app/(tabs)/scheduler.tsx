@@ -5,6 +5,7 @@ import {
     ActivityIndicator,
     FlatList,
     Modal,
+    RefreshControl,
     ScrollView,
     StatusBar,
     Text,
@@ -19,6 +20,7 @@ import LoadMore from '../../src/components/LoadMore';
 import SelectInput from '../../src/components/SelectInput';
 import { useToast } from '../../src/contexts/ToastContext';
 import { db } from '../../src/firebaseConfig';
+import { useRefresh } from '../../src/hooks/useRefresh';
 
 type Schedule = {
     id: string;
@@ -69,6 +71,7 @@ export default function SchedulerScreen() {
     const SCHEDULES_PER_PAGE = 5;
     const [displayedCount, setDisplayedCount] = useState<number>(SCHEDULES_PER_PAGE);
     const [loadingMore, setLoadingMore] = useState<boolean>(false);
+    const [refreshTrigger, setRefreshTrigger] = useState(0);
 
     // Reset displayed count when items or filters change
     useEffect(() => {
@@ -99,7 +102,11 @@ export default function SchedulerScreen() {
             setLoadingSchedules(false);
         });
         return () => unsub();
-    }, []);
+    }, [refreshTrigger]);
+
+    const { refreshing, onRefresh } = useRefresh(async () => {
+        setRefreshTrigger(prev => prev + 1);
+    });
 
     // compute displayed items: apply frequency + days filters
     const displayedItems = items.filter(i => {
@@ -300,6 +307,9 @@ export default function SchedulerScreen() {
                                 paddingBottom: 80
                             }}
                             showsVerticalScrollIndicator={false}
+                            refreshControl={
+                                <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#6366f1']} />
+                            }
                             ListEmptyComponent={() => (
                                 <View style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: 60 }}>
                                     <Text style={{ fontSize: 48, marginBottom: 12 }}>📭</Text>

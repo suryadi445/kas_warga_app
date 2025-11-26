@@ -5,11 +5,12 @@ import {
     ActivityIndicator,
     FlatList,
     Modal,
+    RefreshControl,
     ScrollView,
     StatusBar,
     Text,
     TouchableOpacity,
-    View
+    View,
 } from 'react-native';
 import DateTimePickerModal from 'react-native-modal-datetime-picker';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -20,6 +21,7 @@ import LoadMore from '../../src/components/LoadMore';
 import SelectInput from '../../src/components/SelectInput';
 import { useToast } from '../../src/contexts/ToastContext';
 import { db } from '../../src/firebaseConfig';
+import { useRefresh } from '../../src/hooks/useRefresh';
 
 type Announcement = {
     id: string;
@@ -54,6 +56,7 @@ export default function AnnouncementsScreen() {
     const [operationLoading, setOperationLoading] = useState(false);
     const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false);
     const [itemToDelete, setItemToDelete] = useState<string | null>(null);
+    const [refreshTrigger, setRefreshTrigger] = useState(0);
 
     // Date/Time pickers
     const [startDatePickerVisible, setStartDatePickerVisible] = useState(false);
@@ -120,7 +123,12 @@ export default function AnnouncementsScreen() {
             setLoadingAnnouncements(false);
         });
         return () => unsub();
-    }, []);
+    }, [refreshTrigger]);
+
+    // Pull to refresh
+    const { refreshing, onRefresh } = useRefresh(async () => {
+        setRefreshTrigger(prev => prev + 1);
+    });
 
     function openAdd() {
         setEditingId(null);
@@ -420,6 +428,9 @@ export default function AnnouncementsScreen() {
                                 paddingBottom: 80
                             }}
                             showsVerticalScrollIndicator={false}
+                            refreshControl={
+                                <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#6366f1']} />
+                            }
                             renderItem={({ item }) => {
                                 const status = getAnnouncementStatus(item);
                                 const statusColors = {

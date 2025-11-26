@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, ScrollView, StatusBar, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, RefreshControl, ScrollView, StatusBar, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRefresh } from '../../src/hooks/useRefresh';
 
 // --- Helper: Hijri <-> Gregorian ---
 const HIJRI_MONTHS = [
@@ -65,18 +66,31 @@ export default function PrayerPage() {
         finally { setLoading(false); }
     }
 
+    async function fetchHolidays() {
+        try {
+            const res = await fetch('https://api-harilibur.vercel.app/api');
+            const data = await res.json();
+            const dates = data.filter((x: any) => x.is_national_holiday).map((x: any) => x.holiday_date);
+            setHolidays(dates);
+
+            const info: Record<string, string> = {};
+            data.forEach((x: any) => {
+                if (x.is_national_holiday) info[x.holiday_date] = x.holiday_name;
+            });
+            setHolidaysInfo(info);
+        } catch { }
+    }
+
     useEffect(() => {
         if (holidaysFetched.current) return;
         holidaysFetched.current = true;
-        fetch('https://api-harilibur.vercel.app/api')
-            .then(res => res.json())
-            .then(data => {
-                // Filter hanya libur nasional
-                const dates = data.filter((x: any) => x.is_national_holiday).map((x: any) => x.holiday_date);
-                setHolidays(dates);
-            })
-            .catch(() => { });
+        fetchHolidays();
     }, []);
+
+    // Use custom refresh hook
+    const { refreshing, onRefresh } = useRefresh(async () => {
+        await Promise.all([fetchTimes(), fetchHolidays()]);
+    });
 
     // Helper: get local ISO date string (YYYY-MM-DD) for given year, month, day
     function localIsoDate(year: number, month: number, day: number) {
@@ -266,7 +280,12 @@ export default function PrayerPage() {
                     View prayer times, qibla direction, and Hijri calendar with Indonesian national holidays.
                 </Text>
             </View>
-            <ScrollView contentContainerStyle={{ padding: 16 }}>
+            <ScrollView
+                contentContainerStyle={{ padding: 16 }}
+                refreshControl={
+                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#6366f1']} />
+                }
+            >
                 <View style={{ flexDirection: 'row', marginBottom: 12 }}>
                     <TouchableOpacity onPress={() => setTab('schedule')} style={{ flex: 1, padding: 10, backgroundColor: tab === 'schedule' ? '#6366f1' : '#F3F4F6', borderRadius: 8, marginRight: 8 }}>
                         <Text style={{ color: tab === 'schedule' ? '#fff' : '#111827', fontWeight: '700', textAlign: 'center' }}>Schedule</Text>

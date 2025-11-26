@@ -9,6 +9,7 @@ import {
     Modal,
     PermissionsAndroid,
     Platform,
+    RefreshControl,
     ScrollView,
     StatusBar,
     Text,
@@ -21,6 +22,7 @@ import ConfirmDialog from '../../src/components/ConfirmDialog';
 import FloatingLabelInput from '../../src/components/FloatingLabelInput';
 import { useToast } from '../../src/contexts/ToastContext';
 import { db } from '../../src/firebaseConfig';
+import { useRefresh } from '../../src/hooks/useRefresh';
 
 const MONTHS = [
     'January',
@@ -81,6 +83,7 @@ export default function SettingsScreen() {
 
     // NEW: permission dialog state
     const [permDialogVisible, setPermDialogVisible] = useState(false);
+    const [refreshTrigger, setRefreshTrigger] = useState(0);
 
     // reverse geocode using Nominatim (OpenStreetMap)
     async function reverseGeocode(lat: number | null, lon: number | null) {
@@ -139,7 +142,11 @@ export default function SettingsScreen() {
             }
         })();
         return () => { if (unsub) unsub(); };
-    }, []);
+    }, [refreshTrigger]);
+
+    const { refreshing, onRefresh } = useRefresh(async () => {
+        setRefreshTrigger(prev => prev + 1);
+    });
 
     // persist paymentMethods whenever it changes (write to Firestore + AsyncStorage fallback)
     useEffect(() => {
@@ -330,144 +337,150 @@ export default function SettingsScreen() {
         <SafeAreaView edges={['bottom']} style={{ flex: 1, backgroundColor: '#fff' }}>
             <StatusBar barStyle="dark-content" translucent backgroundColor="transparent" />
 
-            {/* Gradient Header Background */}
-            <LinearGradient
-                colors={['#6366f1', '#8b5cf6', '#a855f7']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={{ paddingTop: 20, paddingBottom: 100, borderBottomLeftRadius: 30, borderBottomRightRadius: 30 }}
+            <ScrollView
+                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#6366f1']} />}
+                contentContainerStyle={{ paddingBottom: 40 }}
+                showsVerticalScrollIndicator={false}
             >
-                <View style={{ paddingHorizontal: 20, alignItems: 'center' }}>
-                    {/* App Image with elegant frame */}
+                {/* Gradient Header Background */}
+                <LinearGradient
+                    colors={['#6366f1', '#8b5cf6', '#a855f7']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={{ paddingTop: 20, paddingBottom: 100, borderBottomLeftRadius: 30, borderBottomRightRadius: 30 }}
+                >
+                    <View style={{ paddingHorizontal: 20, alignItems: 'center' }}>
+                        {/* App Image with elegant frame */}
+                        <View style={{
+                            width: 110,
+                            height: 110,
+                            borderRadius: 55,
+                            backgroundColor: '#fff',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            marginBottom: 6,
+                            elevation: 8,
+                            shadowColor: '#000',
+                            shadowOffset: { width: 0, height: 4 },
+                            shadowOpacity: 0.2,
+                            shadowRadius: 8,
+                            padding: 4
+                        }}>
+                            <View style={{ width: 100, height: 100, borderRadius: 50, backgroundColor: '#F3F4F6', overflow: 'hidden', alignItems: 'center', justifyContent: 'center' }}>
+                                {appImage ? (
+                                    <Image source={{ uri: appImage }} style={{ width: '100%', height: '100%' }} />
+                                ) : (
+                                    <Text style={{ fontSize: 48 }}>🕌</Text>
+                                )}
+                            </View>
+                        </View>
+
+                        <Text style={{ color: '#fff', fontSize: 24, fontWeight: '800', textAlign: 'center', marginBottom: 6 }}>
+                            {appName}
+                        </Text>
+
+                        <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: 14, fontWeight: '500', textAlign: 'center' }}>
+                            {businessType}
+                        </Text>
+
+                        <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: 14, fontWeight: '500', textAlign: 'center' }}>
+                            {appDescription}
+                        </Text>
+                    </View>
+                </LinearGradient>
+
+                {/* Main Content Card - Overlapping with gradient */}
+                <View style={{ marginTop: -70, paddingHorizontal: 16 }}>
                     <View style={{
-                        width: 110,
-                        height: 110,
-                        borderRadius: 55,
                         backgroundColor: '#fff',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        marginBottom: 6,
+                        borderRadius: 24,
+                        padding: 20,
                         elevation: 8,
                         shadowColor: '#000',
                         shadowOffset: { width: 0, height: 4 },
-                        shadowOpacity: 0.2,
-                        shadowRadius: 8,
-                        padding: 4
+                        shadowOpacity: 0.12,
+                        shadowRadius: 12,
                     }}>
-                        <View style={{ width: 100, height: 100, borderRadius: 50, backgroundColor: '#F3F4F6', overflow: 'hidden', alignItems: 'center', justifyContent: 'center' }}>
-                            {appImage ? (
-                                <Image source={{ uri: appImage }} style={{ width: '100%', height: '100%' }} />
-                            ) : (
-                                <Text style={{ fontSize: 48 }}>🕌</Text>
-                            )}
-                        </View>
-                    </View>
-
-                    <Text style={{ color: '#fff', fontSize: 24, fontWeight: '800', textAlign: 'center', marginBottom: 6 }}>
-                        {appName}
-                    </Text>
-
-                    <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: 14, fontWeight: '500', textAlign: 'center' }}>
-                        {businessType}
-                    </Text>
-
-                    <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: 14, fontWeight: '500', textAlign: 'center' }}>
-                        {appDescription}
-                    </Text>
-                </View>
-            </LinearGradient>
-
-            {/* Main Content Card - Overlapping with gradient */}
-            <View style={{ marginTop: -70, paddingHorizontal: 16, flex: 1 }}>
-                <View style={{
-                    backgroundColor: '#fff',
-                    borderRadius: 24,
-                    padding: 20,
-                    elevation: 8,
-                    shadowColor: '#000',
-                    shadowOffset: { width: 0, height: 4 },
-                    shadowOpacity: 0.12,
-                    shadowRadius: 12,
-                }}>
-                    {/* Phone - full row */}
-                    <View style={{ backgroundColor: '#F9FAFB', borderRadius: 12, padding: 12, marginBottom: 10 }}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                            <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: '#DBEAFE', alignItems: 'center', justifyContent: 'center', marginRight: 8 }}>
-                                <Text style={{ fontSize: 14 }}>📞</Text>
-                            </View>
-                            <View style={{ flex: 1 }}>
-                                <Text style={{ color: '#9CA3AF', fontSize: 10, fontWeight: '600' }}>Phone</Text>
-                                <Text numberOfLines={1} style={{ color: '#111827', fontSize: 13, fontWeight: '600' }}>{phone}</Text>
-                            </View>
-                        </View>
-                    </View>
-
-                    {/* Email - full row */}
-                    <View style={{ backgroundColor: '#F9FAFB', borderRadius: 12, padding: 12, marginBottom: 10 }}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                            <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: '#FEF3C7', alignItems: 'center', justifyContent: 'center', marginRight: 8 }}>
-                                <Text style={{ fontSize: 14 }}>✉️</Text>
-                            </View>
-                            <View style={{ flex: 1 }}>
-                                <Text style={{ color: '#9CA3AF', fontSize: 10, fontWeight: '600' }}>Email</Text>
-                                <Text numberOfLines={1} style={{ color: '#111827', fontSize: 13, fontWeight: '600' }}>{email}</Text>
-                            </View>
-                        </View>
-                    </View>
-
-                    {/* Address - full row */}
-                    <View style={{ backgroundColor: '#F9FAFB', borderRadius: 12, padding: 12, marginBottom: 10 }}>
-                        <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
-                            <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: '#D1FAE5', alignItems: 'center', justifyContent: 'center', marginRight: 8 }}>
-                                <Text style={{ fontSize: 14 }}>📍</Text>
-                            </View>
-                            <View style={{ flex: 1 }}>
-                                <Text style={{ color: '#9CA3AF', fontSize: 10, fontWeight: '600', marginBottom: 2 }}>Address</Text>
-                                <Text style={{ color: '#111827', fontSize: 12, lineHeight: 16 }}>{address}</Text>
-                            </View>
-                        </View>
-                    </View>
-
-                    {/* Bank Account - full row (if exists) */}
-                    {bankAccount && (
+                        {/* Phone - full row */}
                         <View style={{ backgroundColor: '#F9FAFB', borderRadius: 12, padding: 12, marginBottom: 10 }}>
                             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                                <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: '#FCE7F3', alignItems: 'center', justifyContent: 'center', marginRight: 8 }}>
-                                    <Text style={{ fontSize: 14 }}>🏦</Text>
+                                <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: '#DBEAFE', alignItems: 'center', justifyContent: 'center', marginRight: 8 }}>
+                                    <Text style={{ fontSize: 14 }}>📞</Text>
                                 </View>
                                 <View style={{ flex: 1 }}>
-                                    <Text style={{ color: '#9CA3AF', fontSize: 10, fontWeight: '600' }}>Bank Account</Text>
-                                    <Text numberOfLines={1} style={{ color: '#111827', fontSize: 12, fontWeight: '600' }}>{bankAccount}</Text>
+                                    <Text style={{ color: '#9CA3AF', fontSize: 10, fontWeight: '600' }}>Phone</Text>
+                                    <Text numberOfLines={1} style={{ color: '#111827', fontSize: 13, fontWeight: '600' }}>{phone}</Text>
                                 </View>
                             </View>
                         </View>
-                    )}
 
-                    {/* Edit Button - always visible */}
-                    <TouchableOpacity
-                        onPress={() => { setTmpLat(latitude); setTmpLng(longitude); setModalVisible(true); }}
-                        style={{ marginTop: 4 }}
-                    >
-                        <LinearGradient
-                            colors={['#6366f1', '#8b5cf6']}
-                            start={{ x: 0, y: 0 }}
-                            end={{ x: 1, y: 0 }}
-                            style={{
-                                paddingVertical: 14,
-                                borderRadius: 12,
-                                alignItems: 'center',
-                                elevation: 4,
-                                shadowColor: '#6366f1',
-                                shadowOffset: { width: 0, height: 2 },
-                                shadowOpacity: 0.3,
-                                shadowRadius: 6
-                            }}
+                        {/* Email - full row */}
+                        <View style={{ backgroundColor: '#F9FAFB', borderRadius: 12, padding: 12, marginBottom: 10 }}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: '#FEF3C7', alignItems: 'center', justifyContent: 'center', marginRight: 8 }}>
+                                    <Text style={{ fontSize: 14 }}>✉️</Text>
+                                </View>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={{ color: '#9CA3AF', fontSize: 10, fontWeight: '600' }}>Email</Text>
+                                    <Text numberOfLines={1} style={{ color: '#111827', fontSize: 13, fontWeight: '600' }}>{email}</Text>
+                                </View>
+                            </View>
+                        </View>
+
+                        {/* Address - full row */}
+                        <View style={{ backgroundColor: '#F9FAFB', borderRadius: 12, padding: 12, marginBottom: 10 }}>
+                            <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
+                                <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: '#D1FAE5', alignItems: 'center', justifyContent: 'center', marginRight: 8 }}>
+                                    <Text style={{ fontSize: 14 }}>📍</Text>
+                                </View>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={{ color: '#9CA3AF', fontSize: 10, fontWeight: '600', marginBottom: 2 }}>Address</Text>
+                                    <Text style={{ color: '#111827', fontSize: 12, lineHeight: 16 }}>{address}</Text>
+                                </View>
+                            </View>
+                        </View>
+
+                        {/* Bank Account - full row (if exists) */}
+                        {bankAccount && (
+                            <View style={{ backgroundColor: '#F9FAFB', borderRadius: 12, padding: 12, marginBottom: 10 }}>
+                                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                    <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: '#FCE7F3', alignItems: 'center', justifyContent: 'center', marginRight: 8 }}>
+                                        <Text style={{ fontSize: 14 }}>🏦</Text>
+                                    </View>
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={{ color: '#9CA3AF', fontSize: 10, fontWeight: '600' }}>Bank Account</Text>
+                                        <Text numberOfLines={1} style={{ color: '#111827', fontSize: 12, fontWeight: '600' }}>{bankAccount}</Text>
+                                    </View>
+                                </View>
+                            </View>
+                        )}
+
+                        {/* Edit Button - always visible */}
+                        <TouchableOpacity
+                            onPress={() => { setTmpLat(latitude); setTmpLng(longitude); setModalVisible(true); }}
+                            style={{ marginTop: 4 }}
                         >
-                            <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>✏️ Edit Settings</Text>
-                        </LinearGradient>
-                    </TouchableOpacity>
+                            <LinearGradient
+                                colors={['#6366f1', '#8b5cf6']}
+                                start={{ x: 0, y: 0 }}
+                                end={{ x: 1, y: 0 }}
+                                style={{
+                                    paddingVertical: 14,
+                                    borderRadius: 12,
+                                    alignItems: 'center',
+                                    elevation: 4,
+                                    shadowColor: '#6366f1',
+                                    shadowOffset: { width: 0, height: 2 },
+                                    shadowOpacity: 0.3,
+                                    shadowRadius: 6
+                                }}
+                            >
+                                <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>✏️ Edit Settings</Text>
+                            </LinearGradient>
+                        </TouchableOpacity>
+                    </View>
                 </View>
-            </View>
+            </ScrollView>
 
             {/* Edit Settings Modal - Full form */}
             <Modal visible={modalVisible} animationType="slide" transparent onRequestClose={() => setModalVisible(false)}>

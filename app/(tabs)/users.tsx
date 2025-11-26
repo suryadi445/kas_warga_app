@@ -7,6 +7,7 @@ import {
     FlatList,
     Modal,
     Platform,
+    RefreshControl,
     ScrollView,
     StatusBar,
     Text,
@@ -23,6 +24,7 @@ import LoadMore from '../../src/components/LoadMore';
 import SelectInput from '../../src/components/SelectInput';
 import { useToast } from '../../src/contexts/ToastContext';
 import { db } from '../../src/firebaseConfig';
+import { useRefresh } from '../../src/hooks/useRefresh';
 import { getCurrentUser } from '../../src/services/authService';
 
 type User = {
@@ -141,6 +143,8 @@ export default function UsersScreen() {
     useEffect(() => {
         setDisplayedCount(USERS_PER_PAGE);
     }, [users, roleFilter, searchQuery]);
+
+    const { refreshing, onRefresh } = useRefresh(loadUsers);
 
     // Load more handler
     const handleLoadMore = () => {
@@ -715,6 +719,9 @@ export default function UsersScreen() {
                             paddingBottom: 80
                         }}
                         showsVerticalScrollIndicator={false}
+                        refreshControl={
+                            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#6366f1']} />
+                        }
                         keyboardShouldPersistTaps="handled"
                         // Load more pagination
                         onEndReached={handleLoadMore}

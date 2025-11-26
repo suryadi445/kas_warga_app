@@ -7,6 +7,7 @@ import {
     FlatList,
     Image,
     Modal,
+    RefreshControl,
     ScrollView,
     StatusBar,
     Text,
@@ -21,6 +22,7 @@ import LoadMore from '../../src/components/LoadMore';
 import SelectInput from '../../src/components/SelectInput';
 import { useToast } from '../../src/contexts/ToastContext';
 import { db } from '../../src/firebaseConfig';
+import { useRefresh } from '../../src/hooks/useRefresh';
 
 type Documentation = {
     id: string;
@@ -57,6 +59,7 @@ export default function DocumentationScreen() {
     const DOCS_PER_PAGE = 5;
     const [displayedCount, setDisplayedCount] = useState<number>(DOCS_PER_PAGE);
     const [loadingMore, setLoadingMore] = useState<boolean>(false);
+    const [refreshTrigger, setRefreshTrigger] = useState(0);
 
     // realtime listener for activities collection (so picker uses actual activities module)
     useEffect(() => {
@@ -98,7 +101,11 @@ export default function DocumentationScreen() {
             setLoadingDocs(false);
         });
         return () => unsub();
-    }, []);
+    }, [refreshTrigger]);
+
+    const { refreshing, onRefresh } = useRefresh(async () => {
+        setRefreshTrigger(prev => prev + 1);
+    });
 
     // Reset displayed count when items or filters change
     useEffect(() => {
@@ -326,6 +333,9 @@ export default function DocumentationScreen() {
                                 paddingBottom: 80
                             }}
                             showsVerticalScrollIndicator={false}
+                            refreshControl={
+                                <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#6366f1']} />
+                            }
                             ListEmptyComponent={() => (
                                 <View style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: 60 }}>
                                     <Text style={{ fontSize: 48, marginBottom: 12 }}>📭</Text>

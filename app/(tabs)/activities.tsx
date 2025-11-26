@@ -6,6 +6,7 @@ import {
     FlatList,
     Modal,
     Platform,
+    RefreshControl,
     ScrollView,
     StatusBar,
     Text,
@@ -21,6 +22,7 @@ import LoadMore from '../../src/components/LoadMore';
 import SelectInput from '../../src/components/SelectInput';
 import { useToast } from '../../src/contexts/ToastContext';
 import { db } from '../../src/firebaseConfig';
+import { useRefresh } from '../../src/hooks/useRefresh';
 
 type Activity = {
     id: string;
@@ -30,10 +32,6 @@ type Activity = {
     time: string; // HH:MM
     description: string;
 };
-
-const SAMPLE_ACTIVITIES: Activity[] = [
-    { id: 'act1', title: 'Senam Pagi', location: 'Lapangan RW', date: '2024-06-10', time: '07:00', description: 'Senam bersama warga setiap minggu.' },
-];
 
 export default function ActivitiesScreen() {
     const { showToast } = useToast();
@@ -45,6 +43,7 @@ export default function ActivitiesScreen() {
     const [operationLoading, setOperationLoading] = useState(false);
     const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false);
     const [itemToDelete, setItemToDelete] = useState<string | null>(null);
+    const [refreshTrigger, setRefreshTrigger] = useState(0);
 
     const [title, setTitle] = useState('');
     const [location, setLocation] = useState('');
@@ -102,7 +101,12 @@ export default function ActivitiesScreen() {
             setLoadingActivities(false);
         });
         return () => unsub();
-    }, []);
+    }, [refreshTrigger]);
+
+    // Pull to refresh
+    const { refreshing, onRefresh } = useRefresh(async () => {
+        setRefreshTrigger(prev => prev + 1);
+    });
 
     function openAdd() {
         setEditingId(null);
@@ -480,6 +484,9 @@ export default function ActivitiesScreen() {
                                 paddingBottom: 80
                             }}
                             showsVerticalScrollIndicator={false}
+                            refreshControl={
+                                <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#6366f1']} />
+                            }
                             ListEmptyComponent={() => (
                                 <View style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: 60 }}>
                                     <Text style={{ fontSize: 48, marginBottom: 12 }}>📭</Text>

@@ -1,12 +1,13 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { collection, onSnapshot, orderBy, query } from 'firebase/firestore';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Dimensions, FlatList, StatusBar, Text, TouchableOpacity, View } from 'react-native';
+import { Dimensions, FlatList, RefreshControl, StatusBar, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import ListCardWrapper from '../../src/components/ListCardWrapper';
 // ADDED: LoadMore footer component
 import LoadMore from '../../src/components/LoadMore';
 import { db } from '../../src/firebaseConfig';
+import { useRefresh } from '../../src/hooks/useRefresh';
 
 /**
  * Dashboard with tabs:
@@ -69,6 +70,7 @@ export default function DashboardPage() {
     const ACTIVITIES_PER_PAGE = 5;
     const [activitiesDisplayedCount, setActivitiesDisplayedCount] = useState<number>(ACTIVITIES_PER_PAGE);
     const [activitiesLoadingMore, setActivitiesLoadingMore] = useState<boolean>(false);
+    const [refreshTrigger, setRefreshTrigger] = useState(0);
 
     // reset displayed count when schedules update
     useEffect(() => {
@@ -98,18 +100,18 @@ export default function DashboardPage() {
         setTimeout(() => {
             setScheduleDisplayedCount(prev => Math.min(prev + SCHEDULES_PER_PAGE, schedules.length));
             setScheduleLoadingMore(false);
-        }, 400);
+        }, 300);
     };
 
     const handleCashLoadMore = () => {
         if (cashLoadingMore) return;
-        const visibleLength = cashTotalsFiltered.visible?.length || 0;
+        const visibleLength = cashTotalsFiltered.visible.length;
         if (cashDisplayedCount >= visibleLength) return;
         setCashLoadingMore(true);
         setTimeout(() => {
             setCashDisplayedCount(prev => Math.min(prev + CASH_PER_PAGE, visibleLength));
             setCashLoadingMore(false);
-        }, 400);
+        }, 300);
     };
 
     const handleAnnouncementsLoadMore = () => {
@@ -119,7 +121,7 @@ export default function DashboardPage() {
         setTimeout(() => {
             setAnnouncementsDisplayedCount(prev => Math.min(prev + ANNOUNCEMENTS_PER_PAGE, announcements.length));
             setAnnouncementsLoadingMore(false);
-        }, 400);
+        }, 300);
     };
 
     const handleActivitiesLoadMore = () => {
@@ -129,7 +131,7 @@ export default function DashboardPage() {
         setTimeout(() => {
             setActivitiesDisplayedCount(prev => Math.min(prev + ACTIVITIES_PER_PAGE, activities.length));
             setActivitiesLoadingMore(false);
-        }, 400);
+        }, 300);
     };
 
     // NEW: get today's date string (YYYY-MM-DD)
@@ -239,7 +241,12 @@ export default function DashboardPage() {
         } catch (e) { /* ignore */ }
 
         return () => subs.forEach(u => u());
-    }, []);
+    }, [refreshTrigger]);
+
+    // Pull to refresh
+    const { refreshing, onRefresh } = useRefresh(async () => {
+        setRefreshTrigger(prev => prev + 1);
+    });
 
     // Aggregations
     const cashTotals = useMemo(() => {
@@ -305,6 +312,9 @@ export default function DashboardPage() {
                             paddingBottom: 80
                         }}
                         showsVerticalScrollIndicator={false}
+                        refreshControl={
+                            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#6366f1']} />
+                        }
                         ListEmptyComponent={() => (
                             <View style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: 60 }}>
                                 <Text style={{ fontSize: 48, marginBottom: 12 }}>📭</Text>
@@ -415,6 +425,9 @@ export default function DashboardPage() {
                         // give horizontal gap so announcement cards don't touch edges
                         contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 80 }}
                         showsVerticalScrollIndicator={false}
+                        refreshControl={
+                            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#6366f1']} />
+                        }
                         ListEmptyComponent={() => (
                             <View style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: 60 }}>
                                 <Text style={{ fontSize: 48, marginBottom: 12 }}>📭</Text>
@@ -530,6 +543,9 @@ export default function DashboardPage() {
                         keyExtractor={(i) => i.id}
                         contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 80 }}
                         showsVerticalScrollIndicator={false}
+                        refreshControl={
+                            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#6366f1']} />
+                        }
                         ListEmptyComponent={() => (
                             <View style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: 60 }}>
                                 <Text style={{ fontSize: 48, marginBottom: 12 }}>📭</Text>
@@ -654,6 +670,9 @@ export default function DashboardPage() {
                         keyExtractor={(i) => i.id}
                         contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 80 }}
                         showsVerticalScrollIndicator={false}
+                        refreshControl={
+                            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#6366f1']} />
+                        }
                         ListEmptyComponent={() => (
                             <View style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: 60 }}>
                                 <Text style={{ fontSize: 48, marginBottom: 12 }}>📭</Text>

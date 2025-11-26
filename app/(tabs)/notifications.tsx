@@ -3,6 +3,7 @@ import { collection, doc, getDoc, onSnapshot, orderBy, query, updateDoc } from '
 import React, { useEffect, useState } from 'react';
 import {
     FlatList,
+    RefreshControl,
     StatusBar,
     Text,
     TouchableOpacity,
@@ -13,6 +14,7 @@ import ListCardWrapper from '../../src/components/ListCardWrapper';
 import LoadMore from '../../src/components/LoadMore';
 import { useToast } from '../../src/contexts/ToastContext';
 import { db } from '../../src/firebaseConfig';
+import { useRefresh } from '../../src/hooks/useRefresh';
 import { getCurrentUser } from '../../src/services/authService';
 
 // safe LinearGradient reference
@@ -41,6 +43,7 @@ export default function NotificationsScreen() {
     const [displayedCount, setDisplayedCount] = useState(10);
     const [loadingMore, setLoadingMore] = useState(false);
     const ITEMS_PER_PAGE = 10;
+    const [refreshTrigger, setRefreshTrigger] = useState(0);
 
     // Get current user ID on mount
     useEffect(() => {
@@ -94,7 +97,11 @@ export default function NotificationsScreen() {
         })();
 
         return () => unsubs.forEach(u => u());
-    }, [currentUserId]); // Re-run when user ID changes
+    }, [currentUserId, refreshTrigger]); // Re-run when user ID changes
+
+    const { refreshing, onRefresh } = useRefresh(async () => {
+        setRefreshTrigger(prev => prev + 1);
+    });
 
     // Handler: mark notification as read
     async function markAsRead(notifId: string) {
@@ -360,6 +367,9 @@ export default function NotificationsScreen() {
                                 paddingBottom: 80
                             }}
                             showsVerticalScrollIndicator={false}
+                            refreshControl={
+                                <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#6366f1']} />
+                            }
                             ListEmptyComponent={() => (
                                 <View style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: 60 }}>
                                     <Text style={{ fontSize: 48, marginBottom: 12 }}>📭</Text>

@@ -9,6 +9,7 @@ import {
     ActivityIndicator,
     Image, // ADD: Import Image component
     Platform,
+    RefreshControl,
     ScrollView,
     StatusBar,
     Text,
@@ -22,6 +23,7 @@ import ConfirmDialog from '../../src/components/ConfirmDialog';
 import ListCardWrapper from '../../src/components/ListCardWrapper';
 import { useToast } from '../../src/contexts/ToastContext';
 import { db } from '../../src/firebaseConfig';
+import { useRefresh } from '../../src/hooks/useRefresh';
 import { getCurrentUser, signOut } from '../../src/services/authService';
 
 // safe LinearGradient reference
@@ -90,6 +92,11 @@ export default function ProfilePage() {
             loadUserProfile();
         }, [])
     );
+
+    // Pull to refresh
+    const { refreshing, onRefresh } = useRefresh(async () => {
+        await loadUserProfile();
+    });
 
     async function loadUserProfile() {
         try {
@@ -462,6 +469,9 @@ export default function ProfilePage() {
                 style={{ flex: 1, paddingHorizontal: 10 }}
                 contentContainerStyle={{ paddingBottom: 20 }}
                 showsVerticalScrollIndicator={false}
+                refreshControl={
+                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#6366f1']} />
+                }
             >
                 <ListCardWrapper style={{ marginHorizontal: 0, marginBottom: 16 }}>
                     <View style={{ padding: 20 }}>

@@ -2,7 +2,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { LinearGradient } from 'expo-linear-gradient';
 import { addDoc, collection, doc, getDocs, orderBy, query, updateDoc } from 'firebase/firestore';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Dimensions, FlatList, Modal, PermissionsAndroid, Platform, ScrollView, StatusBar, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Dimensions, FlatList, Modal, PermissionsAndroid, Platform, RefreshControl, ScrollView, StatusBar, Text, TouchableOpacity, View, } from 'react-native';
 import DateTimePickerModal from 'react-native-modal-datetime-picker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import CardItem from '../../src/components/CardItem';
@@ -13,6 +13,7 @@ import { useToast } from '../../src/contexts/ToastContext';
 import { db } from '../../src/firebaseConfig';
 // ADDED: reusable wrapper component import
 import ListCardWrapper from '../../src/components/ListCardWrapper';
+import { useRefresh } from '../../src/hooks/useRefresh';
 
 type Report = {
     id: string;
@@ -103,6 +104,11 @@ export default function CashReportsScreen() {
         })();
         return () => { mounted = false; };
     }, []);
+
+    // Pull to refresh
+    const { refreshing, onRefresh } = useRefresh(async () => {
+        await loadReports();
+    });
 
     const today = new Date();
     const pad = (n: number) => (n < 10 ? `0${n}` : `${n}`);
@@ -763,6 +769,9 @@ export default function CashReportsScreen() {
                         paddingBottom: 80
                     }}
                     showsVerticalScrollIndicator={false}
+                    refreshControl={
+                        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#6366f1']} />
+                    }
                     initialNumToRender={5}
                     maxToRenderPerBatch={5}
                     windowSize={10}
