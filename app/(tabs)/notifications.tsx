@@ -61,30 +61,52 @@ export default function NotificationsScreen() {
 
         (async () => {
             try {
-                // Listen to notifications collection
+                // Listen to notifications collection — order by `date` (most documents use `date` field)
+                // Fallback to `createdAt` if needed per-document when normalizing below.
                 const qNotif = query(collection(db, 'notifications'), orderBy('date', 'desc'));
                 const unsubNotif = onSnapshot(qNotif, snap => {
+                    // debug to ensure snapshot fires
+                    console.debug('notifications snapshot:', snap.size, 'docs:', snap.docs.map(d => d.id));
+
                     const rows: Notification[] = snap.docs.map(d => {
                         const data = d.data() as any;
 
                         // Check if current user has read this notification
-                        // We look at the 'readBy' array field
                         const readBy = Array.isArray(data.readBy) ? data.readBy : [];
                         const isReadByCurrentUser = readBy.includes(currentUserId);
+
+                        // Normalize date: prefer data.date (string) else createdAt (Timestamp)
+                        let dateStr = '';
+                        const rawDate = data.date ?? data.createdAt;
+                        if (rawDate) {
+                            if (typeof rawDate === 'string') {
+                                dateStr = rawDate;
+                            } else if (typeof rawDate?.toDate === 'function') {
+                                dateStr = rawDate.toDate().toISOString();
+                            } else if (rawDate?.seconds) {
+                                dateStr = new Date(rawDate.seconds * 1000).toISOString();
+                            }
+                        }
 
                         return {
                             id: d.id,
                             title: data.title ?? '',
                             message: data.message ?? '',
                             type: data.type ?? 'info',
-                            date: data.date ?? '',
-                            read: isReadByCurrentUser, // Determine read status based on user ID
+                            date: dateStr,
+                            read: isReadByCurrentUser,
                             category: data.category ?? '',
                             sourceCollection: data.sourceCollection ?? '',
                         };
                     });
-                    // Sort by date descending
-                    rows.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+                    // Sort by normalized date descending (fallback to insertion order)
+                    rows.sort((a, b) => {
+                        const ta = a.date ? new Date(a.date).getTime() : 0;
+                        const tb = b.date ? new Date(b.date).getTime() : 0;
+                        return tb - ta;
+                    });
+
                     setNotifications(rows);
                     setLoading(false);
                 });
@@ -98,6 +120,11 @@ export default function NotificationsScreen() {
 
         return () => unsubs.forEach(u => u());
     }, [currentUserId, refreshTrigger]); // Re-run when user ID changes
+
+    // reset displayed count when notifications list changes (new items should show)
+    useEffect(() => {
+        setDisplayedCount(ITEMS_PER_PAGE);
+    }, [notifications]);
 
     const { refreshing, onRefresh } = useRefresh(async () => {
         setRefreshTrigger(prev => prev + 1);
