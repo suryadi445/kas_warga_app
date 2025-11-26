@@ -56,7 +56,7 @@ export default function RegisterScreen() {
     }
 
     return (
-        <SafeAreaView style={{ flex: 1, backgroundColor: '#6366f1' }}>
+        <SafeAreaView edges={[]} style={{ flex: 1, backgroundColor: 'transparent' }}>
             <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
 
             {/* Full Screen Gradient Background */}
