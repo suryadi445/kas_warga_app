@@ -328,48 +328,119 @@ export default function OrganizationScreen() {
     };
 
     return (
-        <SafeAreaView edges={['bottom']} style={{ flex: 1, backgroundColor: '#fff' }}>
+        <SafeAreaView edges={['bottom']} style={{ flex: 1, backgroundColor: '#F8FAFC' }}>
             <StatusBar barStyle="dark-content" translucent backgroundColor="transparent" />
-            <View style={{ padding: 16, alignItems: 'center' }}>
-                <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: '#6366f1', alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
-                    <Text style={{ color: '#fff', fontSize: 32 }}>👥</Text>
-                </View>
-                <Text style={{ color: '#6366f1', fontSize: 20, fontWeight: '700' }}>Organization Structure</Text>
-                <Text style={{ color: '#6B7280', marginTop: 4, textAlign: 'center' }}>
-                    Manage members and positions in your community organization.
-                </Text>
-            </View>
 
-            {/* Summary card (total members + leaders) */}
-            <View style={{ paddingHorizontal: 16, marginBottom: 12 }}>
-                <LinearGradient
-                    colors={['#ffffff', '#f8fafc']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0 }}
-                    style={{ borderRadius: 14, padding: 14, elevation: 3 }}
-                >
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <View>
-                            <Text style={{ fontSize: 20, fontWeight: '700', marginTop: 1, color: '#6B7280' }}>
-                                {items.length} Members
-                            </Text>
-                            <Text style={{ color: '#6B7280', fontSize: 12, marginTop: 6 }}>
-                                Leaders: {items.filter(i => i.leader).length}
-                            </Text>
-                        </View>
-                        <View style={{ backgroundColor: '#F3F4F6', paddingVertical: 6, paddingHorizontal: 12, borderRadius: 999 }}>
-                            {/* show total non-leader members */}
-                            <Text style={{ color: '#374151', fontWeight: '600' }}>{items.filter(i => !i.leader).length} Non-leaders</Text>
-                        </View>
+            {/* Purple Gradient Background for Header */}
+            <LinearGradient
+                colors={['#7c3aed', '#6366f1']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    height: 200,
+                }}
+            />
+
+            {/* Header - Horizontal Layout */}
+            <View style={{ paddingHorizontal: 16, paddingTop: 10, paddingBottom: 12 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+                    {/* Icon on left */}
+                    <View style={{
+                        width: 64,
+                        height: 64,
+                        borderRadius: 32,
+                        backgroundColor: 'rgba(255, 255, 255, 0.15)',
+                        backdropFilter: 'blur(10px)',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        borderWidth: 2,
+                        borderColor: 'rgba(255, 255, 255, 0.3)',
+                        shadowColor: '#000',
+                        shadowOffset: { width: 0, height: 4 },
+                        shadowOpacity: 0.2,
+                        shadowRadius: 8,
+                        elevation: 6
+                    }}>
+                        <Text style={{ fontSize: 32 }}>👥</Text>
                     </View>
-                </LinearGradient>
+
+                    {/* Text on right */}
+                    <View style={{ flex: 1 }}>
+                        <Text style={{ color: '#FFFFFF', fontSize: 22, fontWeight: '800', letterSpacing: 0.3 }}>Organization</Text>
+                        <Text style={{ color: 'rgba(255, 255, 255, 0.85)', marginTop: 4, fontSize: 13, lineHeight: 18 }}>
+                            Manage members and positions in your community organization.
+                        </Text>
+                    </View>
+                </View>
             </View>
 
-            {/* Search + Add Member (single row, 2 columns) */}
-            <View style={{ paddingHorizontal: 16, marginBottom: 12 }}>
-                <View style={{ flexDirection: 'row', gap: 12, alignItems: 'flex-end' }}>
-                    {/* Left: Search using FloatingLabelInput */}
-                    <View style={{ flex: 1 }}>
+            {/* Summary card - Compact Style */}
+            <View style={{ paddingHorizontal: 20, marginBottom: 12 }}>
+                <View style={{
+                    flexDirection: 'row',
+                    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+                    borderRadius: 12,
+                    padding: 3,
+                    borderWidth: 1,
+                    borderColor: 'rgba(255, 255, 255, 0.25)'
+                }}>
+                    <View style={{
+                        flex: 1,
+                        paddingVertical: 8,
+                        backgroundColor: '#FFFFFF',
+                        borderRadius: 9,
+                        alignItems: 'center',
+                        shadowColor: '#000',
+                        shadowOffset: { width: 0, height: 2 },
+                        shadowOpacity: 0.1,
+                        shadowRadius: 4,
+                        elevation: 2
+                    }}>
+                        <Text style={{ color: '#7C3AED', fontWeight: '700', fontSize: 11 }}>👥 Total</Text>
+                        <Text style={{ color: '#7C3AED', fontWeight: '800', fontSize: 16, marginTop: 1 }}>{items.length}</Text>
+                    </View>
+                    <View style={{
+                        flex: 1,
+                        paddingVertical: 8,
+                        alignItems: 'center',
+                    }}>
+                        <Text style={{ color: 'rgba(255, 255, 255, 0.9)', fontWeight: '700', fontSize: 11 }}>★ Leaders</Text>
+                        <Text style={{ color: 'rgba(255, 255, 255, 0.9)', fontWeight: '800', fontSize: 16, marginTop: 1 }}>{items.filter(i => i.leader).length}</Text>
+                    </View>
+                    <View style={{
+                        flex: 1,
+                        paddingVertical: 8,
+                        alignItems: 'center',
+                    }}>
+                        <Text style={{ color: 'rgba(255, 255, 255, 0.9)', fontWeight: '700', fontSize: 11 }}>● Members</Text>
+                        <Text style={{ color: 'rgba(255, 255, 255, 0.9)', fontWeight: '800', fontSize: 16, marginTop: 1 }}>{items.filter(i => !i.leader).length}</Text>
+                    </View>
+                </View>
+            </View>
+
+            {/* Search & Add Button - On Purple Gradient */}
+            <View style={{ paddingHorizontal: 20, marginBottom: 12 }}>
+                <View style={{
+                    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                    borderRadius: 16,
+                    padding: 14,
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: 6 },
+                    shadowOpacity: 0.12,
+                    shadowRadius: 16,
+                    elevation: 6,
+                    borderWidth: 1,
+                    borderColor: 'rgba(255, 255, 255, 0.3)',
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 12
+                }}>
+                    {/* Left: Search Input */}
+                    <View style={{ flex: 1.5 }}>
                         <FloatingLabelInput
                             label="Search"
                             value={searchQuery}
@@ -379,16 +450,27 @@ export default function OrganizationScreen() {
                         />
                     </View>
 
-                    {/* Right: Add Member */}
-                    <View style={{ width: 140 }}>
-                        <TouchableOpacity disabled={operationLoading} onPress={openAdd}>
+                    {/* Right: Add Button */}
+                    <View style={{ flex: 1 }}>
+                        <TouchableOpacity disabled={operationLoading} onPress={openAdd} activeOpacity={0.9}>
                             <LinearGradient
-                                colors={['#10B981', '#059669']}
+                                colors={['#7c3aed', '#6366f1']}
                                 start={{ x: 0, y: 0 }}
                                 end={{ x: 1, y: 0 }}
-                                style={{ paddingVertical: 12, borderRadius: 999, alignItems: 'center', elevation: 3 }}
+                                style={{
+                                    paddingVertical: 12,
+                                    borderRadius: 10,
+                                    alignItems: 'center',
+                                    shadowColor: '#7c3aed',
+                                    shadowOffset: { width: 0, height: 2 },
+                                    shadowOpacity: 0.2,
+                                    shadowRadius: 4,
+                                    elevation: 2,
+                                    height: 50,
+                                    justifyContent: 'center'
+                                }}
                             >
-                                <Text style={{ color: '#fff', fontWeight: '700', fontSize: 16 }}>+ Member</Text>
+                                <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>+ Add</Text>
                             </LinearGradient>
                         </TouchableOpacity>
                     </View>
@@ -400,140 +482,153 @@ export default function OrganizationScreen() {
                     <ActivityIndicator size="small" color="#6366f1" />
                 </View>
             ) : (
-                <View style={{ flex: 1, paddingHorizontal: 16, paddingTop: 12 }}>
-                    <ListCardWrapper style={{ marginHorizontal: 0 }}>
-                        <FlatList
-                            data={filteredItems.slice(0, displayedCount)}
-                            keyExtractor={(i) => i.id}
-                            style={{ flex: 1 }}
-                            contentContainerStyle={{
-                                paddingHorizontal: 16,
-                                paddingTop: 8,
-                                paddingBottom: 80
-                            }}
-                            showsVerticalScrollIndicator={false}
-                            refreshControl={
-                                <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#6366f1']} />
-                            }
-                            ListEmptyComponent={() => (
-                                <View style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: 60 }}>
-                                    <Text style={{ fontSize: 48, marginBottom: 12 }}>📭</Text>
-                                    <Text style={{ color: '#6B7280', fontSize: 16, fontWeight: '600' }}>No members found</Text>
-                                    <Text style={{ color: '#9CA3AF', fontSize: 13, marginTop: 4, textAlign: 'center' }}>
-                                        {searchQuery ? 'No members match your search' : 'No organization members yet'}
-                                    </Text>
-                                </View>
-                            )}
-                            renderItem={({ item }) => (
-                                <View style={{ marginVertical: 6 }}>
-                                    <View style={{
-                                        position: 'relative',
-                                        backgroundColor: '#fff',
-                                        padding: 16,
-                                        borderRadius: 12,
-                                        elevation: 2,
-                                        shadowColor: '#000',
-                                        shadowOffset: { width: 0, height: 1 },
-                                        shadowOpacity: 0.08,
-                                        shadowRadius: 4,
-                                        borderLeftWidth: 4,
-                                        borderLeftColor: item.leader ? '#EC4899' : '#818CF8',
-                                        paddingRight: 110,
-                                    }}>
-                                        {/* Actions - positioned absolute center right */}
-                                        <View style={{ position: 'absolute', top: '50%', right: 12, zIndex: 5, flexDirection: 'column', gap: 8, transform: [{ translateY: -30 }] }}>
-                                            <TouchableOpacity
-                                                onPress={() => openEdit(item)}
-                                                disabled={operationLoading}
-                                                style={{
-                                                    backgroundColor: '#E0F2FE',
-                                                    paddingHorizontal: 12,
-                                                    paddingVertical: 6,
-                                                    borderRadius: 8,
-                                                    opacity: operationLoading ? 0.5 : 1
-                                                }}
-                                            >
-                                                <Text style={{ color: '#0369A1', fontWeight: '600', fontSize: 12 }}>Edit</Text>
-                                            </TouchableOpacity>
-                                            <TouchableOpacity
-                                                onPress={() => confirmRemove(item.id)}
-                                                disabled={operationLoading}
-                                                style={{
-                                                    backgroundColor: '#FEE2E2',
-                                                    paddingHorizontal: 12,
-                                                    paddingVertical: 6,
-                                                    borderRadius: 8,
-                                                    opacity: operationLoading ? 0.5 : 1
-                                                }}
-                                            >
-                                                <Text style={{ color: '#991B1B', fontWeight: '600', fontSize: 12 }}>Delete</Text>
-                                            </TouchableOpacity>
-                                        </View>
-
-                                        {/* Leader/Member badge */}
+                <View style={{ flex: 1, paddingHorizontal: 18 }}>
+                    <View style={{
+                        backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                        borderRadius: 16,
+                        shadowColor: '#000',
+                        shadowOffset: { width: 0, height: 6 },
+                        shadowOpacity: 0.12,
+                        shadowRadius: 16,
+                        elevation: 6,
+                        borderWidth: 1,
+                        borderColor: 'rgba(255, 255, 255, 0.3)',
+                        overflow: 'hidden',
+                        flex: 1
+                    }}>
+                        <ListCardWrapper style={{ marginHorizontal: 0, backgroundColor: 'transparent', elevation: 0, shadowOpacity: 0 }}>
+                            <FlatList
+                                data={filteredItems.slice(0, displayedCount)}
+                                keyExtractor={(i) => i.id}
+                                style={{ flex: 1 }}
+                                contentContainerStyle={{
+                                    paddingHorizontal: 16,
+                                    paddingTop: 16,
+                                    paddingBottom: 80
+                                }}
+                                showsVerticalScrollIndicator={false}
+                                refreshControl={
+                                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#7c3aed']} tintColor="#7c3aed" />
+                                } ListEmptyComponent={() => (
+                                    <View style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: 60 }}>
+                                        <Text style={{ fontSize: 48, marginBottom: 12 }}>📭</Text>
+                                        <Text style={{ color: '#6B7280', fontSize: 16, fontWeight: '600' }}>No members found</Text>
+                                        <Text style={{ color: '#9CA3AF', fontSize: 13, marginTop: 4, textAlign: 'center' }}>
+                                            {searchQuery ? 'No members match your search' : 'No organization members yet'}
+                                        </Text>
+                                    </View>
+                                )}
+                                renderItem={({ item }) => (
+                                    <View style={{ marginVertical: 6 }}>
                                         <View style={{
-                                            backgroundColor: item.leader ? '#FCE7F3' : '#EDE9FE',
-                                            paddingHorizontal: 10,
-                                            paddingVertical: 5,
-                                            borderRadius: 999,
-                                            borderWidth: 2,
-                                            borderColor: item.leader ? '#EC4899' : '#818CF8',
-                                            alignSelf: 'flex-start',
-                                            marginBottom: 8
+                                            position: 'relative',
+                                            backgroundColor: '#fff',
+                                            padding: 16,
+                                            borderRadius: 12,
+                                            elevation: 2,
+                                            shadowColor: '#000',
+                                            shadowOffset: { width: 0, height: 1 },
+                                            shadowOpacity: 0.08,
+                                            shadowRadius: 4,
+                                            borderLeftWidth: 4,
+                                            borderLeftColor: item.leader ? '#EC4899' : '#818CF8',
+                                            paddingRight: 110,
                                         }}>
-                                            <Text style={{ color: item.leader ? '#9F1239' : '#4338CA', fontWeight: '700', fontSize: 10 }}>
-                                                {item.leader ? '★ LEADER' : '● MEMBER'}
-                                            </Text>
-                                        </View>
-
-                                        {/* Avatar + Info */}
-                                        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
-                                            <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: '#F3F4F6', overflow: 'hidden', marginRight: 12, borderWidth: 2, borderColor: item.leader ? '#EC4899' : '#818CF8' }}>
-                                                {item.image ? (
-                                                    <Image source={{ uri: item.image }} style={{ width: '100%', height: '100%' }} />
-                                                ) : (
-                                                    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-                                                        <Text style={{ fontSize: 32 }}>👤</Text>
-                                                    </View>
-                                                )}
+                                            {/* Actions - positioned absolute center right */}
+                                            <View style={{ position: 'absolute', top: '50%', right: 12, zIndex: 5, flexDirection: 'column', gap: 8, transform: [{ translateY: -30 }] }}>
+                                                <TouchableOpacity
+                                                    onPress={() => openEdit(item)}
+                                                    disabled={operationLoading}
+                                                    style={{
+                                                        backgroundColor: '#E0F2FE',
+                                                        paddingHorizontal: 12,
+                                                        paddingVertical: 6,
+                                                        borderRadius: 8,
+                                                        opacity: operationLoading ? 0.5 : 1
+                                                    }}
+                                                >
+                                                    <Text style={{ color: '#0369A1', fontWeight: '600', fontSize: 12 }}>Edit</Text>
+                                                </TouchableOpacity>
+                                                <TouchableOpacity
+                                                    onPress={() => confirmRemove(item.id)}
+                                                    disabled={operationLoading}
+                                                    style={{
+                                                        backgroundColor: '#FEE2E2',
+                                                        paddingHorizontal: 12,
+                                                        paddingVertical: 6,
+                                                        borderRadius: 8,
+                                                        opacity: operationLoading ? 0.5 : 1
+                                                    }}
+                                                >
+                                                    <Text style={{ color: '#991B1B', fontWeight: '600', fontSize: 12 }}>Delete</Text>
+                                                </TouchableOpacity>
                                             </View>
 
-                                            <View style={{ flex: 1 }}>
-                                                <Text style={{ fontWeight: '800', fontSize: 16, color: '#111827', marginBottom: 4 }}>
-                                                    {item.name}
+                                            {/* Leader/Member badge */}
+                                            <View style={{
+                                                backgroundColor: item.leader ? '#FCE7F3' : '#EDE9FE',
+                                                paddingHorizontal: 10,
+                                                paddingVertical: 5,
+                                                borderRadius: 999,
+                                                borderWidth: 2,
+                                                borderColor: item.leader ? '#EC4899' : '#818CF8',
+                                                alignSelf: 'flex-start',
+                                                marginBottom: 8
+                                            }}>
+                                                <Text style={{ color: item.leader ? '#9F1239' : '#4338CA', fontWeight: '700', fontSize: 10 }}>
+                                                    {item.leader ? '★ LEADER' : '● MEMBER'}
                                                 </Text>
-                                                {!!item.title && (
-                                                    <View style={{
-                                                        backgroundColor: '#F3F4F6',
-                                                        paddingHorizontal: 8,
-                                                        paddingVertical: 3,
-                                                        borderRadius: 6,
-                                                        alignSelf: 'flex-start',
-                                                        marginBottom: 4
-                                                    }}>
-                                                        <Text style={{ color: '#374151', fontSize: 11, fontWeight: '600' }}>📋 {item.title}</Text>
-                                                    </View>
-                                                )}
                                             </View>
-                                        </View>
 
-                                        {/* Phone */}
-                                        <View style={{ backgroundColor: '#EFF6FF', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, alignSelf: 'flex-start' }}>
-                                            <Text style={{ color: '#1E40AF', fontSize: 11, fontWeight: '600' }}>📞 {item.phone}</Text>
+                                            {/* Avatar + Info */}
+                                            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+                                                <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: '#F3F4F6', overflow: 'hidden', marginRight: 12, borderWidth: 2, borderColor: item.leader ? '#EC4899' : '#818CF8' }}>
+                                                    {item.image ? (
+                                                        <Image source={{ uri: item.image }} style={{ width: '100%', height: '100%' }} />
+                                                    ) : (
+                                                        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+                                                            <Text style={{ fontSize: 32 }}>👤</Text>
+                                                        </View>
+                                                    )}
+                                                </View>
+
+                                                <View style={{ flex: 1 }}>
+                                                    <Text style={{ fontWeight: '800', fontSize: 16, color: '#111827', marginBottom: 4 }}>
+                                                        {item.name}
+                                                    </Text>
+                                                    {!!item.title && (
+                                                        <View style={{
+                                                            backgroundColor: '#F3F4F6',
+                                                            paddingHorizontal: 8,
+                                                            paddingVertical: 3,
+                                                            borderRadius: 6,
+                                                            alignSelf: 'flex-start',
+                                                            marginBottom: 4
+                                                        }}>
+                                                            <Text style={{ color: '#374151', fontSize: 11, fontWeight: '600' }}>📋 {item.title}</Text>
+                                                        </View>
+                                                    )}
+                                                </View>
+                                            </View>
+
+                                            {/* Phone */}
+                                            <View style={{ backgroundColor: '#EFF6FF', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, alignSelf: 'flex-start' }}>
+                                                <Text style={{ color: '#1E40AF', fontSize: 11, fontWeight: '600' }}>📞 {item.phone}</Text>
+                                            </View>
                                         </View>
                                     </View>
-                                </View>
-                            )}
-                            onEndReached={handleLoadMore}
-                            onEndReachedThreshold={0.2}
-                            ListFooterComponent={() => (
-                                <LoadMore
-                                    loading={loadingMore}
-                                    hasMore={displayedCount < filteredItems.length}
-                                />
-                            )}
-                        />
-                    </ListCardWrapper>
+                                )}
+                                onEndReached={handleLoadMore}
+                                onEndReachedThreshold={0.2}
+                                ListFooterComponent={() => (
+                                    <LoadMore
+                                        loading={loadingMore}
+                                        hasMore={displayedCount < filteredItems.length}
+                                    />
+                                )}
+                            />
+                        </ListCardWrapper>
+                    </View>
                 </View>
             )}
 

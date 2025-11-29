@@ -12,7 +12,6 @@ import SelectInput from '../../src/components/SelectInput';
 import { useToast } from '../../src/contexts/ToastContext';
 import { db } from '../../src/firebaseConfig';
 // ADDED: reusable wrapper component import
-import ListCardWrapper from '../../src/components/ListCardWrapper';
 import { useRefresh } from '../../src/hooks/useRefresh';
 
 type Report = {
@@ -587,69 +586,194 @@ export default function CashReportsScreen() {
     };
 
     return (
-        <SafeAreaView edges={['bottom']} style={{ flex: 1, backgroundColor: '#fff' }}>
+        <SafeAreaView edges={['bottom']} style={{ flex: 1, backgroundColor: '#F8FAFC' }}>
             <StatusBar barStyle="dark-content" translucent backgroundColor="transparent" />
 
-            {/* Header */}
-            <View style={{ padding: 16, alignItems: 'center' }}>
-                <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: '#6366f1', alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
-                    <Text style={{ color: '#fff', fontSize: 32 }}>💰</Text>
+            {/* Purple Gradient Background for Header */}
+            <LinearGradient
+                colors={['#7c3aed', '#6366f1']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    height: 180,
+                }}
+            />
+
+            {/* Header - Horizontal Layout */}
+            <View style={{ paddingHorizontal: 16, paddingTop: 10, paddingBottom: 12 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+                    {/* Icon on left */}
+                    <View style={{
+                        width: 64,
+                        height: 64,
+                        borderRadius: 32,
+                        backgroundColor: 'rgba(255, 255, 255, 0.15)',
+                        backdropFilter: 'blur(10px)',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        borderWidth: 2,
+                        borderColor: 'rgba(255, 255, 255, 0.3)',
+                        shadowColor: '#000',
+                        shadowOffset: { width: 0, height: 4 },
+                        shadowOpacity: 0.2,
+                        shadowRadius: 8,
+                        elevation: 6
+                    }}>
+                        <Text style={{ fontSize: 32 }}>💰</Text>
+                    </View>
+
+                    {/* Text on right */}
+                    <View style={{ flex: 1 }}>
+                        <Text style={{ color: '#FFFFFF', fontSize: 22, fontWeight: '800', letterSpacing: 0.3 }}>Cash Report</Text>
+                        <Text style={{ color: 'rgba(255, 255, 255, 0.85)', marginTop: 4, fontSize: 13, lineHeight: 18 }}>
+                            Manage income, expenses, and cash balance
+                        </Text>
+                    </View>
                 </View>
-                <Text style={{ color: '#6366f1', fontSize: 20, fontWeight: '700' }}>Cash Report</Text>
-                <Text style={{ color: '#6B7280', marginTop: 4, textAlign: 'center' }}>
-                    Manage income, expenses, and cash balance.
-                </Text>
             </View>
 
-            {/* Saldo Sekarang */}
-            <View style={{ paddingHorizontal: 16, marginBottom: 12 }}>
-                <LinearGradient
-                    colors={['#ffffff', '#f8fafc']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0 }}
-                    style={{
-                        borderRadius: 14,
-                        padding: 14,
-                        elevation: 3,
-                    }}
-                >
+            {/* Saldo Sekarang - Compact Card */}
+            <View style={{ paddingHorizontal: 20, marginBottom: 8 }}>
+                <View style={{
+                    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                    borderRadius: 16,
+                    paddingHorizontal: 14,
+                    paddingVertical: 6,
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: 6 },
+                    shadowOpacity: 0.12,
+                    shadowRadius: 16,
+                    elevation: 6,
+                    borderWidth: 1,
+                    borderColor: 'rgba(255, 255, 255, 0.3)'
+                }}>
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                         <View>
-                            <Text style={{ color: '#6B7280', fontSize: 12 }}>Current Balance</Text>
-                            <Text style={{ fontSize: 20, fontWeight: '700', marginTop: 6, color: totalFilteredSaldo >= 0 ? '#065F46' : '#7F1D1D' }}>
+                            <Text style={{ color: '#6B7280', fontSize: 11, fontWeight: '600', marginBottom: 3 }}>Current Balance</Text>
+                            <Text style={{ fontSize: 20, fontWeight: '800', color: totalFilteredSaldo >= 0 ? '#10B981' : '#DC2626' }}>
                                 {formatAmount(totalFilteredSaldo)}
                             </Text>
                         </View>
-                        <View style={{ backgroundColor: '#F3F4F6', paddingVertical: 6, paddingHorizontal: 12, borderRadius: 999 }}>
-                            <Text style={{ color: '#374151', fontWeight: '600' }}>{filteredReports.length} Transactions</Text>
+                        <View style={{
+                            backgroundColor: totalFilteredSaldo >= 0 ? '#D1FAE5' : '#FEE2E2',
+                            paddingVertical: 6,
+                            paddingHorizontal: 12,
+                            borderRadius: 999,
+                            borderWidth: 1,
+                            borderColor: totalFilteredSaldo >= 0 ? '#10B981' : '#EF4444'
+                        }}>
+                            <Text style={{
+                                color: totalFilteredSaldo >= 0 ? '#065F46' : '#991B1B',
+                                fontWeight: '700',
+                                fontSize: 11
+                            }}>{filteredReports.length} Transactions</Text>
                         </View>
                     </View>
-                </LinearGradient>
+                </View>
             </View>
 
-            {/* FILTERS: Card (show / collapse) */}
-            <View style={{ paddingHorizontal: 16, marginBottom: 12 }}>
+            {/* Action Buttons - On Purple Gradient */}
+            <View style={{ paddingHorizontal: 20, marginBottom: 8 }}>
                 <View style={{
-                    backgroundColor: '#fff',
-                    borderRadius: 12,
+                    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                    borderRadius: 16,
+                    paddingHorizontal: 14,
+                    paddingVertical: 6,
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: 6 },
+                    shadowOpacity: 0.12,
+                    shadowRadius: 16,
+                    elevation: 6,
                     borderWidth: 1,
-                    borderColor: '#E5E7EB',
+                    borderColor: 'rgba(255, 255, 255, 0.3)',
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 10
+                }}>
+                    {/* Left: Save button */}
+                    <View style={{ flex: 1 }}>
+                        <TouchableOpacity
+                            onPress={handleSaveToFolder}
+                            disabled={savingSAF}
+                            style={{
+                                borderRadius: 10,
+                                paddingVertical: 10,
+                                alignItems: 'center',
+                                backgroundColor: savingSAF ? '#f0fdf4' : '#FFFFFF',
+                                borderWidth: 1.5,
+                                borderColor: '#10B981',
+                                shadowColor: '#10B981',
+                                shadowOffset: { width: 0, height: 2 },
+                                shadowOpacity: 0.12,
+                                shadowRadius: 4,
+                                elevation: 2,
+                            }}
+                        >
+                            {savingSAF ? (
+                                <ActivityIndicator size="small" color="#10B981" />
+                            ) : (
+                                <Text style={{ color: '#10B981', fontWeight: '700', fontSize: 13 }}>💾 Save</Text>
+                            )}
+                        </TouchableOpacity>
+                    </View>
+
+                    {/* Right: Add Report button */}
+                    <View style={{ flex: 1 }}>
+                        <TouchableOpacity activeOpacity={0.9} onPress={openAdd} style={{ width: '100%' }}>
+                            <LinearGradient
+                                colors={['#7c3aed', '#6366f1']}
+                                start={{ x: 0, y: 0 }}
+                                end={{ x: 1, y: 0 }}
+                                style={{
+                                    width: '100%',
+                                    paddingVertical: 10,
+                                    borderRadius: 10,
+                                    alignItems: 'center',
+                                    shadowColor: '#7c3aed',
+                                    shadowOffset: { width: 0, height: 2 },
+                                    shadowOpacity: 0.2,
+                                    shadowRadius: 4,
+                                    elevation: 2,
+                                }}
+                            >
+                                <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>+ Report</Text>
+                            </LinearGradient>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </View>
+
+            {/* FILTERS: Compact Card */}
+            <View style={{ paddingHorizontal: 20, marginBottom: 12 }}>
+                <View style={{
+                    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                    borderRadius: 16,
                     padding: 12,
-                    elevation: 2,
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: 6 },
+                    shadowOpacity: 0.12,
+                    shadowRadius: 16,
+                    elevation: 6,
+                    borderWidth: 1,
+                    borderColor: 'rgba(255, 255, 255, 0.3)',
                     overflow: 'hidden',
                 }}>
                     <TouchableOpacity
                         onPress={() => setFiltersOpen(prev => !prev)}
                         style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}
                     >
-                        <Text style={{ fontSize: 16, fontWeight: '700', color: '#111827' }}>Filters</Text>
-                        <Text style={{ fontSize: 18, color: '#6B7280' }}>{filtersOpen ? '▾' : '▴'}</Text>
+                        <Text style={{ fontSize: 14, fontWeight: '800', color: '#111827' }}>🔍 Filters</Text>
+                        <Text style={{ fontSize: 16, color: '#7C3AED' }}>{filtersOpen ? '▾' : '▴'}</Text>
                     </TouchableOpacity>
 
                     {filtersOpen && (
-                        <View style={{ marginTop: 12 }}>
+                        <View style={{ marginTop: 10 }}>
                             {/* Type & Category - side by side */}
-                            <View style={{ flexDirection: 'row', gap: 12, marginBottom: 10 }}>
+                            <View style={{ flexDirection: 'row', gap: 10, marginBottom: 8 }}>
                                 <View style={{ flex: 1 }}>
                                     <SelectInput
                                         label="Type"
@@ -680,7 +804,7 @@ export default function CashReportsScreen() {
                             </View>
 
                             {/* Month & Year */}
-                            <View style={{ flexDirection: 'row', gap: 12 }}>
+                            <View style={{ flexDirection: 'row', gap: 10 }}>
                                 <View style={{ flex: 1 }}>
                                     <SelectInput
                                         label="Month"
@@ -713,96 +837,64 @@ export default function CashReportsScreen() {
                 </View>
             </View>
 
-            {/* Add button */}
-            <View className="px-6 mb-2" style={{ flexDirection: 'row', gap: 12 }}>
-                <View style={{ flex: 1 }}>
-                    <TouchableOpacity
-                        onPress={handleSaveToFolder}
-                        disabled={savingSAF}
-                        style={{
-                            borderRadius: 999,
-                            paddingVertical: 12,
-                            alignItems: 'center',
-                            backgroundColor: savingSAF ? '#f0fdf4' : '#F3F4F6',
-                            borderWidth: 1,
-                            borderColor: '#86efac',
+            {/* List with modern card design */}
+            <View style={{ flex: 1, paddingHorizontal: 18 }}>
+                <View style={{
+                    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                    borderRadius: 16,
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: 6 },
+                    shadowOpacity: 0.12,
+                    shadowRadius: 16,
+                    elevation: 6,
+                    borderWidth: 1,
+                    borderColor: 'rgba(255, 255, 255, 0.3)',
+                    overflow: 'hidden',
+                    flex: 1
+                }}>
+                    <FlatList
+                        data={displayedReports}
+                        keyExtractor={(i) => i.id}
+                        renderItem={renderItem}
+                        style={{ flex: 1 }}
+                        contentContainerStyle={{
+                            paddingHorizontal: 2,
+                            paddingTop: 16,
+                            paddingBottom: 80
                         }}
-                    >
-                        {savingSAF ? (
-                            <ActivityIndicator size="small" color="#16a34a" />
-                        ) : (
-                            <Text style={{ color: '#16a34a', fontWeight: '700' }}>Save to...</Text>
+                        showsVerticalScrollIndicator={false}
+                        refreshControl={
+                            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#7c3aed']} tintColor="#7c3aed" />
+                        }
+                        initialNumToRender={5}
+                        maxToRenderPerBatch={5}
+                        windowSize={10}
+                        removeClippedSubviews={false}
+                        onEndReached={handleLoadMore}
+                        onEndReachedThreshold={0.2}
+                        ListFooterComponent={() => {
+                            if (loadingMore) {
+                                return (
+                                    <View style={{ paddingVertical: 20, alignItems: 'center' }}>
+                                        <ActivityIndicator size="small" color="#7c3aed" />
+                                        <Text style={{ color: '#6B7280', fontSize: 13, marginTop: 8 }}>Loading more...</Text>
+                                    </View>
+                                );
+                            }
+                            return <View style={{ height: 20 }} />;
+                        }}
+                        ListEmptyComponent={() => (
+                            <View style={{ paddingVertical: 60, alignItems: 'center' }}>
+                                <Text style={{ fontSize: 48, marginBottom: 12 }}>📭</Text>
+                                <Text style={{ color: '#6B7280', fontSize: 16, fontWeight: '600' }}>No data available</Text>
+                                <Text style={{ color: '#9CA3AF', fontSize: 13, marginTop: 4, textAlign: 'center' }}>
+                                    No cash transactions{(filterMonth !== 'all' || filterYear !== 'all' || filterType !== 'all' || filterCategory !== '') ? ' for selected filters' : ''}
+                                </Text>
+                            </View>
                         )}
-                    </TouchableOpacity>
-                </View>
-
-                <View style={{ flex: 1 }}>
-                    <TouchableOpacity activeOpacity={0.85} onPress={openAdd}>
-                        <LinearGradient
-                            colors={['#10B981', '#059669']}
-                            start={{ x: 0, y: 0 }}
-                            end={{ x: 1, y: 0 }}
-                            style={{
-                                paddingVertical: 12,
-                                borderRadius: 999,
-                                alignItems: 'center',
-                                elevation: 3,
-                            }}
-                        >
-                            <Text style={{ color: '#fff', fontWeight: '700' }}>+ Report</Text>
-                        </LinearGradient>
-                    </TouchableOpacity>
+                    />
                 </View>
             </View>
-
-            {/* List dibungkus card (moved to reusable component) */}
-            <ListCardWrapper>
-                <FlatList
-                    data={displayedReports}
-                    keyExtractor={(i) => i.id}
-                    renderItem={renderItem}
-                    // biarkan FlatList mengisi ruang dalam card
-                    style={{ flex: 1 }}
-                    contentContainerStyle={{
-                        paddingHorizontal: 1,
-                        paddingTop: 8,
-                        paddingBottom: 80
-                    }}
-                    showsVerticalScrollIndicator={false}
-                    refreshControl={
-                        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#6366f1']} />
-                    }
-                    initialNumToRender={5}
-                    maxToRenderPerBatch={5}
-                    windowSize={10}
-                    removeClippedSubviews={false}
-                    onEndReached={handleLoadMore}
-                    // trigger lebih cepat saat mendekati akhir
-                    onEndReachedThreshold={0.2}
-                    ListFooterComponent={() => {
-                        if (loadingMore) {
-                            return (
-                                <View style={{ paddingVertical: 20, alignItems: 'center' }}>
-                                    <ActivityIndicator size="small" color="#6366f1" />
-                                    <Text style={{ color: '#6B7280', fontSize: 13, marginTop: 8 }}>Loading more...</Text>
-                                </View>
-                            );
-                        }
-                        // remove "Showing X of Y" text to avoid label appearing below the card;
-                        // keep minimal spacer so layout doesn't cut last item
-                        return <View style={{ height: 20 }} />;
-                    }}
-                    ListEmptyComponent={() => (
-                        <View style={{ paddingVertical: 60, alignItems: 'center' }}>
-                            <Text style={{ fontSize: 48, marginBottom: 12 }}>📭</Text>
-                            <Text style={{ color: '#6B7280', fontSize: 16, fontWeight: '600' }}>No data available</Text>
-                            <Text style={{ color: '#9CA3AF', fontSize: 13, marginTop: 4, textAlign: 'center' }}>
-                                No cash transactions{(filterMonth !== 'all' || filterYear !== 'all' || filterType !== 'all' || filterCategory !== '') ? ' for selected filters' : ''}
-                            </Text>
-                        </View>
-                    )}
-                />
-            </ListCardWrapper>
 
             {/* Modal Form */}
             <Modal visible={modalVisible} animationType="slide" transparent onRequestClose={() => setModalVisible(false)}>

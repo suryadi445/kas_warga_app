@@ -17,7 +17,6 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import ConfirmDialog from '../../src/components/ConfirmDialog';
 import FloatingLabelInput from '../../src/components/FloatingLabelInput';
-import ListCardWrapper from '../../src/components/ListCardWrapper';
 import LoadMore from '../../src/components/LoadMore';
 import SelectInput from '../../src/components/SelectInput';
 import { useToast } from '../../src/contexts/ToastContext';
@@ -240,53 +239,119 @@ export default function DocumentationScreen() {
     const totalDocs = items.length;
 
     return (
-        <SafeAreaView edges={['bottom']} style={{ flex: 1, backgroundColor: '#fff' }}>
+        <SafeAreaView edges={['bottom']} style={{ flex: 1, backgroundColor: '#F8FAFC' }}>
             <StatusBar barStyle="dark-content" translucent backgroundColor="transparent" />
 
-            {/* REPLACE HeaderCard with standard header */}
-            <View style={{ padding: 16, alignItems: 'center' }}>
-                <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: '#6366f1', alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
-                    <Text style={{ color: '#fff', fontSize: 32 }}>📸</Text>
-                </View>
-                <Text style={{ color: '#6366f1', fontSize: 20, fontWeight: '700' }}>Documentation</Text>
-                <Text style={{ color: '#6B7280', marginTop: 4, textAlign: 'center' }}>
-                    Upload photos of community activities
-                </Text>
-            </View>
+            {/* Purple Gradient Background for Header */}
+            <LinearGradient
+                colors={['#7c3aed', '#6366f1']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    height: 200,
+                }}
+            />
 
-            {/* Summary card */}
-            <View style={{ paddingHorizontal: 16, marginBottom: 12 }}>
-                <LinearGradient
-                    colors={['#ffffff', '#f8fafc']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0 }}
-                    style={{
-                        borderRadius: 14,
-                        padding: 14,
-                        elevation: 3,
-                    }}
-                >
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <View>
-                            <Text style={{ fontSize: 20, fontWeight: '700', marginTop: 1, color: totalImages > 0 ? '#8B5CF6' : '#6B7280' }}>
-                                {totalImages} Images
-                            </Text>
-                            <Text style={{ color: '#6B7280', fontSize: 12, marginTop: 6 }}>
-                                Total Docs: {totalDocs}
-                            </Text>
-                        </View>
-                        <View style={{ backgroundColor: '#F3F4F6', paddingVertical: 6, paddingHorizontal: 12, borderRadius: 999 }}>
-                            <Text style={{ color: '#374151', fontWeight: '600' }}>{filteredItems.length} Shown</Text>
-                        </View>
+            {/* Header - Horizontal Layout */}
+            <View style={{ paddingHorizontal: 16, paddingTop: 10, paddingBottom: 12 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+                    {/* Icon on left */}
+                    <View style={{
+                        width: 64,
+                        height: 64,
+                        borderRadius: 32,
+                        backgroundColor: 'rgba(255, 255, 255, 0.15)',
+                        backdropFilter: 'blur(10px)',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        borderWidth: 2,
+                        borderColor: 'rgba(255, 255, 255, 0.3)',
+                        shadowColor: '#000',
+                        shadowOffset: { width: 0, height: 4 },
+                        shadowOpacity: 0.2,
+                        shadowRadius: 8,
+                        elevation: 6
+                    }}>
+                        <Text style={{ fontSize: 32 }}>📸</Text>
                     </View>
-                </LinearGradient>
+
+                    {/* Text on right */}
+                    <View style={{ flex: 1 }}>
+                        <Text style={{ color: '#FFFFFF', fontSize: 22, fontWeight: '800', letterSpacing: 0.3 }}>Documentation</Text>
+                        <Text style={{ color: 'rgba(255, 255, 255, 0.85)', marginTop: 4, fontSize: 13, lineHeight: 18 }}>
+                            Upload photos of community activities
+                        </Text>
+                    </View>
+                </View>
             </View>
 
-            {/* Filters (2-column): Activity (left) + Add button (right) */}
-            <View style={{ paddingHorizontal: 16, marginBottom: 12 }}>
-                <View style={{ flexDirection: 'row', gap: 12, alignItems: 'flex-end' }}>
-                    {/* Left: Activity filter using SelectInput */}
-                    <View style={{ flex: 1 }}>
+            {/* Summary card - Compact Style */}
+            <View style={{ paddingHorizontal: 20, marginBottom: 12 }}>
+                <View style={{
+                    flexDirection: 'row',
+                    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+                    borderRadius: 12,
+                    padding: 3,
+                    borderWidth: 1,
+                    borderColor: 'rgba(255, 255, 255, 0.25)'
+                }}>
+                    <View style={{
+                        flex: 1,
+                        paddingVertical: 8,
+                        backgroundColor: '#FFFFFF',
+                        borderRadius: 9,
+                        alignItems: 'center',
+                        shadowColor: '#000',
+                        shadowOffset: { width: 0, height: 2 },
+                        shadowOpacity: 0.1,
+                        shadowRadius: 4,
+                        elevation: 2
+                    }}>
+                        <Text style={{ color: '#7C3AED', fontWeight: '700', fontSize: 11 }}>📸 Images</Text>
+                        <Text style={{ color: '#7C3AED', fontWeight: '800', fontSize: 16, marginTop: 1 }}>{totalImages}</Text>
+                    </View>
+                    <View style={{
+                        flex: 1,
+                        paddingVertical: 8,
+                        alignItems: 'center',
+                    }}>
+                        <Text style={{ color: 'rgba(255, 255, 255, 0.9)', fontWeight: '700', fontSize: 11 }}>📄 Docs</Text>
+                        <Text style={{ color: 'rgba(255, 255, 255, 0.9)', fontWeight: '800', fontSize: 16, marginTop: 1 }}>{totalDocs}</Text>
+                    </View>
+                    <View style={{
+                        flex: 1,
+                        paddingVertical: 8,
+                        alignItems: 'center',
+                    }}>
+                        <Text style={{ color: 'rgba(255, 255, 255, 0.9)', fontWeight: '700', fontSize: 11 }}>👁️ Shown</Text>
+                        <Text style={{ color: 'rgba(255, 255, 255, 0.9)', fontWeight: '800', fontSize: 16, marginTop: 1 }}>{filteredItems.length}</Text>
+                    </View>
+                </View>
+            </View>
+
+            {/* Filters & Add Button - On Purple Gradient */}
+            <View style={{ paddingHorizontal: 20, marginBottom: 12 }}>
+                <View style={{
+                    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                    borderRadius: 16,
+                    padding: 14,
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: 6 },
+                    shadowOpacity: 0.12,
+                    shadowRadius: 16,
+                    elevation: 6,
+                    borderWidth: 1,
+                    borderColor: 'rgba(255, 255, 255, 0.3)',
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 12
+                }}>
+                    {/* Left: Activity filter */}
+                    <View style={{ flex: 1.5 }}>
                         <SelectInput
                             label="Activity"
                             value={filterActivity || ''}
@@ -300,16 +365,27 @@ export default function DocumentationScreen() {
                         />
                     </View>
 
-                    {/* Right: Add Documentation */}
-                    <View style={{ width: 160 }}>
-                        <TouchableOpacity disabled={operationLoading} onPress={openAdd}>
+                    {/* Right: Add Button */}
+                    <View style={{ flex: 1 }}>
+                        <TouchableOpacity disabled={operationLoading} onPress={openAdd} activeOpacity={0.9}>
                             <LinearGradient
-                                colors={['#10B981', '#059669']}
+                                colors={['#7c3aed', '#6366f1']}
                                 start={{ x: 0, y: 0 }}
                                 end={{ x: 1, y: 0 }}
-                                style={{ paddingVertical: 12, borderRadius: 999, alignItems: 'center', elevation: 3 }}
+                                style={{
+                                    paddingVertical: 12,
+                                    borderRadius: 10,
+                                    alignItems: 'center',
+                                    shadowColor: '#7c3aed',
+                                    shadowOffset: { width: 0, height: 2 },
+                                    shadowOpacity: 0.2,
+                                    shadowRadius: 4,
+                                    elevation: 2,
+                                    height: 50,
+                                    justifyContent: 'center'
+                                }}
                             >
-                                <Text style={{ color: '#fff', fontWeight: '700', fontSize: 16 }}>+ Documentation</Text>
+                                <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>+ Add</Text>
                             </LinearGradient>
                         </TouchableOpacity>
                     </View>
@@ -321,20 +397,32 @@ export default function DocumentationScreen() {
                     <ActivityIndicator size="small" color="#6366f1" />
                 </View>
             ) : (
-                <View style={{ flex: 1, paddingHorizontal: 16, paddingTop: 12 }}>
-                    <ListCardWrapper style={{ marginHorizontal: 0 }}>
+                <View style={{ flex: 1, paddingHorizontal: 18 }}>
+                    <View style={{
+                        backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                        borderRadius: 16,
+                        shadowColor: '#000',
+                        shadowOffset: { width: 0, height: 6 },
+                        shadowOpacity: 0.12,
+                        shadowRadius: 16,
+                        elevation: 6,
+                        borderWidth: 1,
+                        borderColor: 'rgba(255, 255, 255, 0.3)',
+                        overflow: 'hidden',
+                        flex: 1
+                    }}>
                         <FlatList
                             data={filteredItems.slice(0, displayedCount)}
                             keyExtractor={(i) => i.id}
                             style={{ flex: 1 }}
                             contentContainerStyle={{
                                 paddingHorizontal: 16,
-                                paddingTop: 8,
+                                paddingTop: 16,
                                 paddingBottom: 80
                             }}
                             showsVerticalScrollIndicator={false}
                             refreshControl={
-                                <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#6366f1']} />
+                                <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#7c3aed']} tintColor="#7c3aed" />
                             }
                             ListEmptyComponent={() => (
                                 <View style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: 60 }}>
@@ -426,7 +514,7 @@ export default function DocumentationScreen() {
                                 />
                             )}
                         />
-                    </ListCardWrapper>
+                    </View>
                 </View>
             )}
 

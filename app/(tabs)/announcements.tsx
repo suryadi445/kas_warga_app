@@ -16,7 +16,6 @@ import DateTimePickerModal from 'react-native-modal-datetime-picker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import ConfirmDialog from '../../src/components/ConfirmDialog';
 import FloatingLabelInput from '../../src/components/FloatingLabelInput';
-import ListCardWrapper from '../../src/components/ListCardWrapper';
 import LoadMore from '../../src/components/LoadMore';
 import SelectInput from '../../src/components/SelectInput';
 import { useToast } from '../../src/contexts/ToastContext';
@@ -235,9 +234,19 @@ export default function AnnouncementsScreen() {
     // NEW: control show / collapse filters card (default = closed)
     const [filtersOpen, setFiltersOpen] = useState<boolean>(false);
 
-    // ADDED: compute displayed items based on role & status filter, then sort by status: active -> upcoming -> expired
+    // NEW: search query state
+    const [searchQuery, setSearchQuery] = useState<string>('');
+
+    // ADDED: compute displayed items based on role, status filter, and search query
     const displayedItems = items
         .filter(i => {
+            // search filter (by title or category)
+            if (searchQuery.trim()) {
+                const query = searchQuery.toLowerCase();
+                const matchTitle = (i.title || '').toLowerCase().includes(query);
+                const matchCategory = (i.category || '').toLowerCase().includes(query);
+                if (!matchTitle && !matchCategory) return false;
+            }
             // role filter
             if (filterRole !== 'All' && (i.role || '') !== filterRole) return false;
             // status filter
@@ -266,7 +275,7 @@ export default function AnnouncementsScreen() {
     // Reset displayed count when items or filters change
     useEffect(() => {
         setDisplayedCount(ANNOUNCEMENTS_PER_PAGE);
-    }, [items, filterRole, filterStatus]);
+    }, [items, filterRole, filterStatus, searchQuery]);
 
     // Load more handler
     const handleLoadMore = () => {
@@ -291,72 +300,262 @@ export default function AnnouncementsScreen() {
     const expiredCount = countByStatus['expired'] || 0;
 
     return (
-        <SafeAreaView edges={['bottom']} style={{ flex: 1, backgroundColor: '#fff' }}>
+        <SafeAreaView edges={['bottom']} style={{ flex: 1, backgroundColor: '#F8FAFC' }}>
             <StatusBar barStyle="dark-content" translucent backgroundColor="transparent" />
 
-            {/* Header */}
-            <View style={{ padding: 16, alignItems: 'center' }}>
-                <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: '#6366f1', alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
-                    <Text style={{ color: '#fff', fontSize: 32 }}>📢</Text>
-                </View>
-                <Text style={{ color: '#6366f1', fontSize: 20, fontWeight: '700' }}>Announcements</Text>
-                <Text style={{ color: '#6B7280', marginTop: 4, textAlign: 'center' }}>
-                    Create and manage community announcements.
-                </Text>
-            </View>
+            {/* Purple Gradient Background for Header */}
+            <LinearGradient
+                colors={['#7c3aed', '#6366f1']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    height: 200,
+                }}
+            />
 
-            {/* Summary card (matches cash_reports style) */}
-            <View style={{ paddingHorizontal: 16, marginBottom: 12 }}>
-                <LinearGradient
-                    colors={['#ffffff', '#f8fafc']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0 }}
-                    style={{
-                        borderRadius: 14,
-                        padding: 14,
-                        elevation: 3,
-                    }}
-                >
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <View>
-                            <Text style={{ color: '#6B7280', fontSize: 12 }}>Announcements</Text>
-                            <Text style={{ fontSize: 20, fontWeight: '700', marginTop: 6, color: activeCount > 0 ? '#065F46' : '#6B7280' }}>
-                                {activeCount} Active
-                            </Text>
-                            <Text style={{ color: '#6B7280', fontSize: 12, marginTop: 6 }}>
-                                Upcoming: {upcomingCount} · Expired: {expiredCount}
-                            </Text>
-                        </View>
-                        <View style={{ backgroundColor: '#F3F4F6', paddingVertical: 6, paddingHorizontal: 12, borderRadius: 999 }}>
-                            <Text style={{ color: '#374151', fontWeight: '600' }}>{totalAnnouncements} Total</Text>
-                        </View>
+            {/* Header - Horizontal Layout */}
+            <View style={{ paddingHorizontal: 16, paddingTop: 10, paddingBottom: 12 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+                    {/* Icon on left */}
+                    <View style={{
+                        width: 64,
+                        height: 64,
+                        borderRadius: 32,
+                        backgroundColor: 'rgba(255, 255, 255, 0.15)',
+                        backdropFilter: 'blur(10px)',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        borderWidth: 2,
+                        borderColor: 'rgba(255, 255, 255, 0.3)',
+                        shadowColor: '#000',
+                        shadowOffset: { width: 0, height: 4 },
+                        shadowOpacity: 0.2,
+                        shadowRadius: 8,
+                        elevation: 6
+                    }}>
+                        <Text style={{ fontSize: 32 }}>📢</Text>
                     </View>
-                </LinearGradient>
+
+                    {/* Text on right */}
+                    <View style={{ flex: 1 }}>
+                        <Text style={{ color: '#FFFFFF', fontSize: 22, fontWeight: '800', letterSpacing: 0.3 }}>Announcements</Text>
+                        <Text style={{ color: 'rgba(255, 255, 255, 0.85)', marginTop: 4, fontSize: 13, lineHeight: 18 }}>
+                            Create and manage community announcements
+                        </Text>
+                    </View>
+                </View>
             </View>
 
-            {/* FILTERS: Card (show / collapse) */}
-            <View style={{ paddingHorizontal: 16, marginBottom: 12 }}>
+            {/* Status Summary - Compact Tab Style */}
+            <View style={{ paddingHorizontal: 20, marginBottom: 12 }}>
                 <View style={{
-                    backgroundColor: '#fff',
+                    flexDirection: 'row',
+                    backgroundColor: 'rgba(255, 255, 255, 0.15)',
                     borderRadius: 12,
+                    padding: 3,
                     borderWidth: 1,
-                    borderColor: '#E5E7EB',
+                    borderColor: 'rgba(255, 255, 255, 0.25)'
+                }}>
+                    <TouchableOpacity
+                        onPress={() => setFilterStatus('all')}
+                        style={{
+                            flex: 1,
+                            paddingVertical: 6,
+                            backgroundColor: filterStatus === 'all' ? '#FFFFFF' : 'transparent',
+                            borderRadius: 9,
+                            shadowColor: filterStatus === 'all' ? '#000' : 'transparent',
+                            shadowOffset: { width: 0, height: 2 },
+                            shadowOpacity: 0.1,
+                            shadowRadius: 6,
+                            elevation: filterStatus === 'all' ? 3 : 0,
+                            alignItems: 'center',
+                        }}
+                    >
+                        <Text style={{
+                            color: filterStatus === 'all' ? '#7C3AED' : 'rgba(255, 255, 255, 0.9)',
+                            fontWeight: '700',
+                            fontSize: 11
+                        }}>📢 All</Text>
+                        <Text style={{
+                            color: filterStatus === 'all' ? '#7C3AED' : 'rgba(255, 255, 255, 0.9)',
+                            fontWeight: '800',
+                            fontSize: 14,
+                            marginTop: 1
+                        }}>{totalAnnouncements}</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        onPress={() => setFilterStatus('active')}
+                        style={{
+                            flex: 1,
+                            paddingVertical: 6,
+                            backgroundColor: filterStatus === 'active' ? '#FFFFFF' : 'transparent',
+                            borderRadius: 9,
+                            shadowColor: filterStatus === 'active' ? '#000' : 'transparent',
+                            shadowOffset: { width: 0, height: 2 },
+                            shadowOpacity: 0.1,
+                            shadowRadius: 6,
+                            elevation: filterStatus === 'active' ? 3 : 0,
+                            alignItems: 'center',
+                        }}
+                    >
+                        <Text style={{
+                            color: filterStatus === 'active' ? '#059669' : 'rgba(255, 255, 255, 0.9)',
+                            fontWeight: '700',
+                            fontSize: 11
+                        }}>🟢 Active</Text>
+                        <Text style={{
+                            color: filterStatus === 'active' ? '#059669' : 'rgba(255, 255, 255, 0.9)',
+                            fontWeight: '800',
+                            fontSize: 14,
+                            marginTop: 1
+                        }}>{activeCount}</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        onPress={() => setFilterStatus('upcoming')}
+                        style={{
+                            flex: 1,
+                            paddingVertical: 6,
+                            backgroundColor: filterStatus === 'upcoming' ? '#FFFFFF' : 'transparent',
+                            borderRadius: 9,
+                            shadowColor: filterStatus === 'upcoming' ? '#000' : 'transparent',
+                            shadowOffset: { width: 0, height: 2 },
+                            shadowOpacity: 0.1,
+                            shadowRadius: 6,
+                            elevation: filterStatus === 'upcoming' ? 3 : 0,
+                            alignItems: 'center',
+                        }}
+                    >
+                        <Text style={{
+                            color: filterStatus === 'upcoming' ? '#D97706' : 'rgba(255, 255, 255, 0.9)',
+                            fontWeight: '700',
+                            fontSize: 11
+                        }}>🟡 Upcoming</Text>
+                        <Text style={{
+                            color: filterStatus === 'upcoming' ? '#D97706' : 'rgba(255, 255, 255, 0.9)',
+                            fontWeight: '800',
+                            fontSize: 14,
+                            marginTop: 1
+                        }}>{upcomingCount}</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        onPress={() => setFilterStatus('expired')}
+                        style={{
+                            flex: 1,
+                            paddingVertical: 6,
+                            backgroundColor: filterStatus === 'expired' ? '#FFFFFF' : 'transparent',
+                            borderRadius: 9,
+                            shadowColor: filterStatus === 'expired' ? '#000' : 'transparent',
+                            shadowOffset: { width: 0, height: 2 },
+                            shadowOpacity: 0.1,
+                            shadowRadius: 6,
+                            elevation: filterStatus === 'expired' ? 3 : 0,
+                            alignItems: 'center',
+                        }}
+                    >
+                        <Text style={{
+                            color: filterStatus === 'expired' ? '#DC2626' : 'rgba(255, 255, 255, 0.9)',
+                            fontWeight: '700',
+                            fontSize: 11
+                        }}>🔴 Expired</Text>
+                        <Text style={{
+                            color: filterStatus === 'expired' ? '#DC2626' : 'rgba(255, 255, 255, 0.9)',
+                            fontWeight: '800',
+                            fontSize: 14,
+                            marginTop: 1
+                        }}>{expiredCount}</Text>
+                    </TouchableOpacity>
+                </View>
+            </View>
+
+            {/* Search & Add Button - On Purple Gradient */}
+            <View style={{ paddingHorizontal: 20, marginBottom: 12 }}>
+                <View style={{
+                    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                    borderRadius: 16,
+                    padding: 14,
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: 6 },
+                    shadowOpacity: 0.12,
+                    shadowRadius: 16,
+                    elevation: 6,
+                    borderWidth: 1,
+                    borderColor: 'rgba(255, 255, 255, 0.3)',
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 12
+                }}>
+                    {/* Left: Search Input */}
+                    <View style={{ flex: 1.5 }}>
+                        <FloatingLabelInput
+                            label="Search"
+                            value={searchQuery}
+                            onChangeText={setSearchQuery}
+                            placeholder="Title..."
+                            containerStyle={{ marginBottom: 0 }}
+                        />
+                    </View>
+
+                    {/* Right: Add Button */}
+                    <View style={{ flex: 1 }}>
+                        <TouchableOpacity disabled={operationLoading} onPress={openAdd} activeOpacity={0.9}>
+                            <LinearGradient
+                                colors={['#7c3aed', '#6366f1']}
+                                start={{ x: 0, y: 0 }}
+                                end={{ x: 1, y: 0 }}
+                                style={{
+                                    paddingVertical: 12,
+                                    borderRadius: 10,
+                                    alignItems: 'center',
+                                    shadowColor: '#7c3aed',
+                                    shadowOffset: { width: 0, height: 2 },
+                                    shadowOpacity: 0.2,
+                                    shadowRadius: 4,
+                                    elevation: 2,
+                                    height: 50,
+                                    justifyContent: 'center'
+                                }}
+                            >
+                                <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>+ Add</Text>
+                            </LinearGradient>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </View>
+
+            {/* FILTERS: Compact Card */}
+            <View style={{ paddingHorizontal: 20, marginBottom: 12 }}>
+                <View style={{
+                    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                    borderRadius: 16,
                     padding: 12,
-                    elevation: 2,
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: 6 },
+                    shadowOpacity: 0.12,
+                    shadowRadius: 16,
+                    elevation: 6,
+                    borderWidth: 1,
+                    borderColor: 'rgba(255, 255, 255, 0.3)',
                     overflow: 'hidden',
                 }}>
                     <TouchableOpacity
                         onPress={() => setFiltersOpen(prev => !prev)}
                         style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}
                     >
-                        <Text style={{ fontSize: 16, fontWeight: '700', color: '#111827' }}>Filters</Text>
-                        <Text style={{ fontSize: 18, color: '#6B7280' }}>{filtersOpen ? '▾' : '▴'}</Text>
+                        <Text style={{ fontSize: 14, fontWeight: '800', color: '#111827' }}>🔍 Filters</Text>
+                        <Text style={{ fontSize: 16, color: '#7C3AED' }}>{filtersOpen ? '▾' : '▴'}</Text>
                     </TouchableOpacity>
 
                     {filtersOpen && (
-                        <View style={{ marginTop: 12 }}>
+                        <View style={{ marginTop: 10 }}>
                             {/* Status & Role - side by side */}
-                            <View style={{ flexDirection: 'row', gap: 12, marginBottom: 10 }}>
+                            <View style={{ flexDirection: 'row', gap: 10 }}>
                                 <View style={{ flex: 1 }}>
                                     <SelectInput
                                         label="Status"
@@ -390,46 +589,37 @@ export default function AnnouncementsScreen() {
                 </View>
             </View>
 
-            {/* Row 2: create button (aligned right) */}
-            <View style={{ paddingHorizontal: 16, marginBottom: 12, flexDirection: 'row', justifyContent: 'flex-end' }}>
-                <View style={{ width: 160 }}>
-                    <TouchableOpacity disabled={operationLoading} onPress={openAdd}>
-                        <LinearGradient
-                            colors={['#10B981', '#059669']}
-                            start={{ x: 0, y: 0 }}
-                            end={{ x: 1, y: 0 }}
-                            style={{
-                                paddingVertical: 12,
-                                borderRadius: 999,
-                                alignItems: 'center',
-                                elevation: 3,
-                            }}
-                        >
-                            <Text style={{ color: '#fff', fontWeight: '700', fontSize: 16 }}>+ Announcement</Text>
-                        </LinearGradient>
-                    </TouchableOpacity>
-                </View>
-            </View>
-
             {loadingAnnouncements ? (
                 <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
                     <ActivityIndicator size="small" color="#6366f1" />
                 </View>
             ) : (
-                <View style={{ flex: 1, paddingHorizontal: 16, paddingTop: 12 }}>
-                    <ListCardWrapper style={{ marginHorizontal: 0 }}>
+                <View style={{ flex: 1, paddingHorizontal: 18 }}>
+                    <View style={{
+                        backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                        borderRadius: 16,
+                        shadowColor: '#000',
+                        shadowOffset: { width: 0, height: 6 },
+                        shadowOpacity: 0.12,
+                        shadowRadius: 16,
+                        elevation: 6,
+                        borderWidth: 1,
+                        borderColor: 'rgba(255, 255, 255, 0.3)',
+                        overflow: 'hidden',
+                        flex: 1
+                    }}>
                         <FlatList
                             data={paginatedItems}
                             keyExtractor={(i) => i.id}
                             style={{ flex: 1 }}
                             contentContainerStyle={{
                                 paddingHorizontal: 16,
-                                paddingTop: 8,
+                                paddingTop: 16,
                                 paddingBottom: 80
                             }}
                             showsVerticalScrollIndicator={false}
                             refreshControl={
-                                <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#6366f1']} />
+                                <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#7c3aed']} tintColor="#7c3aed" />
                             }
                             renderItem={({ item }) => {
                                 const status = getAnnouncementStatus(item);
@@ -572,7 +762,7 @@ export default function AnnouncementsScreen() {
                                 />
                             )}
                         />
-                    </ListCardWrapper>
+                    </View>
                 </View>
             )}
 

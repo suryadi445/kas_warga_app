@@ -19,7 +19,6 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import CardItem from '../../src/components/CardItem';
 import ConfirmDialog from '../../src/components/ConfirmDialog';
 import FloatingLabelInput from '../../src/components/FloatingLabelInput';
-import ListCardWrapper from '../../src/components/ListCardWrapper';
 import LoadMore from '../../src/components/LoadMore';
 import SelectInput from '../../src/components/SelectInput';
 import { useToast } from '../../src/contexts/ToastContext';
@@ -495,6 +494,17 @@ export default function UsersScreen() {
     // Paginated users for display
     const displayedUsers = filteredUsers.slice(0, displayedCount);
 
+    // Helper: mask phone number for privacy (show only for admin)
+    function maskPhoneNumber(phone: string): string {
+        if (!phone) return '';
+        // If phone is less than 4 characters, just return it
+        if (phone.length <= 4) return phone;
+        // Show first part and mask last 4 digits
+        // Example: 08123456789 -> 0812345xxxx
+        const visiblePart = phone.slice(0, -4);
+        return `${visiblePart}xxxx`;
+    }
+
     const renderItem = ({ item }: { item: User }) => {
         // Role badge color
         const roleColors = {
@@ -503,6 +513,9 @@ export default function UsersScreen() {
             Member: { bg: '#E0E7FF', text: '#3730A3', border: '#6366F1' },
         };
         const colors = roleColors[item.role as keyof typeof roleColors] || roleColors.Member;
+
+        // Mask phone number if user is not admin
+        const displayPhone = canManageUsers ? item.phone : maskPhoneNumber(item.phone);
 
         return (
             <CardItem
@@ -515,7 +528,7 @@ export default function UsersScreen() {
                 titleColor="#111827"
                 subtitle={item.email}
                 subtitleColor="#6B7280"
-                description={item.phone}
+                description={displayPhone}
                 descriptionColor="#6B7280"
                 borderLeftColor={colors.border}
                 containerStyle={{ marginHorizontal: 0 }}
@@ -567,146 +580,279 @@ export default function UsersScreen() {
     }
 
     return (
-        <SafeAreaView edges={['bottom']} style={{ flex: 1, backgroundColor: '#fff' }}>
+        <SafeAreaView edges={['bottom']} style={{ flex: 1, backgroundColor: '#F8FAFC' }}>
             <StatusBar barStyle="dark-content" translucent backgroundColor="transparent" />
 
-            {/* Header */}
-            <View style={{ padding: 16, alignItems: 'center' }}>
-                <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: '#6366f1', alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
-                    <Text style={{ color: '#fff', fontSize: 32 }}>👤</Text>
+            {/* Purple Gradient Background for Header */}
+            <LinearGradient
+                colors={['#7c3aed', '#6366f1']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    height: 200,
+                }}
+            />
+
+            {/* Header - Horizontal Layout */}
+            <View style={{ padding: 16, paddingBottom: 12 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+                    {/* Icon on left */}
+                    <View style={{
+                        width: 64,
+                        height: 64,
+                        borderRadius: 32,
+                        backgroundColor: 'rgba(255, 255, 255, 0.15)',
+                        backdropFilter: 'blur(10px)',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        borderWidth: 2,
+                        borderColor: 'rgba(255, 255, 255, 0.3)',
+                        shadowColor: '#000',
+                        shadowOffset: { width: 0, height: 4 },
+                        shadowOpacity: 0.2,
+                        shadowRadius: 8,
+                        elevation: 6
+                    }}>
+                        <Text style={{ fontSize: 32 }}>👤</Text>
+                    </View>
+
+                    {/* Text on right */}
+                    <View style={{ flex: 1 }}>
+                        <Text style={{ color: '#FFFFFF', fontSize: 22, fontWeight: '800', letterSpacing: 0.3 }}>User Management</Text>
+                        <Text style={{ color: 'rgba(255, 255, 255, 0.85)', marginTop: 4, fontSize: 13, lineHeight: 18 }}>
+                            Manage user accounts, roles, and permissions
+                        </Text>
+                    </View>
                 </View>
-                <Text style={{ color: '#6366f1', fontSize: 20, fontWeight: '700' }}>User Management</Text>
-                <Text style={{ color: '#6B7280', marginTop: 4, textAlign: 'center' }}>
-                    Manage user accounts, roles, and permissions.
-                </Text>
+            </View>
+
+            {/* Role Filter Tab Switcher - Modern Glass Design */}
+            <View style={{ paddingHorizontal: 20, paddingBottom: 12 }}>
+                <View style={{
+                    flexDirection: 'row',
+                    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+                    borderRadius: 12,
+                    padding: 3,
+                    borderWidth: 1,
+                    borderColor: 'rgba(255, 255, 255, 0.25)'
+                }}>
+                    <TouchableOpacity
+                        onPress={() => setRoleFilter(null)}
+                        style={{
+                            flex: 1,
+                            paddingVertical: 6,
+                            backgroundColor: roleFilter === null ? '#FFFFFF' : 'transparent',
+                            borderRadius: 9,
+                            shadowColor: roleFilter === null ? '#000' : 'transparent',
+                            shadowOffset: { width: 0, height: 2 },
+                            shadowOpacity: 0.1,
+                            shadowRadius: 6,
+                            elevation: roleFilter === null ? 3 : 0,
+                            alignItems: 'center',
+                        }}
+                    >
+                        <Text style={{
+                            color: roleFilter === null ? '#7C3AED' : 'rgba(255, 255, 255, 0.9)',
+                            fontWeight: '700',
+                            textAlign: 'center',
+                            fontSize: 11
+                        }}>👥 All</Text>
+                        <Text style={{
+                            color: roleFilter === null ? '#7C3AED' : 'rgba(255, 255, 255, 0.9)',
+                            fontWeight: '800',
+                            fontSize: 14,
+                            marginTop: 1
+                        }}>{users.length}</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        onPress={() => setRoleFilter(roleFilter === 'Admin' ? null : 'Admin')}
+                        style={{
+                            flex: 1,
+                            paddingVertical: 6,
+                            backgroundColor: roleFilter === 'Admin' ? '#FFFFFF' : 'transparent',
+                            borderRadius: 9,
+                            shadowColor: roleFilter === 'Admin' ? '#000' : 'transparent',
+                            shadowOffset: { width: 0, height: 2 },
+                            shadowOpacity: 0.1,
+                            shadowRadius: 6,
+                            elevation: roleFilter === 'Admin' ? 3 : 0,
+                            alignItems: 'center',
+                        }}
+                    >
+                        <Text style={{
+                            color: roleFilter === 'Admin' ? '#DC2626' : 'rgba(255, 255, 255, 0.9)',
+                            fontWeight: '700',
+                            textAlign: 'center',
+                            fontSize: 11
+                        }}>👑 Admin</Text>
+                        <Text style={{
+                            color: roleFilter === 'Admin' ? '#DC2626' : 'rgba(255, 255, 255, 0.9)',
+                            fontWeight: '800',
+                            fontSize: 14,
+                            marginTop: 1
+                        }}>{users.filter(u => u.role === 'Admin').length}</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        onPress={() => setRoleFilter(roleFilter === 'Staff' ? null : 'Staff')}
+                        style={{
+                            flex: 1,
+                            paddingVertical: 6,
+                            backgroundColor: roleFilter === 'Staff' ? '#FFFFFF' : 'transparent',
+                            borderRadius: 9,
+                            shadowColor: roleFilter === 'Staff' ? '#000' : 'transparent',
+                            shadowOffset: { width: 0, height: 2 },
+                            shadowOpacity: 0.1,
+                            shadowRadius: 6,
+                            elevation: roleFilter === 'Staff' ? 3 : 0,
+                            alignItems: 'center',
+                        }}
+                    >
+                        <Text style={{
+                            color: roleFilter === 'Staff' ? '#2563EB' : 'rgba(255, 255, 255, 0.9)',
+                            fontWeight: '700',
+                            textAlign: 'center',
+                            fontSize: 11
+                        }}>⚡ Staff</Text>
+                        <Text style={{
+                            color: roleFilter === 'Staff' ? '#2563EB' : 'rgba(255, 255, 255, 0.9)',
+                            fontWeight: '800',
+                            fontSize: 14,
+                            marginTop: 1
+                        }}>{users.filter(u => u.role === 'Staff').length}</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        onPress={() => setRoleFilter(roleFilter === 'Member' ? null : 'Member')}
+                        style={{
+                            flex: 1,
+                            paddingVertical: 6,
+                            backgroundColor: roleFilter === 'Member' ? '#FFFFFF' : 'transparent',
+                            borderRadius: 9,
+                            shadowColor: roleFilter === 'Member' ? '#000' : 'transparent',
+                            shadowOffset: { width: 0, height: 2 },
+                            shadowOpacity: 0.1,
+                            shadowRadius: 6,
+                            elevation: roleFilter === 'Member' ? 3 : 0,
+                            alignItems: 'center',
+                        }}
+                    >
+                        <Text style={{
+                            color: roleFilter === 'Member' ? '#7C3AED' : 'rgba(255, 255, 255, 0.9)',
+                            fontWeight: '700',
+                            textAlign: 'center',
+                            fontSize: 11
+                        }}>🌟 Member</Text>
+                        <Text style={{
+                            color: roleFilter === 'Member' ? '#7C3AED' : 'rgba(255, 255, 255, 0.9)',
+                            fontWeight: '800',
+                            fontSize: 14,
+                            marginTop: 1
+                        }}>{users.filter(u => u.role === 'Member').length}</Text>
+                    </TouchableOpacity>
+                </View>
             </View>
 
             {/* Info/Warning banner */}
             {!canManageUsers && (
-                <View className="px-6 mb-2">
-                    <View style={{ backgroundColor: '#FEF2F2', padding: 12, borderRadius: 8, borderWidth: 1, borderColor: '#FCA5A5' }}>
-                        <Text style={{ color: '#991B1B', textAlign: 'center', fontSize: 13 }}>
-                            🔒 Only super admin (suryadi.hhb@gmail.com) can manage users
+                <View style={{ paddingHorizontal: 20, marginBottom: 12 }}>
+                    <View style={{
+                        backgroundColor: 'rgba(254, 242, 242, 0.95)',
+                        padding: 12,
+                        borderRadius: 12,
+                        borderWidth: 1,
+                        borderColor: '#FCA5A5',
+                        shadowColor: '#DC2626',
+                        shadowOffset: { width: 0, height: 2 },
+                        shadowOpacity: 0.1,
+                        shadowRadius: 4,
+                        elevation: 2
+                    }}>
+                        <Text style={{ color: '#991B1B', textAlign: 'center', fontSize: 13, fontWeight: '600' }}>
+                            🔒 Only super admin can manage users
                         </Text>
                     </View>
                 </View>
             )}
 
-            {/* User count with breakdown */}
-            <View className="px-6 mb-2">
-                <View style={{ backgroundColor: '#F9FAFB', padding: 10, borderRadius: 8 }}>
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                        {/* Total Users - leftmost (smaller) */}
-                        <TouchableOpacity onPress={() => setRoleFilter(null)} style={{ flex: 1, alignItems: 'center' }}>
-                            <View style={{
-                                width: 36,
-                                height: 36,
-                                borderRadius: 28,
-                                backgroundColor: roleFilter === null ? '#6366f1' : '#E6EEF8',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                borderWidth: roleFilter === null ? 2 : 0,
-                                borderColor: '#4f46e5'
-                            }}>
-                                <Text style={{ color: roleFilter === null ? '#fff' : '#1f2937', fontWeight: '700', fontSize: 16 }}>{users.length}</Text>
-                            </View>
-                            <Text style={{ marginTop: 6, color: '#374151', fontWeight: '700', fontSize: 12 }}>Total</Text>
-                        </TouchableOpacity>
-
-                        {/* Admin */}
-                        <TouchableOpacity onPress={() => setRoleFilter(roleFilter === 'Admin' ? null : 'Admin')} style={{ flex: 1, alignItems: 'center' }}>
-                            <View style={{
-                                width: 36,
-                                height: 36,
-                                borderRadius: 28,
-                                backgroundColor: roleFilter === 'Admin' ? '#991B1B' : '#FEE2E2',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                borderWidth: roleFilter === 'Admin' ? 2 : 0,
-                                borderColor: '#7f1d1d'
-                            }}>
-                                <Text style={{ color: roleFilter === 'Admin' ? '#fff' : '#991B1B', fontWeight: '700', fontSize: 16 }}>{users.filter(u => u.role === 'Admin').length}</Text>
-                            </View>
-                            <Text style={{ marginTop: 6, color: '#991B1B', fontWeight: '600', fontSize: 12 }}>Admin</Text>
-                        </TouchableOpacity>
-
-                        {/* Staff */}
-                        <TouchableOpacity onPress={() => setRoleFilter(roleFilter === 'Staff' ? null : 'Staff')} style={{ flex: 1, alignItems: 'center' }}>
-                            <View style={{
-                                width: 36,
-                                height: 36,
-                                borderRadius: 28,
-                                backgroundColor: roleFilter === 'Staff' ? '#1E40AF' : '#DBEAFE',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                borderWidth: roleFilter === 'Staff' ? 2 : 0,
-                                borderColor: '#1e3a8a'
-                            }}>
-                                <Text style={{ color: roleFilter === 'Staff' ? '#fff' : '#1E40AF', fontWeight: '700', fontSize: 16 }}>{users.filter(u => u.role === 'Staff').length}</Text>
-                            </View>
-                            <Text style={{ marginTop: 6, color: '#1E40AF', fontWeight: '600', fontSize: 12 }}>Staff</Text>
-                        </TouchableOpacity>
-
-                        {/* Member */}
-                        <TouchableOpacity onPress={() => setRoleFilter(roleFilter === 'Member' ? null : 'Member')} style={{ flex: 1, alignItems: 'center' }}>
-                            <View style={{
-                                width: 36,
-                                height: 36,
-                                borderRadius: 28,
-                                backgroundColor: roleFilter === 'Member' ? '#3730A3' : '#E0E7FF',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                borderWidth: roleFilter === 'Member' ? 2 : 0,
-                                borderColor: '#3730a3'
-                            }}>
-                                <Text style={{ color: roleFilter === 'Member' ? '#fff' : '#3730A3', fontWeight: '700', fontSize: 16 }}>{users.filter(u => u.role === 'Member').length}</Text>
-                            </View>
-                            <Text style={{ marginTop: 6, color: '#3730A3', fontWeight: '600', fontSize: 12 }}>Member</Text>
-                        </TouchableOpacity>
-                    </View>
-                </View>
-            </View>
-
             {/* NEW: Add User Button - only for super admin */}
             {canManageUsers && (
-                <View className="px-6 mb-2" style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    {/* Left: search (50%) */}
-                    <View style={{ flex: 1, marginRight: 12, justifyContent: 'center' }}>
-                        <FloatingLabelInput
-                            label="Search"
-                            value={searchQuery}
-                            onChangeText={setSearchQuery}
-                            placeholder="Search..."
-                            containerStyle={{ marginBottom: 0 }}
-                        />
-                    </View>
+                <View style={{ paddingHorizontal: 20, marginBottom: 16 }}>
+                    <View style={{
+                        backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                        borderRadius: 20,
+                        paddingHorizontal: 16,
+                        paddingVertical: 12,
+                        shadowColor: '#000',
+                        shadowOffset: { width: 0, height: 8 },
+                        shadowOpacity: 0.15,
+                        shadowRadius: 20,
+                        elevation: 8,
+                        borderWidth: 1,
+                        borderColor: 'rgba(255, 255, 255, 0.3)',
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        gap: 12
+                    }}>
+                        {/* Left: search (60%) */}
+                        <View style={{ flex: 1.5 }}>
+                            <FloatingLabelInput
+                                label="Search"
+                                value={searchQuery}
+                                onChangeText={setSearchQuery}
+                                placeholder="Search..."
+                                containerStyle={{ marginBottom: 0 }}
+                            />
+                        </View>
 
-                    {/* Right: create button (50%) */}
-                    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-                        <TouchableOpacity onPress={openAdd} activeOpacity={0.9} style={{ width: '100%' }}>
-                            <LinearGradient
-                                colors={['#10B981', '#059669']}
-                                start={{ x: 0, y: 0 }}
-                                end={{ x: 1, y: 0 }}
-                                style={{
-                                    width: '100%',
-                                    height: 44,
-                                    borderRadius: 999,
-                                    justifyContent: 'center',
-                                    alignItems: 'center',
-                                    elevation: 3,
-                                }}
-                            >
-                                <Text style={{ color: '#fff', fontWeight: '700', fontSize: 16 }}>+ User</Text>
-                            </LinearGradient>
-                        </TouchableOpacity>
+                        {/* Right: create button (40%) */}
+                        <View style={{ flex: 1 }}>
+                            <TouchableOpacity onPress={openAdd} activeOpacity={0.9} style={{ width: '100%' }}>
+                                <LinearGradient
+                                    colors={['#7c3aed', '#6366f1']}
+                                    start={{ x: 0, y: 0 }}
+                                    end={{ x: 1, y: 0 }}
+                                    style={{
+                                        width: '100%',
+                                        height: 44,
+                                        borderRadius: 12,
+                                        justifyContent: 'center',
+                                        alignItems: 'center',
+                                        shadowColor: '#7c3aed',
+                                        shadowOffset: { width: 0, height: 4 },
+                                        shadowOpacity: 0.3,
+                                        shadowRadius: 8,
+                                        elevation: 4,
+                                    }}
+                                >
+                                    <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>+ Add User</Text>
+                                </LinearGradient>
+                            </TouchableOpacity>
+                        </View>
                     </View>
                 </View>
             )}
 
             {/* List with pagination */}
-            <View style={{ flex: 1, paddingHorizontal: 16, paddingTop: 12 }}>
-                <ListCardWrapper style={{ marginHorizontal: 0 }}>
+            <View style={{ flex: 1, paddingHorizontal: 20 }}>
+                <View style={{
+                    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                    borderRadius: 20,
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: 8 },
+                    shadowOpacity: 0.15,
+                    shadowRadius: 20,
+                    elevation: 8,
+                    borderWidth: 1,
+                    borderColor: 'rgba(255, 255, 255, 0.3)',
+                    overflow: 'hidden',
+                    flex: 1
+                }}>
                     <FlatList
                         data={displayedUsers}
                         keyExtractor={(i) => i.id}
@@ -715,12 +861,12 @@ export default function UsersScreen() {
                         style={{ flex: 1 }}
                         contentContainerStyle={{
                             paddingHorizontal: 16,
-                            paddingTop: 8,
+                            paddingTop: 16,
                             paddingBottom: 80
                         }}
                         showsVerticalScrollIndicator={false}
                         refreshControl={
-                            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#6366f1']} />
+                            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#7c3aed']} tintColor="#7c3aed" />
                         }
                         keyboardShouldPersistTaps="handled"
                         // Load more pagination
@@ -742,7 +888,7 @@ export default function UsersScreen() {
                             </View>
                         )}
                     />
-                </ListCardWrapper>
+                </View>
             </View>
 
             {/* Modal Form - Create & Edit */}

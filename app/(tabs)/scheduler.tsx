@@ -15,7 +15,6 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import ConfirmDialog from '../../src/components/ConfirmDialog';
 import FloatingLabelInput from '../../src/components/FloatingLabelInput';
-import ListCardWrapper from '../../src/components/ListCardWrapper';
 import LoadMore from '../../src/components/LoadMore';
 import SelectInput from '../../src/components/SelectInput';
 import { useToast } from '../../src/contexts/ToastContext';
@@ -62,6 +61,11 @@ export default function SchedulerScreen() {
     const [description, setDescription] = useState('');
     const [frequencyOpen, setFrequencyOpen] = useState(false);
 
+    // NEW: search query state
+    const [searchQuery, setSearchQuery] = useState<string>('');
+    // NEW: control show / collapse filters card (default = closed)
+    const [filtersOpen, setFiltersOpen] = useState<boolean>(false);
+
     // NEW: days of week helper & selected days state for modal
     const WEEK_DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const [selectedDays, setSelectedDays] = useState<string[]>([]);
@@ -76,7 +80,7 @@ export default function SchedulerScreen() {
     // Reset displayed count when items or filters change
     useEffect(() => {
         setDisplayedCount(SCHEDULES_PER_PAGE);
-    }, [items, filterFrequency, filterDays]);
+    }, [items, filterFrequency, filterDays, searchQuery]);
 
     // realtime listener for schedules collection
     useEffect(() => {
@@ -108,8 +112,15 @@ export default function SchedulerScreen() {
         setRefreshTrigger(prev => prev + 1);
     });
 
-    // compute displayed items: apply frequency + days filters
+    // compute displayed items: apply frequency + days filters + search
     const displayedItems = items.filter(i => {
+        // search filter (by activity name or location)
+        if (searchQuery.trim()) {
+            const query = searchQuery.toLowerCase();
+            const matchName = (i.activityName || '').toLowerCase().includes(query);
+            const matchLocation = (i.location || '').toLowerCase().includes(query);
+            if (!matchName && !matchLocation) return false;
+        }
         if (filterFrequency !== 'all' && i.frequency !== filterFrequency) return false;
         if (filterDays && filterDays.length > 0) {
             // require schedule to have days and at least one matching day
@@ -198,95 +209,295 @@ export default function SchedulerScreen() {
         }
     }
 
+    // Counts for summary tabs
+    const totalSchedules = items.length;
+    const dailyCount = items.filter(i => i.frequency === 'daily').length;
+    const weeklyCount = items.filter(i => i.frequency === 'weekly').length;
+    const monthlyCount = items.filter(i => i.frequency === 'monthly').length;
+
     return (
-        <SafeAreaView edges={['bottom']} style={{ flex: 1, backgroundColor: '#fff' }}>
+        <SafeAreaView edges={['bottom']} style={{ flex: 1, backgroundColor: '#F8FAFC' }}>
             <StatusBar barStyle="dark-content" translucent backgroundColor="transparent" />
 
-            {/* Header */}
-            <View style={{ padding: 16, alignItems: 'center' }}>
-                <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: '#6366f1', alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
-                    <Text style={{ color: '#fff', fontSize: 32 }}>📅</Text>
-                </View>
-                <Text style={{ color: '#6366f1', fontSize: 20, fontWeight: '700' }}>Activity Schedule</Text>
-                <Text style={{ color: '#6B7280', marginTop: 4, textAlign: 'center' }}>
-                    Manage routine and incidental community activities schedule.
-                </Text>
-            </View>
+            {/* Purple Gradient Background for Header */}
+            <LinearGradient
+                colors={['#7c3aed', '#6366f1']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    height: 200,
+                }}
+            />
 
-            {/* Summary card */}
-            <View style={{ paddingHorizontal: 16, marginBottom: 12 }}>
-                <LinearGradient
-                    colors={['#ffffff', '#f8fafc']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0 }}
-                    style={{ borderRadius: 14, padding: 14, elevation: 3 }}
-                >
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <View>
-                            <Text style={{ fontSize: 20, fontWeight: '700', marginTop: 1, color: '#6B7280' }}>
-                                {items.length} Schedules
-                            </Text>
-                            <Text style={{ color: '#6B7280', fontSize: 12, marginTop: 6 }}>
-                                Frequency filter: {filterFrequency === 'all' ? 'All' : FREQUENCY_OPTIONS.find(f => f.value === filterFrequency)?.label}
-                            </Text>
-                        </View>
-                        <View style={{ backgroundColor: '#F3F4F6', paddingVertical: 6, paddingHorizontal: 12, borderRadius: 999 }}>
-                            <Text style={{ color: '#374151', fontWeight: '600' }}>{displayedItems.length} Total</Text>
-                        </View>
+            {/* Header - Horizontal Layout */}
+            <View style={{ paddingHorizontal: 16, paddingTop: 10, paddingBottom: 12 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+                    {/* Icon on left */}
+                    <View style={{
+                        width: 64,
+                        height: 64,
+                        borderRadius: 32,
+                        backgroundColor: 'rgba(255, 255, 255, 0.15)',
+                        backdropFilter: 'blur(10px)',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        borderWidth: 2,
+                        borderColor: 'rgba(255, 255, 255, 0.3)',
+                        shadowColor: '#000',
+                        shadowOffset: { width: 0, height: 4 },
+                        shadowOpacity: 0.2,
+                        shadowRadius: 8,
+                        elevation: 6
+                    }}>
+                        <Text style={{ fontSize: 32 }}>📅</Text>
                     </View>
-                </LinearGradient>
+
+                    {/* Text on right */}
+                    <View style={{ flex: 1 }}>
+                        <Text style={{ color: '#FFFFFF', fontSize: 22, fontWeight: '800', letterSpacing: 0.3 }}>Activity Schedule</Text>
+                        <Text style={{ color: 'rgba(255, 255, 255, 0.85)', marginTop: 4, fontSize: 13, lineHeight: 18 }}>
+                            Manage routine and incidental community activities schedule.
+                        </Text>
+                    </View>
+                </View>
             </View>
 
-            {/* Filters: Row 1 = Date + Frequency ; Row 2 = Add */}
-            <View style={{ paddingHorizontal: 16, marginBottom: 12 }}>
-                {/* Row 1: Days and Frequency */}
-                <View style={{ flexDirection: 'row', gap: 12, marginBottom: 8 }}>
-                    {/* Days filter - using FloatingLabelInput (read-only, shows text summary) */}
-                    <View style={{ flex: 1 }}>
+            {/* Status Summary - Compact Tab Style */}
+            <View style={{ paddingHorizontal: 20, marginBottom: 12 }}>
+                <View style={{
+                    flexDirection: 'row',
+                    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+                    borderRadius: 12,
+                    padding: 3,
+                    borderWidth: 1,
+                    borderColor: 'rgba(255, 255, 255, 0.25)'
+                }}>
+                    <TouchableOpacity
+                        onPress={() => setFilterFrequency('all')}
+                        style={{
+                            flex: 1,
+                            paddingVertical: 6,
+                            backgroundColor: filterFrequency === 'all' ? '#FFFFFF' : 'transparent',
+                            borderRadius: 9,
+                            shadowColor: filterFrequency === 'all' ? '#000' : 'transparent',
+                            shadowOffset: { width: 0, height: 2 },
+                            shadowOpacity: 0.1,
+                            shadowRadius: 6,
+                            elevation: filterFrequency === 'all' ? 3 : 0,
+                            alignItems: 'center',
+                        }}
+                    >
+                        <Text style={{
+                            color: filterFrequency === 'all' ? '#7C3AED' : 'rgba(255, 255, 255, 0.9)',
+                            fontWeight: '700',
+                            fontSize: 11
+                        }}>📢 All</Text>
+                        <Text style={{
+                            color: filterFrequency === 'all' ? '#7C3AED' : 'rgba(255, 255, 255, 0.9)',
+                            fontWeight: '800',
+                            fontSize: 14,
+                            marginTop: 1
+                        }}>{totalSchedules}</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        onPress={() => setFilterFrequency('daily')}
+                        style={{
+                            flex: 1,
+                            paddingVertical: 6,
+                            backgroundColor: filterFrequency === 'daily' ? '#FFFFFF' : 'transparent',
+                            borderRadius: 9,
+                            shadowColor: filterFrequency === 'daily' ? '#000' : 'transparent',
+                            shadowOffset: { width: 0, height: 2 },
+                            shadowOpacity: 0.1,
+                            shadowRadius: 6,
+                            elevation: filterFrequency === 'daily' ? 3 : 0,
+                            alignItems: 'center',
+                        }}
+                    >
+                        <Text style={{
+                            color: filterFrequency === 'daily' ? '#D97706' : 'rgba(255, 255, 255, 0.9)',
+                            fontWeight: '700',
+                            fontSize: 11
+                        }}>☀️ Daily</Text>
+                        <Text style={{
+                            color: filterFrequency === 'daily' ? '#D97706' : 'rgba(255, 255, 255, 0.9)',
+                            fontWeight: '800',
+                            fontSize: 14,
+                            marginTop: 1
+                        }}>{dailyCount}</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        onPress={() => setFilterFrequency('weekly')}
+                        style={{
+                            flex: 1,
+                            paddingVertical: 6,
+                            backgroundColor: filterFrequency === 'weekly' ? '#FFFFFF' : 'transparent',
+                            borderRadius: 9,
+                            shadowColor: filterFrequency === 'weekly' ? '#000' : 'transparent',
+                            shadowOffset: { width: 0, height: 2 },
+                            shadowOpacity: 0.1,
+                            shadowRadius: 6,
+                            elevation: filterFrequency === 'weekly' ? 3 : 0,
+                            alignItems: 'center',
+                        }}
+                    >
+                        <Text style={{
+                            color: filterFrequency === 'weekly' ? '#2563EB' : 'rgba(255, 255, 255, 0.9)',
+                            fontWeight: '700',
+                            fontSize: 11
+                        }}>📅 Weekly</Text>
+                        <Text style={{
+                            color: filterFrequency === 'weekly' ? '#2563EB' : 'rgba(255, 255, 255, 0.9)',
+                            fontWeight: '800',
+                            fontSize: 14,
+                            marginTop: 1
+                        }}>{weeklyCount}</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        onPress={() => setFilterFrequency('monthly')}
+                        style={{
+                            flex: 1,
+                            paddingVertical: 6,
+                            backgroundColor: filterFrequency === 'monthly' ? '#FFFFFF' : 'transparent',
+                            borderRadius: 9,
+                            shadowColor: filterFrequency === 'monthly' ? '#000' : 'transparent',
+                            shadowOffset: { width: 0, height: 2 },
+                            shadowOpacity: 0.1,
+                            shadowRadius: 6,
+                            elevation: filterFrequency === 'monthly' ? 3 : 0,
+                            alignItems: 'center',
+                        }}
+                    >
+                        <Text style={{
+                            color: filterFrequency === 'monthly' ? '#4F46E5' : 'rgba(255, 255, 255, 0.9)',
+                            fontWeight: '700',
+                            fontSize: 11
+                        }}>🌙 Monthly</Text>
+                        <Text style={{
+                            color: filterFrequency === 'monthly' ? '#4F46E5' : 'rgba(255, 255, 255, 0.9)',
+                            fontWeight: '800',
+                            fontSize: 14,
+                            marginTop: 1
+                        }}>{monthlyCount}</Text>
+                    </TouchableOpacity>
+                </View>
+            </View>
+
+            {/* Search & Add Button - On Purple Gradient */}
+            <View style={{ paddingHorizontal: 20, marginBottom: 12 }}>
+                <View style={{
+                    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                    borderRadius: 16,
+                    padding: 14,
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: 6 },
+                    shadowOpacity: 0.12,
+                    shadowRadius: 16,
+                    elevation: 6,
+                    borderWidth: 1,
+                    borderColor: 'rgba(255, 255, 255, 0.3)',
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 12
+                }}>
+                    {/* Left: Search Input */}
+                    <View style={{ flex: 1.5 }}>
                         <FloatingLabelInput
-                            label="Days"
-                            value={filterDays.length ? filterDays.join(', ') : ''}
-                            onChangeText={() => { }}
-                            placeholder="All days"
-                            editable={false}
+                            label="Search"
+                            value={searchQuery}
+                            onChangeText={setSearchQuery}
+                            placeholder="Search..."
                             containerStyle={{ marginBottom: 0 }}
                         />
                     </View>
 
-                    {/* Frequency filter - using SelectInput */}
+                    {/* Right: Add Button */}
                     <View style={{ flex: 1 }}>
-                        <SelectInput
-                            label="Frequency"
-                            value={filterFrequency}
-                            options={[
-                                { label: 'All Frequency', value: 'all' },
-                                ...FREQUENCY_OPTIONS
-                            ]}
-                            onValueChange={(v: string) => setFilterFrequency(v as any)}
-                            placeholder="Select frequency"
-                            containerStyle={{ marginBottom: 0 }}
-                        />
-                    </View>
-                </View>
-
-                {/* Row 2: Add button (Search removed) */}
-                <View style={{ flexDirection: 'row', gap: 12, alignItems: 'center' }}>
-                    <View style={{ flex: 1 }}>
-                        {/* Search removed as requested */}
-                    </View>
-
-                    <View style={{ width: 140 }}>
-                        <TouchableOpacity disabled={operationLoading} onPress={openAdd}>
+                        <TouchableOpacity disabled={operationLoading} onPress={openAdd} activeOpacity={0.9}>
                             <LinearGradient
-                                colors={['#10B981', '#059669']}
+                                colors={['#7c3aed', '#6366f1']}
                                 start={{ x: 0, y: 0 }}
                                 end={{ x: 1, y: 0 }}
-                                style={{ paddingVertical: 12, borderRadius: 999, alignItems: 'center', elevation: 3 }}
+                                style={{
+                                    paddingVertical: 12,
+                                    borderRadius: 10,
+                                    alignItems: 'center',
+                                    shadowColor: '#7c3aed',
+                                    shadowOffset: { width: 0, height: 2 },
+                                    shadowOpacity: 0.2,
+                                    shadowRadius: 4,
+                                    elevation: 2,
+                                    height: 50,
+                                    justifyContent: 'center'
+                                }}
                             >
-                                <Text style={{ color: '#fff', fontWeight: '700', fontSize: 16 }}>+ Schedule</Text>
+                                <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>+ Add</Text>
                             </LinearGradient>
                         </TouchableOpacity>
                     </View>
+                </View>
+            </View>
+
+            {/* FILTERS: Compact Card */}
+            <View style={{ paddingHorizontal: 20, marginBottom: 12 }}>
+                <View style={{
+                    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                    borderRadius: 16,
+                    padding: 12,
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: 6 },
+                    shadowOpacity: 0.12,
+                    shadowRadius: 16,
+                    elevation: 6,
+                    borderWidth: 1,
+                    borderColor: 'rgba(255, 255, 255, 0.3)',
+                    overflow: 'hidden',
+                }}>
+                    <TouchableOpacity
+                        onPress={() => setFiltersOpen(prev => !prev)}
+                        style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}
+                    >
+                        <Text style={{ fontSize: 14, fontWeight: '800', color: '#111827' }}>🔍 Filters</Text>
+                        <Text style={{ fontSize: 16, color: '#7C3AED' }}>{filtersOpen ? '▾' : '▴'}</Text>
+                    </TouchableOpacity>
+
+                    {filtersOpen && (
+                        <View style={{ marginTop: 10 }}>
+                            {/* Days & Frequency - side by side */}
+                            <View style={{ flexDirection: 'row', gap: 10 }}>
+                                <View style={{ flex: 1 }}>
+                                    <FloatingLabelInput
+                                        label="Days"
+                                        value={filterDays.length ? filterDays.join(', ') : ''}
+                                        onChangeText={() => { }}
+                                        placeholder="All days"
+                                        editable={false}
+                                        containerStyle={{ marginBottom: 0 }}
+                                    />
+                                </View>
+                                <View style={{ flex: 1 }}>
+                                    <SelectInput
+                                        label="Frequency"
+                                        value={filterFrequency}
+                                        options={[
+                                            { label: 'All Frequency', value: 'all' },
+                                            ...FREQUENCY_OPTIONS
+                                        ]}
+                                        onValueChange={(v: string) => setFilterFrequency(v as any)}
+                                        placeholder="Select frequency"
+                                        containerStyle={{ marginBottom: 0 }}
+                                    />
+                                </View>
+                            </View>
+                        </View>
+                    )}
                 </View>
             </View>
 
@@ -295,20 +506,32 @@ export default function SchedulerScreen() {
                     <ActivityIndicator size="small" color="#6366f1" />
                 </View>
             ) : (
-                <View style={{ flex: 1, paddingHorizontal: 16, paddingTop: 12 }}>
-                    <ListCardWrapper style={{ marginHorizontal: 0 }}>
+                <View style={{ flex: 1, paddingHorizontal: 18 }}>
+                    <View style={{
+                        backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                        borderRadius: 16,
+                        shadowColor: '#000',
+                        shadowOffset: { width: 0, height: 6 },
+                        shadowOpacity: 0.12,
+                        shadowRadius: 16,
+                        elevation: 6,
+                        borderWidth: 1,
+                        borderColor: 'rgba(255, 255, 255, 0.3)',
+                        overflow: 'hidden',
+                        flex: 1
+                    }}>
                         <FlatList
                             data={displayedItems.slice(0, displayedCount)}
                             keyExtractor={(i) => i.id}
                             style={{ flex: 1 }}
                             contentContainerStyle={{
                                 paddingHorizontal: 16,
-                                paddingTop: 8,
+                                paddingTop: 16,
                                 paddingBottom: 80
                             }}
                             showsVerticalScrollIndicator={false}
                             refreshControl={
-                                <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#6366f1']} />
+                                <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#7c3aed']} tintColor="#7c3aed" />
                             }
                             ListEmptyComponent={() => (
                                 <View style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: 60 }}>
@@ -432,7 +655,7 @@ export default function SchedulerScreen() {
                                 />
                             )}
                         />
-                    </ListCardWrapper>
+                    </View>
                 </View>
             )}
 

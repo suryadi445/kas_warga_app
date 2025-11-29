@@ -17,7 +17,6 @@ import DateTimePickerModal from 'react-native-modal-datetime-picker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import ConfirmDialog from '../../src/components/ConfirmDialog';
 import FloatingLabelInput from '../../src/components/FloatingLabelInput';
-import ListCardWrapper from '../../src/components/ListCardWrapper';
 import LoadMore from '../../src/components/LoadMore';
 import SelectInput from '../../src/components/SelectInput';
 import { useToast } from '../../src/contexts/ToastContext';
@@ -193,16 +192,24 @@ export default function ActivitiesScreen() {
     // ADDED: filtering by status and date-range
     const [filterStatus, setFilterStatus] = useState<'all' | 'upcoming' | 'active' | 'expired'>('all');
     const [filterStatusOpen, setFilterStatusOpen] = useState(false);
-    const STATUS_OPTIONS = ['all', 'upcoming', 'active', 'expired'] as const;
-    const STATUS_LABEL: Record<string, string> = { all: 'All', upcoming: 'Upcoming', active: 'Active', expired: 'Expired' };
+
+    // NEW: search query state
+    const [searchQuery, setSearchQuery] = useState<string>('');
 
     // single activity date filter (YYYY-MM-DD). Empty = show all dates
     const [filterDate, setFilterDate] = useState<string>('');
     const [filterDatePickerVisible, setFilterDatePickerVisible] = useState(false);
 
-    // compute displayed items: apply status + activity date (single date) filter, then sort by status priority
+    // compute displayed items: apply status + activity date (single date) filter + search, then sort by status priority
     const displayedItems = items
         .filter(i => {
+            // search filter (by title or location)
+            if (searchQuery.trim()) {
+                const query = searchQuery.toLowerCase();
+                const matchTitle = (i.title || '').toLowerCase().includes(query);
+                const matchLocation = (i.location || '').toLowerCase().includes(query);
+                if (!matchTitle && !matchLocation) return false;
+            }
             // status filter
             if (filterStatus !== 'all') {
                 const s = getActivityStatus(i);
@@ -245,7 +252,7 @@ export default function ActivitiesScreen() {
     // Reset displayed count when items or filters change
     useEffect(() => {
         setDisplayedCount(ACTIVITIES_PER_PAGE);
-    }, [items, filterStatus, filterDate]);
+    }, [items, filterStatus, filterDate, searchQuery]);
 
     // Load more handler
     const handleLoadMore = () => {
@@ -358,112 +365,291 @@ export default function ActivitiesScreen() {
     };
 
     return (
-        <SafeAreaView edges={['bottom']} style={{ flex: 1, backgroundColor: '#fff' }}>
+        <SafeAreaView edges={['bottom']} style={{ flex: 1, backgroundColor: '#F8FAFC' }}>
             <StatusBar barStyle="dark-content" translucent backgroundColor="transparent" />
 
-            {/* Header - replace HeaderCard with manual header */}
-            <View style={{ padding: 16, alignItems: 'center' }}>
-                <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: '#6366f1', alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
-                    <Text style={{ color: '#fff', fontSize: 32 }}>🗓️</Text>
-                </View>
-                <Text style={{ color: '#6366f1', fontSize: 20, fontWeight: '700' }}>Activities</Text>
-                <Text style={{ color: '#6B7280', marginTop: 4, textAlign: 'center' }}>
-                    Manage community activities and events
-                </Text>
-            </View>
-
-            {/* Summary card */}
-            <View style={{ paddingHorizontal: 16, marginBottom: 12 }}>
-                <LinearGradient
-                    colors={['#ffffff', '#f8fafc']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0 }}
-                    style={{
-                        borderRadius: 14,
-                        padding: 14,
-                        elevation: 3,
-                    }}
-                >
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <View>
-                            <Text style={{ fontSize: 20, fontWeight: '700', marginTop: 1, color: activeCount > 0 ? '#065F46' : '#6B7280' }}>
-                                {activeCount} Active
-                            </Text>
-                            <Text style={{ color: '#6B7280', fontSize: 12, marginTop: 6 }}>
-                                Upcoming: {upcomingCount} · Expired: {expiredCount}
-                            </Text>
-                        </View>
-                        <View style={{ backgroundColor: '#F3F4F6', paddingVertical: 6, paddingHorizontal: 12, borderRadius: 999 }}>
-                            <Text style={{ color: '#374151', fontWeight: '600' }}>{totalActivities} Total</Text>
-                        </View>
-                    </View>
-                </LinearGradient>
-            </View>
-
-            {/* FILTERS: Status + Date (two columns) */}
-            <View style={{ paddingHorizontal: 16, marginBottom: 12 }}>
-                <View style={{ flexDirection: 'row', gap: 12, alignItems: 'flex-start' }}>
-                    {/* Status column (left) */}
-                    <View style={{ flex: 1 }}>
-                        <SelectInput
-                            label="Status"
-                            value={filterStatus}
-                            options={[
-                                { label: 'All Status', value: 'all' },
-                                { label: 'Upcoming', value: 'upcoming' },
-                                { label: 'Active', value: 'active' },
-                                { label: 'Expired', value: 'expired' }
-                            ]}
-                            onValueChange={(v: string) => setFilterStatus(v as 'all' | 'upcoming' | 'active' | 'expired')}
-                            placeholder="Select status"
-                            containerStyle={{ marginBottom: 0 }}
-                        />
-                    </View>
-
-                    {/* Date column (right) */}
-                    <View style={{ flex: 1 }}>
-                        <FloatingLabelInput
-                            label="Activity Date"
-                            value={filterDate ? formatDateOnly(filterDate) : ''}
-                            onChangeText={() => { }}
-                            placeholder="All dates"
-                            editable={false}
-                            onPress={() => setFilterDatePickerVisible(true)}
-                            containerStyle={{ marginBottom: 0 }}
-                        />
-                    </View>
-                </View>
-            </View>
-
-            {/* Filter Date Picker (single date) */}
-            <DateTimePickerModal
-                isVisible={filterDatePickerVisible}
-                mode="date"
-                onConfirm={(d: Date) => {
-                    setFilterDate(dateToYMD(d));
-                    setFilterDatePickerVisible(false);
+            {/* Purple Gradient Background for Header */}
+            <LinearGradient
+                colors={['#7c3aed', '#6366f1']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    height: 200,
                 }}
-                onCancel={() => setFilterDatePickerVisible(false)}
             />
 
-            {/* Row: Create button (aligned right) */}
-            <View style={{ paddingHorizontal: 16, marginBottom: 12, flexDirection: 'row', justifyContent: 'flex-end' }}>
-                <View style={{ width: 160 }}>
-                    <TouchableOpacity disabled={operationLoading} onPress={openAdd}>
-                        <LinearGradient
-                            colors={['#10B981', '#059669']}
-                            start={{ x: 0, y: 0 }}
-                            end={{ x: 1, y: 0 }}
-                            style={{
-                                paddingVertical: 12,
-                                borderRadius: 999,
-                                alignItems: 'center',
-                                elevation: 3,
-                            }}
-                        >
-                            <Text style={{ color: '#fff', fontWeight: '700', fontSize: 16 }}>+ Activity</Text>
-                        </LinearGradient>
+            {/* Header - Horizontal Layout */}
+            <View style={{ paddingHorizontal: 16, paddingTop: 10, paddingBottom: 12 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+                    {/* Icon on left */}
+                    <View style={{
+                        width: 64,
+                        height: 64,
+                        borderRadius: 32,
+                        backgroundColor: 'rgba(255, 255, 255, 0.15)',
+                        backdropFilter: 'blur(10px)',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        borderWidth: 2,
+                        borderColor: 'rgba(255, 255, 255, 0.3)',
+                        shadowColor: '#000',
+                        shadowOffset: { width: 0, height: 4 },
+                        shadowOpacity: 0.2,
+                        shadowRadius: 8,
+                        elevation: 6
+                    }}>
+                        <Text style={{ fontSize: 32 }}>🗓️</Text>
+                    </View>
+
+                    {/* Text on right */}
+                    <View style={{ flex: 1 }}>
+                        <Text style={{ color: '#FFFFFF', fontSize: 22, fontWeight: '800', letterSpacing: 0.3 }}>Activities</Text>
+                        <Text style={{ color: 'rgba(255, 255, 255, 0.85)', marginTop: 4, fontSize: 13, lineHeight: 18 }}>
+                            Manage community activities and events
+                        </Text>
+                    </View>
+                </View>
+            </View>
+
+            {/* Status Summary - Compact Tab Style */}
+            <View style={{ paddingHorizontal: 20, marginBottom: 12 }}>
+                <View style={{
+                    flexDirection: 'row',
+                    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+                    borderRadius: 12,
+                    padding: 3,
+                    borderWidth: 1,
+                    borderColor: 'rgba(255, 255, 255, 0.25)'
+                }}>
+                    <TouchableOpacity
+                        onPress={() => setFilterStatus('all')}
+                        style={{
+                            flex: 1,
+                            paddingVertical: 6,
+                            backgroundColor: filterStatus === 'all' ? '#FFFFFF' : 'transparent',
+                            borderRadius: 9,
+                            shadowColor: filterStatus === 'all' ? '#000' : 'transparent',
+                            shadowOffset: { width: 0, height: 2 },
+                            shadowOpacity: 0.1,
+                            shadowRadius: 6,
+                            elevation: filterStatus === 'all' ? 3 : 0,
+                            alignItems: 'center',
+                        }}
+                    >
+                        <Text style={{
+                            color: filterStatus === 'all' ? '#7C3AED' : 'rgba(255, 255, 255, 0.9)',
+                            fontWeight: '700',
+                            fontSize: 11
+                        }}>📢 All</Text>
+                        <Text style={{
+                            color: filterStatus === 'all' ? '#7C3AED' : 'rgba(255, 255, 255, 0.9)',
+                            fontWeight: '800',
+                            fontSize: 14,
+                            marginTop: 1
+                        }}>{totalActivities}</Text>
                     </TouchableOpacity>
+
+                    <TouchableOpacity
+                        onPress={() => setFilterStatus('active')}
+                        style={{
+                            flex: 1,
+                            paddingVertical: 6,
+                            backgroundColor: filterStatus === 'active' ? '#FFFFFF' : 'transparent',
+                            borderRadius: 9,
+                            shadowColor: filterStatus === 'active' ? '#000' : 'transparent',
+                            shadowOffset: { width: 0, height: 2 },
+                            shadowOpacity: 0.1,
+                            shadowRadius: 6,
+                            elevation: filterStatus === 'active' ? 3 : 0,
+                            alignItems: 'center',
+                        }}
+                    >
+                        <Text style={{
+                            color: filterStatus === 'active' ? '#059669' : 'rgba(255, 255, 255, 0.9)',
+                            fontWeight: '700',
+                            fontSize: 11
+                        }}>🟢 Active</Text>
+                        <Text style={{
+                            color: filterStatus === 'active' ? '#059669' : 'rgba(255, 255, 255, 0.9)',
+                            fontWeight: '800',
+                            fontSize: 14,
+                            marginTop: 1
+                        }}>{activeCount}</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        onPress={() => setFilterStatus('upcoming')}
+                        style={{
+                            flex: 1,
+                            paddingVertical: 6,
+                            backgroundColor: filterStatus === 'upcoming' ? '#FFFFFF' : 'transparent',
+                            borderRadius: 9,
+                            shadowColor: filterStatus === 'upcoming' ? '#000' : 'transparent',
+                            shadowOffset: { width: 0, height: 2 },
+                            shadowOpacity: 0.1,
+                            shadowRadius: 6,
+                            elevation: filterStatus === 'upcoming' ? 3 : 0,
+                            alignItems: 'center',
+                        }}
+                    >
+                        <Text style={{
+                            color: filterStatus === 'upcoming' ? '#D97706' : 'rgba(255, 255, 255, 0.9)',
+                            fontWeight: '700',
+                            fontSize: 11
+                        }}>🟡 Upcoming</Text>
+                        <Text style={{
+                            color: filterStatus === 'upcoming' ? '#D97706' : 'rgba(255, 255, 255, 0.9)',
+                            fontWeight: '800',
+                            fontSize: 14,
+                            marginTop: 1
+                        }}>{upcomingCount}</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        onPress={() => setFilterStatus('expired')}
+                        style={{
+                            flex: 1,
+                            paddingVertical: 6,
+                            backgroundColor: filterStatus === 'expired' ? '#FFFFFF' : 'transparent',
+                            borderRadius: 9,
+                            shadowColor: filterStatus === 'expired' ? '#000' : 'transparent',
+                            shadowOffset: { width: 0, height: 2 },
+                            shadowOpacity: 0.1,
+                            shadowRadius: 6,
+                            elevation: filterStatus === 'expired' ? 3 : 0,
+                            alignItems: 'center',
+                        }}
+                    >
+                        <Text style={{
+                            color: filterStatus === 'expired' ? '#DC2626' : 'rgba(255, 255, 255, 0.9)',
+                            fontWeight: '700',
+                            fontSize: 11
+                        }}>🔴 Expired</Text>
+                        <Text style={{
+                            color: filterStatus === 'expired' ? '#DC2626' : 'rgba(255, 255, 255, 0.9)',
+                            fontWeight: '800',
+                            fontSize: 14,
+                            marginTop: 1
+                        }}>{expiredCount}</Text>
+                    </TouchableOpacity>
+                </View>
+            </View>
+
+            {/* Search & Add Button - On Purple Gradient */}
+            <View style={{ paddingHorizontal: 20, marginBottom: 12 }}>
+                <View style={{
+                    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                    borderRadius: 16,
+                    padding: 14,
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: 6 },
+                    shadowOpacity: 0.12,
+                    shadowRadius: 16,
+                    elevation: 6,
+                    borderWidth: 1,
+                    borderColor: 'rgba(255, 255, 255, 0.3)',
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 12
+                }}>
+                    {/* Left: Search Input */}
+                    <View style={{ flex: 1.5 }}>
+                        <FloatingLabelInput
+                            label="Search"
+                            value={searchQuery}
+                            onChangeText={setSearchQuery}
+                            placeholder="Search..."
+                            containerStyle={{ marginBottom: 0 }}
+                        />
+                    </View>
+
+                    {/* Right: Add Button */}
+                    <View style={{ flex: 1 }}>
+                        <TouchableOpacity disabled={operationLoading} onPress={openAdd} activeOpacity={0.9}>
+                            <LinearGradient
+                                colors={['#7c3aed', '#6366f1']}
+                                start={{ x: 0, y: 0 }}
+                                end={{ x: 1, y: 0 }}
+                                style={{
+                                    paddingVertical: 12,
+                                    borderRadius: 10,
+                                    alignItems: 'center',
+                                    shadowColor: '#7c3aed',
+                                    shadowOffset: { width: 0, height: 2 },
+                                    shadowOpacity: 0.2,
+                                    shadowRadius: 4,
+                                    elevation: 2,
+                                    height: 50,
+                                    justifyContent: 'center'
+                                }}
+                            >
+                                <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>+ Add</Text>
+                            </LinearGradient>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </View>
+
+            {/* FILTERS: Compact Card */}
+            <View style={{ paddingHorizontal: 20, marginBottom: 12 }}>
+                <View style={{
+                    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                    borderRadius: 16,
+                    padding: 12,
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: 6 },
+                    shadowOpacity: 0.12,
+                    shadowRadius: 16,
+                    elevation: 6,
+                    borderWidth: 1,
+                    borderColor: 'rgba(255, 255, 255, 0.3)',
+                    overflow: 'hidden',
+                }}>
+                    <TouchableOpacity
+                        onPress={() => setFilterStatusOpen(prev => !prev)}
+                        style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}
+                    >
+                        <Text style={{ fontSize: 14, fontWeight: '800', color: '#111827' }}>🔍 Filters</Text>
+                        <Text style={{ fontSize: 16, color: '#7C3AED' }}>{filterStatusOpen ? '▾' : '▴'}</Text>
+                    </TouchableOpacity>
+
+                    {filterStatusOpen && (
+                        <View style={{ marginTop: 10 }}>
+                            {/* Status & Date - side by side */}
+                            <View style={{ flexDirection: 'row', gap: 10 }}>
+                                <View style={{ flex: 1 }}>
+                                    <SelectInput
+                                        label="Status"
+                                        value={filterStatus}
+                                        options={[
+                                            { label: 'All Status', value: 'all' },
+                                            { label: 'Upcoming', value: 'upcoming' },
+                                            { label: 'Active', value: 'active' },
+                                            { label: 'Expired', value: 'expired' }
+                                        ]}
+                                        onValueChange={(v: string) => setFilterStatus(v as 'all' | 'upcoming' | 'active' | 'expired')}
+                                        placeholder="Select status"
+                                        containerStyle={{ marginBottom: 0 }}
+                                    />
+                                </View>
+                                <View style={{ flex: 1 }}>
+                                    <FloatingLabelInput
+                                        label="Activity Date"
+                                        value={filterDate ? formatDateOnly(filterDate) : ''}
+                                        onChangeText={() => { }}
+                                        placeholder="All dates"
+                                        editable={false}
+                                        onPress={() => setFilterDatePickerVisible(true)}
+                                        containerStyle={{ marginBottom: 0 }}
+                                    />
+                                </View>
+                            </View>
+                        </View>
+                    )}
                 </View>
             </View>
 
@@ -472,20 +658,32 @@ export default function ActivitiesScreen() {
                     <ActivityIndicator size="small" color="#6366f1" />
                 </View>
             ) : (
-                <View style={{ flex: 1, paddingHorizontal: 16, paddingTop: 12 }}>
-                    <ListCardWrapper style={{ marginHorizontal: 0 }}>
+                <View style={{ flex: 1, paddingHorizontal: 18 }}>
+                    <View style={{
+                        backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                        borderRadius: 16,
+                        shadowColor: '#000',
+                        shadowOffset: { width: 0, height: 6 },
+                        shadowOpacity: 0.12,
+                        shadowRadius: 16,
+                        elevation: 6,
+                        borderWidth: 1,
+                        borderColor: 'rgba(255, 255, 255, 0.3)',
+                        overflow: 'hidden',
+                        flex: 1
+                    }}>
                         <FlatList
                             data={displayedItems.slice(0, displayedCount)}
                             keyExtractor={(i) => i.id}
                             style={{ flex: 1 }}
                             contentContainerStyle={{
                                 paddingHorizontal: 16,
-                                paddingTop: 8,
+                                paddingTop: 16,
                                 paddingBottom: 80
                             }}
                             showsVerticalScrollIndicator={false}
                             refreshControl={
-                                <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#6366f1']} />
+                                <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#7c3aed']} tintColor="#7c3aed" />
                             }
                             ListEmptyComponent={() => (
                                 <View style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: 60 }}>
@@ -602,7 +800,7 @@ export default function ActivitiesScreen() {
                                 />
                             )}
                         />
-                    </ListCardWrapper>
+                    </View>
                 </View>
             )}
 
