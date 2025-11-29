@@ -2,7 +2,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
 import { Magnetometer } from 'expo-sensors';
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, RefreshControl, ScrollView, StatusBar, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Platform, RefreshControl, ScrollView, StatusBar, Text, TouchableOpacity, View } from 'react-native';
 import { useRefresh } from '../../src/hooks/useRefresh';
 
 // --- Helper: Hijri <-> Gregorian ---
@@ -99,6 +99,15 @@ export default function PrayerPage() {
         Magnetometer.setUpdateInterval(50); // Faster update for smoother animation
 
         return () => subscription.remove();
+    }, []);
+
+    // Ensure status bar is transparent (esp. on Android)
+    useEffect(() => {
+        if (Platform.OS === 'android') {
+            // Make status bar fully transparent and translucent on Android
+            StatusBar.setBackgroundColor('transparent', true);
+            StatusBar.setTranslucent(true);
+        }
     }, []);
 
     useEffect(() => {
@@ -466,7 +475,7 @@ export default function PrayerPage() {
 
     return (
         <View style={{ flex: 1, backgroundColor: '#F8FAFC' }}>
-            <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
+            <StatusBar barStyle="dark-content" translucent backgroundColor="transparent" />
 
             {/* Purple Gradient Background for Header */}
             <LinearGradient
@@ -483,7 +492,7 @@ export default function PrayerPage() {
             />
 
             {/* Header */}
-            <View style={{ padding: 24, alignItems: 'center', paddingTop: 20, paddingBottom: 16 }}>
+            <View style={{ padding: 16, alignItems: 'center' }}>
                 <View style={{
                     width: 80,
                     height: 80,
