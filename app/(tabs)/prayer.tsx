@@ -1,6 +1,8 @@
+import { LinearGradient } from 'expo-linear-gradient';
+import * as Location from 'expo-location';
+import { Magnetometer } from 'expo-sensors';
 import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, RefreshControl, ScrollView, StatusBar, Text, TouchableOpacity, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRefresh } from '../../src/hooks/useRefresh';
 
 // --- Helper: Hijri <-> Gregorian ---
@@ -35,7 +37,7 @@ function haversineDistanceKm(lat1: number, lon1: number, lat2: number, lon2: num
 
 export default function PrayerPage() {
     const now = new Date();
-    const [tab, setTab] = useState<'schedule' | 'qibla'>('schedule');
+    const [tab, setTab] = useState<'times' | 'schedule' | 'qibla'>('times');
     const [lat, setLat] = useState<number>(-6.2);
     const [lon, setLon] = useState<number>(106.816666);
     const [dateStr, setDateStr] = useState<string>(now.toISOString().split('T')[0]);
@@ -45,7 +47,103 @@ export default function PrayerPage() {
     const [error, setError] = useState<string | null>(null);
     const [holidays, setHolidays] = useState<string[]>([]);
     const holidaysFetched = useRef(false);
+    const [currentTime, setCurrentTime] = useState(new Date());
+    const [locationName, setLocationName] = useState<string>('Locating...');
+    const [deviceHeading, setDeviceHeading] = useState(0);
+    const [magnetometerData, setMagnetometerData] = useState(0); // in microTesla (uT)
+    const [bearing, setBearing] = useState(0);
+    const [distanceKm, setDistanceKm] = useState(0);
 
+    // Update current time every second for real-time countdown
+    useEffect(() => {
+        const timer = setInterval(() => {
+            setCurrentTime(new Date());
+        }, 1000);
+        return () => clearInterval(timer);
+    }, []);
+
+    // Subscribe to magnetometer for compass rotation
+    useEffect(() => {
+        const subscription = Magnetometer.addListener((data: { x: number; y: number; z: number }) => {
+            const { x, y, z } = data;
+
+            // Calculate Magnetic Field Strength (Magnitude)
+            const magnitude = Math.sqrt(x * x + y * y + z * z);
+            setMagnetometerData(magnitude);
+
+            // Convert Math Angle to Compass Heading
+            // Math.atan2(y, x) gives angle CCW from X-axis.
+            // We need CW from Y-axis (North).
+            // Based on sensor axis: North(y=1,x=0)=90deg, East(y=0,x=-1)=180deg
+
+            let angle = Math.atan2(y, x) * (180 / Math.PI);
+
+            // Correct formula for CW rotation: angle - 90
+            let heading = angle - 90;
+
+            // Normalize to 0-360
+            if (heading < 0) heading += 360;
+
+            // Simple Low-Pass Filter to smooth movement
+            setDeviceHeading(prev => {
+                const delta = heading - prev;
+                // Handle wrap-around (e.g. 359 -> 1)
+                if (Math.abs(delta) > 180) {
+                    return heading;
+                }
+                // Smoothing factor (0.1 = very smooth/slow, 1.0 = instant/jittery)
+                return prev + delta * 0.15;
+            });
+        });
+
+        Magnetometer.setUpdateInterval(50); // Faster update for smoother animation
+
+        return () => subscription.remove();
+    }, []);
+
+    useEffect(() => {
+        (async () => {
+            let { status } = await Location.requestForegroundPermissionsAsync();
+            if (status !== 'granted') {
+                setError('Permission to access location was denied');
+                return;
+            }
+
+            let location = await Location.getCurrentPositionAsync({});
+            setLat(location.coords.latitude);
+            setLon(location.coords.longitude);
+
+            // Calculate Qibla direction
+            const qibla = computeBearing(location.coords.latitude, location.coords.longitude, KAABA.lat, KAABA.lon);
+            setBearing(qibla);
+
+            // Calculate distance to Kaaba
+            const dist = haversineDistanceKm(location.coords.latitude, location.coords.longitude, KAABA.lat, KAABA.lon);
+            setDistanceKm(dist);
+
+            // Reverse Geocode to get District Name
+            try {
+                const reverseGeocode = await Location.reverseGeocodeAsync({
+                    latitude: location.coords.latitude,
+                    longitude: location.coords.longitude
+                });
+
+                if (reverseGeocode.length > 0) {
+                    const address = reverseGeocode[0];
+                    // Prioritize district, fallback to city or subregion
+                    const name = address.district || address.city || address.subregion || address.region;
+                    if (name) {
+                        setLocationName(name);
+                    } else {
+                        setLocationName('Unknown Location');
+                    }
+                }
+            } catch (e) {
+                console.log('Reverse geocoding failed', e);
+                setLocationName('Unknown Location');
+            }
+        })();
+    }, []);
     useEffect(() => { fetchTimes(); }, [dateStr, lat, lon]);
     async function fetchTimes() {
         setLoading(true); setError(null); setTimes(null);
@@ -149,35 +247,58 @@ export default function PrayerPage() {
 
         return (
             <View>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                {/* Month Navigation */}
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                     <TouchableOpacity onPress={() => {
                         const prevMonth = month - 1 < 1 ? 12 : month - 1;
                         const prevYear = month - 1 < 1 ? year - 1 : year;
                         setDateStr(localIsoDate(prevYear, prevMonth, 1));
+                    }} style={{
+                        backgroundColor: 'rgba(124, 58, 237, 0.1)',
+                        width: 36,
+                        height: 36,
+                        borderRadius: 18,
+                        alignItems: 'center',
+                        justifyContent: 'center'
                     }}>
-                        <Text style={{ color: '#06B6D4' }}>◀</Text>
+                        <Text style={{ color: '#7C3AED', fontSize: 18, fontWeight: '700' }}>◀</Text>
                     </TouchableOpacity>
-                    <Text style={{ fontWeight: '700' }}>{monthNames[month - 1]} {year}</Text>
-                    <Text style={{ fontWeight: '700', marginHorizontal: 12 }}>
-                        {hijriMonthName} {hijriYear}
-                    </Text>
+
+                    <View style={{ alignItems: 'center' }}>
+                        <Text style={{ fontWeight: '800', fontSize: 16, color: '#1F2937' }}>{monthNames[month - 1]} {year}</Text>
+                        <Text style={{ fontWeight: '600', fontSize: 13, color: '#7C3AED', marginTop: 2 }}>
+                            {hijriMonthName} {hijriYear}
+                        </Text>
+                    </View>
+
                     <TouchableOpacity onPress={() => {
                         const nextMonth = month + 1 > 12 ? 1 : month + 1;
                         const nextYear = month + 1 > 12 ? year + 1 : year;
                         setDateStr(localIsoDate(nextYear, nextMonth, 1));
+                    }} style={{
+                        backgroundColor: 'rgba(124, 58, 237, 0.1)',
+                        width: 36,
+                        height: 36,
+                        borderRadius: 18,
+                        alignItems: 'center',
+                        justifyContent: 'center'
                     }}>
-                        <Text style={{ color: '#06B6D4' }}>▶</Text>
+                        <Text style={{ color: '#7C3AED', fontSize: 18, fontWeight: '700' }}>▶</Text>
                     </TouchableOpacity>
                 </View>
-                <View style={{ flexDirection: 'row', marginTop: 2 }}>
+
+                {/* Weekday Headers */}
+                <View style={{ flexDirection: 'row', marginTop: 8, marginBottom: 8 }}>
                     {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((w) => (
                         <View key={w} style={{ flex: 1, alignItems: 'center' }}>
-                            <Text style={{ fontSize: 12, color: '#6B7280' }}>{w}</Text>
+                            <Text style={{ fontSize: 12, fontWeight: '700', color: '#9CA3AF' }}>{w}</Text>
                         </View>
                     ))}
                 </View>
+
+                {/* Calendar Grid */}
                 {grow.map((row, ri) => (
-                    <View key={ri} style={{ flexDirection: 'row', marginTop: 4 }}>
+                    <View key={ri} style={{ flexDirection: 'row', marginTop: 6 }}>
                         {row.map((c, ci) => {
                             if (!c) return <View key={ci} style={{ flex: 1 }} />;
                             const isSelected = c.iso === dateStr;
@@ -200,32 +321,40 @@ export default function PrayerPage() {
 
                             // Prioritas: selected > holiday > default
                             let bgColor = 'transparent';
-                            let borderColor = '#6366f1';
-                            let textColor = '#111827';
-                            let hijriColor = '#6366f1';
+                            let borderColor = '#7C3AED';
+                            let textColor = '#1F2937';
+                            let hijriColor = '#7C3AED';
                             let fontWeight: 'normal' | 'bold' | undefined = 'normal';
                             if (isSelected) {
-                                bgColor = '#6366f1';
+                                bgColor = '#7C3AED';
                                 textColor = '#fff';
                                 hijriColor = '#fff';
-                                borderColor = '#6366f1';
+                                borderColor = '#7C3AED';
                                 fontWeight = 'bold';
                             } else if (isHoliday) {
-                                bgColor = '#fecaca'; // merah muda terang
-                                textColor = '#b91c1c'; // merah tua
-                                hijriColor = '#b91c1c';
-                                borderColor = '#fecaca';
+                                bgColor = '#FEE2E2';
+                                textColor = '#DC2626';
+                                hijriColor = '#DC2626';
+                                borderColor = '#FCA5A5';
                                 fontWeight = 'bold';
                             }
 
                             return (
                                 <TouchableOpacity key={ci} onPress={() => setDateStr(c.iso)} style={{ flex: 1, alignItems: 'center' }}>
                                     <View style={{
-                                        width: 40, height: 40, borderRadius: 20,
-                                        alignItems: 'center', justifyContent: 'center',
+                                        width: 42,
+                                        height: 42,
+                                        borderRadius: 21,
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
                                         backgroundColor: bgColor,
-                                        borderWidth: isSelected ? 2 : isHoliday ? 1 : 0,
-                                        borderColor: borderColor
+                                        borderWidth: isSelected ? 2 : isHoliday ? 1.5 : 0,
+                                        borderColor: borderColor,
+                                        shadowColor: isSelected ? '#7C3AED' : 'transparent',
+                                        shadowOffset: { width: 0, height: 2 },
+                                        shadowOpacity: 0.3,
+                                        shadowRadius: 4,
+                                        elevation: isSelected ? 4 : 0
                                     }}>
                                         <Text style={{
                                             color: textColor,
@@ -234,13 +363,13 @@ export default function PrayerPage() {
                                         }}>
                                             {c.day}
                                             <Text style={{
-                                                fontSize: 10,
+                                                fontSize: 9,
                                                 color: hijriColor,
                                                 position: 'absolute',
                                                 top: 2,
                                                 right: 2
                                             }}>
-                                                {' '}<Text style={{ fontSize: 10, color: hijriColor }}>{displayHijriDay}</Text>
+                                                {' '}<Text style={{ fontSize: 9, color: hijriColor }}>{displayHijriDay}</Text>
                                             </Text>
                                         </Text>
                                     </View>
@@ -249,103 +378,481 @@ export default function PrayerPage() {
                         })}
                     </View>
                 ))}
-                {/* List nama hari libur di bulan ini */}
+
+                {/* National Holidays List */}
                 {holidaysInMonth.length > 0 && (
-                    <View style={{ marginTop: 6, alignItems: 'center' }}>
-                        <Text style={{ color: '#ef4444', fontWeight: '700', marginBottom: 2 }}>National Holidays:</Text>
-                        {holidaysInMonth.map(date => (
-                            <Text key={date} style={{ color: '#ef4444', fontSize: 13 }}>
-                                {date} - {holidaysInfo[date] || ''}
-                            </Text>
-                        ))}
+                    <View style={{
+                        marginTop: 16,
+                        backgroundColor: 'rgba(220, 38, 38, 0.05)',
+                        borderRadius: 12,
+                        padding: 12,
+                        borderLeftWidth: 3,
+                        borderLeftColor: '#DC2626'
+                    }}>
+                        <Text style={{ color: '#DC2626', fontWeight: '800', marginBottom: 8, fontSize: 14 }}>🎉 National Holidays</Text>
+                        {holidaysInMonth.map(date => {
+                            // Format date from "YYYY-MM-DD" to "01 Jan 2025"
+                            const formatHolidayDate = (dateStr: string) => {
+                                const [year, month, day] = dateStr.split('-');
+                                const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                                return `${day} ${monthNames[parseInt(month) - 1]} ${year}`;
+                            };
+
+                            return (
+                                <Text key={date} style={{ color: '#991B1B', fontSize: 13, marginTop: 4, fontWeight: '600' }}>
+                                    • {formatHolidayDate(date)} - {holidaysInfo[date] || ''}
+                                </Text>
+                            );
+                        })}
                     </View>
                 )}
             </View>
         );
     }
 
-    // --- Qibla ---
-    const bearing = computeBearing(lat, lon, KAABA.lat, KAABA.lon);
-    const distanceKm = haversineDistanceKm(lat, lon, KAABA.lat, KAABA.lon);
+    // --- Helper: Next Prayer & Countdown ---
+    function getNextPrayer() {
+        if (!times) return null;
+
+        const prayerNames = ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'];
+        const now = currentTime;
+        const currentHour = now.getHours();
+        const currentMinute = now.getMinutes();
+        const currentSeconds = now.getSeconds();
+        const currentTotalSeconds = currentHour * 3600 + currentMinute * 60 + currentSeconds;
+
+        for (const name of prayerNames) {
+            const timeStr = times[name]; // format: "HH:MM"
+            if (!timeStr) continue;
+
+            const [h, m] = timeStr.split(':').map(Number);
+            const prayerTotalSeconds = h * 3600 + m * 60;
+
+            if (prayerTotalSeconds > currentTotalSeconds) {
+                const diff = prayerTotalSeconds - currentTotalSeconds;
+                return { name, timeStr, remainingSeconds: diff };
+            }
+        }
+
+        // If no prayer left today, return Fajr tomorrow
+        const fajrTime = times['Fajr'];
+        if (fajrTime) {
+            const [h, m] = fajrTime.split(':').map(Number);
+            const fajrTotalSeconds = h * 3600 + m * 60;
+            const diff = (24 * 3600) - currentTotalSeconds + fajrTotalSeconds;
+            return { name: 'Fajr', timeStr: fajrTime, remainingSeconds: diff };
+        }
+
+        return null;
+    }
+
+    function formatCountdown(seconds: number): string {
+        const h = Math.floor(seconds / 3600);
+        const m = Math.floor((seconds % 3600) / 60);
+        const s = seconds % 60;
+
+        if (h > 0) {
+            return `${h}h ${m}m ${s}s`;
+        } else if (m > 0) {
+            return `${m}m ${s}s`;
+        } else {
+            return `${s}s`;
+        }
+    }
+
+    const nextPrayer = getNextPrayer();
+
+
 
     return (
-        <SafeAreaView edges={['bottom']} style={{ flex: 1, backgroundColor: '#fff' }}>
-            <StatusBar barStyle="dark-content" translucent backgroundColor="transparent" />
-            <View style={{ padding: 16, alignItems: 'center' }}>
-                <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: '#6366f1', alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
-                    <Text style={{ color: '#fff', fontSize: 32 }}>🕌</Text>
+        <View style={{ flex: 1, backgroundColor: '#F8FAFC' }}>
+            <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
+
+            {/* Purple Gradient Background for Header */}
+            <LinearGradient
+                colors={['#7c3aed', '#6366f1']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    height: 300,
+                }}
+            />
+
+            {/* Header */}
+            <View style={{ padding: 24, alignItems: 'center', paddingTop: 20, paddingBottom: 16 }}>
+                <View style={{
+                    width: 80,
+                    height: 80,
+                    borderRadius: 40,
+                    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+                    backdropFilter: 'blur(10px)',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    marginBottom: 12,
+                    borderWidth: 2,
+                    borderColor: 'rgba(255, 255, 255, 0.3)',
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: 8 },
+                    shadowOpacity: 0.3,
+                    shadowRadius: 16,
+                    elevation: 8
+                }}>
+                    <Text style={{ fontSize: 40 }}>🕌</Text>
                 </View>
-                <Text style={{ color: '#6366f1', fontSize: 20, fontWeight: '700' }}>Prayer Schedule & Calendar</Text>
-                <Text style={{ color: '#6B7280', marginTop: 4, textAlign: 'center' }}>
-                    View prayer times, qibla direction, and Hijri calendar with Indonesian national holidays.
+                <Text style={{ color: '#FFFFFF', fontSize: 28, fontWeight: '800', letterSpacing: 0.5 }}>Prayer Schedule</Text>
+                <Text style={{ color: 'rgba(255, 255, 255, 0.85)', marginTop: 6, textAlign: 'center', fontSize: 15, paddingHorizontal: 20 }}>
+                    View prayer times, qibla direction, and Hijri calendar
                 </Text>
             </View>
+
+            {/* Tab Switcher - Fixed, Not Scrollable */}
+            <View style={{ paddingHorizontal: 20, paddingBottom: 16 }}>
+                <View style={{
+                    flexDirection: 'row',
+                    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+                    borderRadius: 16,
+                    padding: 4,
+                    borderWidth: 1,
+                    borderColor: 'rgba(255, 255, 255, 0.25)'
+                }}>
+                    <TouchableOpacity
+                        onPress={() => setTab('times')}
+                        style={{
+                            flex: 1,
+                            paddingVertical: 12,
+                            backgroundColor: tab === 'times' ? '#FFFFFF' : 'transparent',
+                            borderRadius: 12,
+                            shadowColor: tab === 'times' ? '#000' : 'transparent',
+                            shadowOffset: { width: 0, height: 2 },
+                            shadowOpacity: 0.1,
+                            shadowRadius: 8,
+                            elevation: tab === 'times' ? 4 : 0
+                        }}
+                    >
+                        <Text style={{
+                            color: tab === 'times' ? '#7C3AED' : 'rgba(255, 255, 255, 0.9)',
+                            fontWeight: '700',
+                            textAlign: 'center',
+                            fontSize: 14
+                        }}>🕐 Times</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        onPress={() => setTab('schedule')}
+                        style={{
+                            flex: 1,
+                            paddingVertical: 12,
+                            backgroundColor: tab === 'schedule' ? '#FFFFFF' : 'transparent',
+                            borderRadius: 12,
+                            shadowColor: tab === 'schedule' ? '#000' : 'transparent',
+                            shadowOffset: { width: 0, height: 2 },
+                            shadowOpacity: 0.1,
+                            shadowRadius: 8,
+                            elevation: tab === 'schedule' ? 4 : 0
+                        }}
+                    >
+                        <Text style={{
+                            color: tab === 'schedule' ? '#7C3AED' : 'rgba(255, 255, 255, 0.9)',
+                            fontWeight: '700',
+                            textAlign: 'center',
+                            fontSize: 14
+                        }}>📅 Calendar</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        onPress={() => setTab('qibla')}
+                        style={{
+                            flex: 1,
+                            paddingVertical: 12,
+                            backgroundColor: tab === 'qibla' ? '#FFFFFF' : 'transparent',
+                            borderRadius: 12,
+                            shadowColor: tab === 'qibla' ? '#000' : 'transparent',
+                            shadowOffset: { width: 0, height: 2 },
+                            shadowOpacity: 0.1,
+                            shadowRadius: 8,
+                            elevation: tab === 'qibla' ? 4 : 0
+                        }}
+                    >
+                        <Text style={{
+                            color: tab === 'qibla' ? '#7C3AED' : 'rgba(255, 255, 255, 0.9)',
+                            fontWeight: '700',
+                            textAlign: 'center',
+                            fontSize: 14
+                        }}>🧭 Qibla</Text>
+                    </TouchableOpacity>
+                </View>
+            </View>
+
+            {/* Scrollable Content */}
             <ScrollView
-                contentContainerStyle={{ padding: 16 }}
+                style={{ backgroundColor: '#F8FAFC' }}
+                contentContainerStyle={{ padding: 20, paddingTop: 20 }}
                 refreshControl={
-                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#6366f1']} />
+                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#7C3AED']} tintColor="#7C3AED" />
                 }
             >
-                <View style={{ flexDirection: 'row', marginBottom: 12 }}>
-                    <TouchableOpacity onPress={() => setTab('schedule')} style={{ flex: 1, padding: 10, backgroundColor: tab === 'schedule' ? '#6366f1' : '#F3F4F6', borderRadius: 8, marginRight: 8 }}>
-                        <Text style={{ color: tab === 'schedule' ? '#fff' : '#111827', fontWeight: '700', textAlign: 'center' }}>Schedule</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={() => setTab('qibla')} style={{ flex: 1, padding: 10, backgroundColor: tab === 'qibla' ? '#6366f1' : '#F3F4F6', borderRadius: 8 }}>
-                        <Text style={{ color: tab === 'qibla' ? '#fff' : '#111827', fontWeight: '700', textAlign: 'center' }}>Qibla</Text>
-                    </TouchableOpacity>
-                </View>
-                {/* Jadwal sholat section di atas */}
-                <View style={{ marginBottom: 12 }}>
-                    <Text style={{ fontWeight: '700', marginBottom: 4 }}>Prayer Times</Text>
-                    {loading && <ActivityIndicator size="small" color="#6366f1" />}
-                    {error && <Text style={{ color: '#EF4444' }}>{error}</Text>}
-                    {times && (
-                        <View style={{ marginTop: 8, backgroundColor: '#F8FAFC', borderRadius: 8, padding: 12 }}>
-                            {['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'].map((k) => (
-                                <View key={k} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6 }}>
-                                    <Text style={{ color: '#374151', fontWeight: '600' }}>{k}</Text>
-                                    <Text style={{ color: '#111827', fontWeight: '700' }}>{times[k]}</Text>
-                                </View>
-                            ))}
-                            <Text style={{ color: '#6B7280', marginTop: 8, fontSize: 12 }}>Note: times from Aladhan API</Text>
-                        </View>
-                    )}
-                </View>
+                {/* Tab Content */}
+                {tab === 'times' && (
+                    <View style={{
+                        backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                        borderRadius: 20,
+                        padding: 16,
+                        shadowColor: '#000',
+                        shadowOffset: { width: 0, height: 8 },
+                        shadowOpacity: 0.15,
+                        shadowRadius: 20,
+                        elevation: 8,
+                        borderWidth: 1,
+                        borderColor: 'rgba(255, 255, 255, 0.3)'
+                    }}>
+                        <Text style={{ fontWeight: '800', fontSize: 18, color: '#1F2937', marginBottom: 8 }}>🕐 Prayer Times</Text>
 
-                {tab === 'schedule' ? (
-                    <View>
-                        {/* Input location dihapus, hanya tampil jadwal dan kalender */}
-                        <Text style={{ fontWeight: '700', marginBottom: 4 }}>Calendar</Text>
+                        {/* Next Prayer Countdown */}
+                        {nextPrayer && (
+                            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6, paddingHorizontal: 16 }}>
+                                <Text style={{ fontSize: 12, fontWeight: '800', color: '#10B981' }}>
+                                    {nextPrayer.name}
+                                </Text>
+                                <Text style={{ fontSize: 12, fontWeight: '800', color: '#10B981', letterSpacing: 0.5 }}>
+                                    {formatCountdown(nextPrayer.remainingSeconds)}
+                                </Text>
+                            </View>
+                        )}
+
+                        {loading && <ActivityIndicator size="small" color="#7C3AED" />}
+                        {error && <Text style={{ color: '#EF4444', fontWeight: '600' }}>{error}</Text>}
+                        {times && (
+                            <View>
+                                {['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'].map((k, idx) => (
+                                    <View key={k} style={{
+                                        flexDirection: 'row',
+                                        justifyContent: 'space-between',
+                                        paddingVertical: 12,
+                                        paddingHorizontal: 16,
+                                        backgroundColor: idx % 2 === 0 ? 'rgba(124, 58, 237, 0.05)' : 'transparent',
+                                        borderRadius: 12,
+                                        marginBottom: 4
+                                    }}>
+                                        <Text style={{ color: '#4B5563', fontWeight: '600', fontSize: 16 }}>{k}</Text>
+                                        <Text style={{ color: '#7C3AED', fontWeight: '800', fontSize: 16 }}>{times[k]}</Text>
+                                    </View>
+                                ))}
+                                <Text style={{ color: '#9CA3AF', marginTop: 12, fontSize: 12, textAlign: 'center' }}>
+                                    Powered by Aladhan API
+                                </Text>
+                            </View>
+                        )}
+                    </View>
+                )}
+
+                {tab === 'schedule' && (
+                    <View style={{
+                        backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                        borderRadius: 20,
+                        padding: 20,
+                        shadowColor: '#000',
+                        shadowOffset: { width: 0, height: 8 },
+                        shadowOpacity: 0.15,
+                        shadowRadius: 20,
+                        elevation: 8,
+                        borderWidth: 1,
+                        borderColor: 'rgba(255, 255, 255, 0.3)'
+                    }}>
+                        <Text style={{ fontWeight: '800', fontSize: 18, color: '#1F2937', marginBottom: 16 }}>📆 Calendar</Text>
                         {renderUnifiedCalendar()}
                         <View style={{ height: 12 }} />
                     </View>
-                ) : (
-                    <View style={{ alignItems: 'center' }}>
-                        <Text style={{ fontWeight: '700', marginBottom: 8 }}>Your location</Text>
-                        <Text style={{ fontWeight: '700', color: '#111827' }}>{lat.toFixed(6)}, {lon.toFixed(6)}</Text>
-                        <View style={{ marginTop: 16, width: 220, height: 220, borderRadius: 110, borderWidth: 4, borderColor: '#10B981', alignItems: 'center', justifyContent: 'center', position: 'relative', backgroundColor: '#fff' }}>
-                            {/* Ka'bah icon at top */}
-                            <View style={{ position: 'absolute', top: 8 }}>
-                                <Text style={{ fontSize: 24 }}>🕋</Text>
+                )}
+
+                {tab === 'qibla' && (
+                    <View style={{
+                        flex: 1,
+                        backgroundColor: '#FFFFFF',
+                        borderRadius: 24,
+                        padding: 16, // Reduced padding
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        // Shadow properties
+                        shadowColor: "#000",
+                        shadowOffset: {
+                            width: 0,
+                            height: 4,
+                        },
+                        shadowOpacity: 0.1,
+                        shadowRadius: 12,
+                        elevation: 5,
+                    }}>
+                        {/* Top Info Bar */}
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%', marginBottom: 20 }}>
+                            <View style={{ alignItems: 'center' }}>
+                                <Text style={{ color: '#7C3AED', fontSize: 10, fontWeight: '700', marginBottom: 2 }}>UTARA SEJATI</Text>
+                                <Text style={{ color: '#FF0000', fontSize: 16, fontWeight: 'bold' }}>
+                                    {deviceHeading.toFixed(0)}° N
+                                </Text>
                             </View>
-                            {/* Pointer */}
-                            <View style={{ position: 'absolute', transform: [{ rotate: `${bearing}deg` }], alignItems: 'center' }}>
-                                <View style={{ width: 2, height: 64, marginBottom: 6, alignItems: 'center' }}>
-                                    <View style={{ flex: 1, width: 2, borderLeftWidth: 2, borderLeftColor: '#FCA5A5', borderStyle: 'dashed', opacity: 0.95 }} />
-                                </View>
-                                <View style={{ alignItems: 'center', justifyContent: 'center' }}>
-                                    <View style={{ position: 'absolute', width: 46, height: 46, borderRadius: 23, backgroundColor: 'rgba(239,68,68,0.12)' }} />
-                                    <View style={{ width: 0, height: 0, borderLeftWidth: 14, borderRightWidth: 14, borderBottomWidth: 36, borderLeftColor: 'transparent', borderRightColor: 'transparent', borderBottomColor: '#ef4444', transform: [{ translateY: -6 }] }} />
-                                    <View style={{ width: 0, height: 0, borderLeftWidth: 10, borderRightWidth: 10, borderBottomWidth: 22, borderLeftColor: 'transparent', borderRightColor: 'transparent', borderBottomColor: '#fb7185', position: 'absolute', top: 6 }} />
-                                    <View style={{ marginTop: 44, width: 12, height: 12, borderRadius: 6, backgroundColor: '#fff', borderWidth: 3, borderColor: '#ef4444' }} />
-                                </View>
+                            <View style={{ alignItems: 'center' }}>
+                                <Text style={{ color: '#7C3AED', fontSize: 10, fontWeight: '700', marginBottom: 2 }}>KA'BAH</Text>
+                                {(() => {
+                                    let delta = bearing - deviceHeading;
+                                    while (delta < -180) delta += 360;
+                                    while (delta > 180) delta -= 360;
+
+                                    const isAligned = Math.abs(delta) < 5;
+                                    const direction = delta > 0 ? '➡️' : '⬅️';
+
+                                    return (
+                                        <View style={{ alignItems: 'center' }}>
+                                            <Text style={{
+                                                color: isAligned ? '#34D399' : '#FF0000', // Green-400 for aligned
+                                                fontSize: 16,
+                                                fontWeight: 'bold'
+                                            }}>
+                                                {Math.abs(delta).toFixed(0)}° {isAligned ? '✅' : direction}
+                                            </Text>
+                                        </View>
+                                    );
+                                })()}
+                            </View>
+                            <View style={{ alignItems: 'center' }}>
+                                <Text style={{ color: '#7C3AED', fontSize: 10, fontWeight: '700', marginBottom: 2 }}>MEDAN MAGNET</Text>
+                                <Text style={{ color: '#FF0000', fontSize: 16, fontWeight: 'bold' }}>
+                                    {magnetometerData.toFixed(0)} µT
+                                </Text>
                             </View>
                         </View>
-                        <Text style={{ marginTop: 12, fontWeight: '700' }}>{bearing.toFixed(1)}° (absolute)</Text>
-                        <Text style={{ color: '#6B7280', marginTop: 4 }}>{distanceKm.toFixed(1)} km to Kaaba</Text>
+
+                        {/* Professional Compass Dial - Compact Size */}
+                        <View style={{
+                            width: 240, // Reduced from 300
+                            height: 240, // Reduced from 300
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            position: 'relative'
+                        }}>
+                            {/* Static Crosshair (Fixed Center) */}
+                            <View style={{ position: 'absolute', zIndex: 20, pointerEvents: 'none' }}>
+                                <View style={{ width: 2, height: 30, backgroundColor: '#FF0000', opacity: 0.8 }} />
+                                <View style={{ width: 30, height: 2, backgroundColor: '#FF0000', position: 'absolute', top: 14, left: -14, opacity: 0.8 }} />
+                                <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#FF0000', position: 'absolute', top: 12, left: -2 }} />
+                            </View>
+
+                            {/* Static Top Indicator Line */}
+                            <View style={{ position: 'absolute', top: -15, zIndex: 20, alignItems: 'center' }}>
+                                <View style={{ width: 2, height: 20, backgroundColor: '#7C3AED' }} />
+                            </View>
+
+                            {/* Rotating Dial */}
+                            <View style={{
+                                width: '100%',
+                                height: '100%',
+                                borderRadius: 120,
+                                borderWidth: 2,
+                                borderColor: 'rgba(255,255,255,0.1)',
+                                backgroundColor: '#140234ff',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                transform: [{ rotate: `${-deviceHeading}deg` }]
+                            }}>
+                                {/* Degree Ticks */}
+                                {Array.from({ length: 72 }).map((_, i) => {
+                                    const deg = i * 5;
+                                    const isMajor = deg % 30 === 0;
+                                    const isCardinal = deg % 90 === 0;
+                                    return (
+                                        <View key={i} style={{
+                                            position: 'absolute',
+                                            height: '100%',
+                                            width: 2,
+                                            alignItems: 'center',
+                                            transform: [{ rotate: `${deg}deg` }]
+                                        }}>
+                                            <View style={{
+                                                width: isCardinal ? 3 : (isMajor ? 2 : 1),
+                                                height: isCardinal ? 12 : (isMajor ? 8 : 4),
+                                                backgroundColor: isCardinal ? '#7C3AED' : '#7C3AED',
+                                                marginTop: 4
+                                            }} />
+                                        </View>
+                                    );
+                                })}
+
+                                {/* Cardinal Directions */}
+                                {[
+                                    { label: 'N', deg: 0, color: '#7C3AED' },
+                                    { label: 'NE', deg: 45, color: '#7C3AED' },
+                                    { label: 'E', deg: 90, color: '#7C3AED' },
+                                    { label: 'SE', deg: 135, color: '#7C3AED' },
+                                    { label: 'S', deg: 180, color: '#7C3AED' },
+                                    { label: 'SW', deg: 225, color: '#7C3AED' },
+                                    { label: 'W', deg: 270, color: '#7C3AED' },
+                                    { label: 'NW', deg: 315, color: '#7C3AED' },
+                                ].map((item, i) => (
+                                    <View key={i} style={{
+                                        position: 'absolute',
+                                        height: '100%',
+                                        alignItems: 'center',
+                                        transform: [{ rotate: `${item.deg}deg` }]
+                                    }}>
+                                        <Text style={{
+                                            color: item.color,
+                                            fontWeight: 'bold',
+                                            fontSize: item.label.length > 1 ? 10 : 14,
+                                            marginTop: 20,
+                                            transform: [{ rotate: `${-item.deg}deg` }]
+                                        }}>
+                                            {item.label}
+                                        </Text>
+                                    </View>
+                                ))}
+
+                                {/* Kaaba Icon Fixed on Dial */}
+                                <View style={{
+                                    position: 'absolute',
+                                    height: '100%',
+                                    alignItems: 'center',
+                                    transform: [{ rotate: `${bearing}deg` }]
+                                }}>
+                                    <View style={{
+                                        marginTop: 35, // Adjusted for smaller dial
+                                        transform: [{ rotate: `${-bearing}deg` }]
+                                    }}>
+                                        <View style={{
+                                            borderWidth: 1.5,
+                                            borderColor: '#7C3AED',
+                                            borderRadius: 6,
+                                            padding: 3,
+                                            backgroundColor: 'rgba(255,255,255,0.1)'
+                                        }}>
+                                            <Text style={{ fontSize: 16 }}>🕋</Text>
+                                        </View>
+                                    </View>
+                                </View>
+
+                            </View>
+                        </View>
+
+                        {/* Bottom Info */}
+                        <View style={{ width: '100%', marginTop: 20 }}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+                                <Text style={{ fontSize: 18, marginRight: 8 }}>🕋</Text>
+                                <Text style={{ color: '#7C3AED', fontSize: 14, fontWeight: 'bold' }}>
+                                    {bearing.toFixed(0)}° dari Utara Sejati
+                                </Text>
+                            </View>
+                            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                <Text style={{ fontSize: 18, marginRight: 8 }}>📍</Text>
+                                <Text style={{ color: '#7C3AED', fontSize: 12 }}>
+                                    {locationName} ({lat.toFixed(4)}, {lon.toFixed(4)})
+                                </Text>
+                            </View>
+                        </View>
                     </View>
                 )}
-            </ScrollView>
-        </SafeAreaView>
+
+                <View style={{ height: 40 }} />
+            </ScrollView >
+        </View >
     );
 }
