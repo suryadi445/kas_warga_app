@@ -587,7 +587,7 @@ export default function ActivitiesScreen() {
                                     justifyContent: 'center'
                                 }}
                             >
-                                <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>+ Add</Text>
+                                <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>+ Activity</Text>
                             </LinearGradient>
                         </TouchableOpacity>
                     </View>
@@ -652,6 +652,17 @@ export default function ActivitiesScreen() {
                     )}
                 </View>
             </View>
+
+            {/* Date picker for Filter (was missing) */}
+            <DateTimePickerModal
+                isVisible={filterDatePickerVisible}
+                mode="date"
+                onConfirm={(d: Date) => {
+                    setFilterDatePickerVisible(false);
+                    setFilterDate(dateToYMD(d));
+                }}
+                onCancel={() => setFilterDatePickerVisible(false)}
+            />
 
             {loadingActivities ? (
                 <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
@@ -878,7 +889,7 @@ export default function ActivitiesScreen() {
                                     <Text style={{ color: '#6B7280' }}>Cancel</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity onPress={save} disabled={operationLoading} style={{ padding: 10 }}>
-                                    {operationLoading ? <ActivityIndicator size="small" color="#4fc3f7" /> : <Text style={{ color: '#4fc3f7', fontWeight: '700' }}>{editingId ? 'Save' : 'Add'}</Text>}
+                                    {operationLoading ? <ActivityIndicator size="small" color="#4fc3f7" /> : <Text style={{ color: '#4fc3f7', fontWeight: '700' }}>{editingId ? 'Save' : 'Create'}</Text>}
                                 </TouchableOpacity>
                             </View>
                         </ScrollView>

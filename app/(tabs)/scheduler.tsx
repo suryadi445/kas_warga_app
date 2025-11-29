@@ -46,6 +46,12 @@ export default function SchedulerScreen() {
     // filters -> days + frequency
     const [filterDays, setFilterDays] = useState<string[]>([]); // e.g. ['Sunday','Tuesday']
     const [filterFrequency, setFilterFrequency] = useState<'all' | Schedule['frequency']>('all');
+    // toggle helper for filterDays (multi-select)
+    const toggleFilterDay = (day: string) => {
+        setFilterDays(prev => (prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day]));
+    };
+    // NEW: control dropdown open state for Filters' Days (behave like modal's select)
+    const [filterDaysOpen, setFilterDaysOpen] = useState(false);
 
     const [modalVisible, setModalVisible] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
@@ -438,7 +444,7 @@ export default function SchedulerScreen() {
                                     justifyContent: 'center'
                                 }}
                             >
-                                <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>+ Add</Text>
+                                <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>+ Schedule</Text>
                             </LinearGradient>
                         </TouchableOpacity>
                     </View>
@@ -479,8 +485,44 @@ export default function SchedulerScreen() {
                                         onChangeText={() => { }}
                                         placeholder="All days"
                                         editable={false}
+                                        onPress={() => setFilterDaysOpen(v => !v)}
                                         containerStyle={{ marginBottom: 0 }}
                                     />
+
+                                    {filterDaysOpen && (
+                                        <View style={{ backgroundColor: '#F9FAFB', borderRadius: 8, marginTop: 8, zIndex: 1000, borderWidth: 1, borderColor: '#E5E7EB' }}>
+                                            <ScrollView style={{ maxHeight: 220 }} nestedScrollEnabled={true}>
+                                                {/* Header buttons moved to top - geser Choose sedikit ke kiri */}
+                                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 12, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: '#E5E7EB' }}>
+                                                    <TouchableOpacity
+                                                        onPress={() => { setFilterDays([]); setFilterDaysOpen(false); }}
+                                                        style={{ paddingVertical: 10, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center' }}
+                                                    >
+                                                        <Text style={{ color: '#DC2626', fontWeight: '600' }}>Clear</Text>
+                                                    </TouchableOpacity>
+                                                    <TouchableOpacity
+                                                        onPress={() => { setFilterDaysOpen(false); }}
+                                                        style={{ paddingVertical: 10, paddingHorizontal: 12, marginRight: 8, alignItems: 'center', justifyContent: 'center' }}
+                                                    >
+                                                        <Text style={{ color: '#4fc3f7', fontWeight: '700' }}>Choose</Text>
+                                                    </TouchableOpacity>
+                                                </View>
+                                                {WEEK_DAYS.map((d) => {
+                                                    const active = filterDays.includes(d);
+                                                    return (
+                                                        <TouchableOpacity
+                                                            key={d}
+                                                            onPress={() => toggleFilterDay(d)}
+                                                            style={{ paddingVertical: 12, paddingHorizontal: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: '#E5E7EB' }}
+                                                        >
+                                                            <Text style={{ color: active ? '#6366f1' : '#111827', fontWeight: active ? '600' : '400' }}>{d}</Text>
+                                                            {active ? <Text style={{ color: '#6366f1', fontWeight: '700' }}>✓</Text> : null}
+                                                        </TouchableOpacity>
+                                                    );
+                                                })}
+                                            </ScrollView>
+                                        </View>
+                                    )}
                                 </View>
                                 <View style={{ flex: 1 }}>
                                     <SelectInput
@@ -698,6 +740,21 @@ export default function SchedulerScreen() {
                                     <View style={{ backgroundColor: '#F9FAFB', borderRadius: 8, marginTop: -8, marginBottom: 12, zIndex: 1000, borderWidth: 1, borderColor: '#E5E7EB' }}>
                                         {/* nestedScrollEnabled allows the inner ScrollView to scroll when inside another ScrollView (Android) */}
                                         <ScrollView style={{ maxHeight: 220 }} nestedScrollEnabled={true}>
+                                            {/* Header with Clear + Choose (moved to top, geser Choose ke kiri) */}
+                                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 12, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: '#E5E7EB' }}>
+                                                <TouchableOpacity
+                                                    onPress={() => { setSelectedDays([]); setSelectedDaysOpen(false); }}
+                                                    style={{ paddingVertical: 10, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center' }}
+                                                >
+                                                    <Text style={{ color: '#DC2626', fontWeight: '600' }}>Clear</Text>
+                                                </TouchableOpacity>
+                                                <TouchableOpacity
+                                                    onPress={() => { setSelectedDaysOpen(false); }}
+                                                    style={{ paddingVertical: 10, paddingHorizontal: 12, marginRight: 8, alignItems: 'center', justifyContent: 'center' }}
+                                                >
+                                                    <Text style={{ color: '#4fc3f7', fontWeight: '700' }}>Choose</Text>
+                                                </TouchableOpacity>
+                                            </View>
                                             {WEEK_DAYS.map((d) => {
                                                 const active = selectedDays.includes(d);
                                                 return (
@@ -713,22 +770,6 @@ export default function SchedulerScreen() {
                                                     </TouchableOpacity>
                                                 );
                                             })}
-
-                                            {/* Footer with Clear + OK */}
-                                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 12, paddingHorizontal: 12 }}>
-                                                <TouchableOpacity
-                                                    onPress={() => { setSelectedDays([]); setSelectedDaysOpen(false); }}
-                                                    style={{ paddingVertical: 10, paddingHorizontal: 14, borderColor: '#FECACA', alignItems: 'center', justifyContent: 'center' }}
-                                                >
-                                                    <Text style={{ color: '#DC2626', fontWeight: '600' }}>Clear</Text>
-                                                </TouchableOpacity>
-                                                <TouchableOpacity
-                                                    onPress={() => { setSelectedDaysOpen(false); }}
-                                                    style={{ paddingVertical: 10, paddingHorizontal: 14, alignItems: 'center', justifyContent: 'center' }}
-                                                >
-                                                    <Text style={{ color: '#4fc3f7', fontWeight: '700' }}>Choose</Text>
-                                                </TouchableOpacity>
-                                            </View>
                                         </ScrollView>
                                     </View>
                                 </View>
@@ -763,7 +804,7 @@ export default function SchedulerScreen() {
                                     <Text style={{ color: '#6B7280' }}>Cancel</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity disabled={operationLoading} onPress={save} style={{ padding: 10 }}>
-                                    {operationLoading ? <ActivityIndicator size="small" color="#4fc3f7" /> : <Text style={{ color: '#4fc3f7', fontWeight: '700' }}>{editingId ? 'Save' : 'Add'}</Text>}
+                                    {operationLoading ? <ActivityIndicator size="small" color="#4fc3f7" /> : <Text style={{ color: '#4fc3f7', fontWeight: '700' }}>{editingId ? 'Save' : 'Create'}</Text>}
                                 </TouchableOpacity>
                             </View>
                         </ScrollView>

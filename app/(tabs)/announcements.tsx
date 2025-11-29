@@ -497,7 +497,7 @@ export default function AnnouncementsScreen() {
                             label="Search"
                             value={searchQuery}
                             onChangeText={setSearchQuery}
-                            placeholder="Title..."
+                            placeholder="Search..."
                             containerStyle={{ marginBottom: 0 }}
                         />
                     </View>
@@ -522,7 +522,7 @@ export default function AnnouncementsScreen() {
                                     justifyContent: 'center'
                                 }}
                             >
-                                <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>+ Add</Text>
+                                <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>+ Announcement</Text>
                             </LinearGradient>
                         </TouchableOpacity>
                     </View>
@@ -694,7 +694,6 @@ export default function AnnouncementsScreen() {
 
                                             {/* Icon, Status Badge, dan Category Badge */}
                                             <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12, gap: 8 }}>
-                                                <Text style={{ fontSize: 20 }}>📢</Text>
                                                 <View style={{
                                                     backgroundColor: colors.bg,
                                                     paddingHorizontal: 10,

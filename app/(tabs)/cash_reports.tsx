@@ -182,7 +182,7 @@ export default function CashReportsScreen() {
         const d = new Date(r.date);
         if (filterType !== 'all' && r.type !== filterType) return false;
         // treat 'All' as no-category filter
-        if (filterCategory !== 'All' && r.category !== filterCategory) return false;
+        if (filterCategory && filterCategory !== 'All' && r.category !== filterCategory) return false;
         if (filterMonth !== 'all' && (d.getMonth() + 1) !== Number(filterMonth)) return false;
         if (filterYear !== 'all' && d.getFullYear() !== Number(filterYear)) return false;
         return true;
@@ -599,7 +599,7 @@ export default function CashReportsScreen() {
                     top: 0,
                     left: 0,
                     right: 0,
-                    height: 180,
+                    height: 200,
                 }}
             />
 
@@ -637,12 +637,12 @@ export default function CashReportsScreen() {
             </View>
 
             {/* Saldo Sekarang - Compact Card */}
-            <View style={{ paddingHorizontal: 20, marginBottom: 8 }}>
+            <View style={{ paddingHorizontal: 20, marginBottom: 10 }}>
                 <View style={{
                     backgroundColor: 'rgba(255, 255, 255, 0.95)',
                     borderRadius: 16,
-                    paddingHorizontal: 14,
-                    paddingVertical: 6,
+                    paddingHorizontal: 16,
+                    paddingVertical: 10,
                     shadowColor: '#000',
                     shadowOffset: { width: 0, height: 6 },
                     shadowOpacity: 0.12,
@@ -653,15 +653,15 @@ export default function CashReportsScreen() {
                 }}>
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                         <View>
-                            <Text style={{ color: '#6B7280', fontSize: 11, fontWeight: '600', marginBottom: 3 }}>Current Balance</Text>
-                            <Text style={{ fontSize: 20, fontWeight: '800', color: totalFilteredSaldo >= 0 ? '#10B981' : '#DC2626' }}>
+                            <Text style={{ color: '#6B7280', fontSize: 13, fontWeight: '600', marginBottom: 2 }}>Current Balance</Text>
+                            <Text style={{ fontSize: 24, fontWeight: '800', color: totalFilteredSaldo >= 0 ? '#10B981' : '#DC2626' }}>
                                 {formatAmount(totalFilteredSaldo)}
                             </Text>
                         </View>
                         <View style={{
                             backgroundColor: totalFilteredSaldo >= 0 ? '#D1FAE5' : '#FEE2E2',
-                            paddingVertical: 6,
-                            paddingHorizontal: 12,
+                            paddingVertical: 8,
+                            paddingHorizontal: 14,
                             borderRadius: 999,
                             borderWidth: 1,
                             borderColor: totalFilteredSaldo >= 0 ? '#10B981' : '#EF4444'
@@ -669,7 +669,7 @@ export default function CashReportsScreen() {
                             <Text style={{
                                 color: totalFilteredSaldo >= 0 ? '#065F46' : '#991B1B',
                                 fontWeight: '700',
-                                fontSize: 11
+                                fontSize: 12
                             }}>{filteredReports.length} Transactions</Text>
                         </View>
                     </View>
@@ -677,12 +677,11 @@ export default function CashReportsScreen() {
             </View>
 
             {/* Action Buttons - On Purple Gradient */}
-            <View style={{ paddingHorizontal: 20, marginBottom: 8 }}>
+            <View style={{ paddingHorizontal: 20, marginBottom: 12 }}>
                 <View style={{
                     backgroundColor: 'rgba(255, 255, 255, 0.95)',
                     borderRadius: 16,
-                    paddingHorizontal: 14,
-                    paddingVertical: 6,
+                    padding: 14,
                     shadowColor: '#000',
                     shadowOffset: { width: 0, height: 6 },
                     shadowOpacity: 0.12,
@@ -692,7 +691,7 @@ export default function CashReportsScreen() {
                     borderColor: 'rgba(255, 255, 255, 0.3)',
                     flexDirection: 'row',
                     alignItems: 'center',
-                    gap: 10
+                    gap: 12
                 }}>
                     {/* Left: Save button */}
                     <View style={{ flex: 1 }}>
@@ -793,7 +792,7 @@ export default function CashReportsScreen() {
                                         label="Category"
                                         value={filterCategory}
                                         options={[
-                                            { label: 'All Categories', value: '' },
+                                            { label: 'All Categories', value: 'All' },
                                             ...CATEGORIES.map(cat => ({ label: cat, value: cat }))
                                         ]}
                                         onValueChange={(v: string) => setFilterCategory(v || '')}
@@ -962,7 +961,7 @@ export default function CashReportsScreen() {
                                     {operationLoading ? (
                                         <ActivityIndicator size="small" color="#4fc3f7" />
                                     ) : (
-                                        <Text style={{ color: '#4fc3f7', fontWeight: '700' }}>{editingId ? 'Save' : 'Add'}</Text>
+                                        <Text style={{ color: '#4fc3f7', fontWeight: '700' }}>{editingId ? 'Save' : 'Create'}</Text>
                                     )}
                                 </TouchableOpacity>
                             </View>
