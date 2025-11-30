@@ -3,11 +3,12 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
 import { useRouter } from 'expo-router';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { collection, doc, getDoc, onSnapshot, query } from 'firebase/firestore';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
     Image,
     Pressable,
+    ScrollView,
     StatusBar,
     Text,
     TextInput,
@@ -18,7 +19,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import ConfirmDialog from '../../src/components/ConfirmDialog';
 import { useToast } from '../../src/contexts/ToastContext';
-import { db } from '../../src/firebaseConfig';
+import { auth, db } from '../../src/firebaseConfig';
 import { signOut } from '../../src/services/authService';
 
 // react-native-svg: require once and cache on global to avoid duplicate native registration (RNSVGFilter error)
@@ -65,6 +66,8 @@ const MENU_ITEMS = [
     { id: 'organization', label: 'Organization', icon: '🏛️' },
     { id: 'settings', label: 'Settings', icon: '⚙️' },
     { id: 'prayer', label: 'Prayer', icon: '🕋' },
+    { id: 'feedback', label: 'Feedback', icon: '💬' },
+    { id: 'feedback_list', label: 'Feedback List', icon: '📋', adminOnly: true },
     { id: 'developer', label: 'Developer', icon: '🧑‍💻' },
 ];
 
@@ -83,7 +86,32 @@ export default function TabsIndex() {
     );
 
     const [search, setSearch] = useState('');
+
     const [unreadNotifications, setUnreadNotifications] = useState(0);
+    const [unreadFeedback, setUnreadFeedback] = useState(0);
+    const [isAdmin, setIsAdmin] = useState(false);
+
+    // check admin role
+    useEffect(() => {
+        let mounted = true;
+        (async () => {
+            try {
+                const user = auth.currentUser;
+                if (user) {
+                    const userDoc = await getDoc(doc(db, 'users', user.uid));
+                    if (mounted && userDoc.exists()) {
+                        const data = userDoc.data();
+                        if (data.role === 'Admin') {
+                            setIsAdmin(true);
+                        }
+                    }
+                }
+            } catch (e) {
+                console.error('Failed to check admin role', e);
+            }
+        })();
+        return () => { mounted = false; };
+    }, []);
 
     // load app settings
     useEffect(() => {
@@ -147,11 +175,31 @@ export default function TabsIndex() {
         return () => { if (unsub) unsub(); };
     }, []);
 
+    // listen for unread feedback (admin only)
+    useEffect(() => {
+        if (!isAdmin) return;
+
+        // Fetch all and filter client-side to handle missing 'read' field
+        const q = query(collection(db, 'feedbacks'));
+        const unsubscribe = onSnapshot(q, (snapshot: any) => {
+            const unreadCount = snapshot.docs.filter((doc: any) => doc.data().read !== true).length;
+            setUnreadFeedback(unreadCount);
+        }, (error: any) => {
+            console.error("Error fetching unread feedback count: ", error);
+        });
+
+        return () => unsubscribe();
+    }, [isAdmin]);
+
     const filteredMenu = useMemo(() => {
+        let items = MENU_ITEMS;
+        if (!isAdmin) {
+            items = items.filter(m => !m.adminOnly);
+        }
         const q = search.trim().toLowerCase();
-        if (!q) return MENU_ITEMS;
-        return MENU_ITEMS.filter(m => m.label.toLowerCase().includes(q) || m.id.toLowerCase().includes(q));
-    }, [search]);
+        if (!q) return items;
+        return items.filter(m => m.label.toLowerCase().includes(q) || m.id.toLowerCase().includes(q));
+    }, [search, isAdmin]);
 
     // responsive columns
     const columns = width > 420 ? 4 : 3;
@@ -170,6 +218,8 @@ export default function TabsIndex() {
             settings: '/(tabs)/settings',
             prayer: '/(tabs)/prayer',
             developer: '/(tabs)/developer',
+            feedback: '/(tabs)/feedback',
+            feedback_list: '/(tabs)/feedback_list',
         };
         const route = map[id];
         if (route) router.push(route as any);
@@ -208,9 +258,28 @@ export default function TabsIndex() {
                         backgroundColor: '#F3F4F6',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        marginBottom: 8
+                        marginBottom: 6
                     }}>
                         <Text style={{ fontSize: 20 }}>{item.icon}</Text>
+                        {item.id === 'feedback_list' && unreadFeedback > 0 && (
+                            <View style={{
+                                position: 'absolute',
+                                top: -6,
+                                right: -6,
+                                backgroundColor: '#EF4444',
+                                borderRadius: 10,
+                                minWidth: 20,
+                                height: 20,
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                borderWidth: 2,
+                                borderColor: '#fff'
+                            }}>
+                                <Text style={{ color: '#fff', fontSize: 10, fontWeight: 'bold', paddingHorizontal: 4 }}>
+                                    {unreadFeedback > 99 ? '99+' : unreadFeedback}
+                                </Text>
+                            </View>
+                        )}
                     </View>
                     <Text
                         style={{ fontSize: 12, color: '#111827', textAlign: 'center', fontWeight: '700' }}
@@ -294,9 +363,8 @@ export default function TabsIndex() {
                 }} />
             )}
 
-            {/* Compact menu grid: non-virtualized, all items visible without scrolling */}
-            <View style={{ paddingHorizontal: 12, paddingTop: -20, paddingBottom: 20 }}>
-                {/* Search (bigger & more prominent) */}
+            {/* Fixed Search Bar */}
+            <View style={{ paddingHorizontal: 12, zIndex: 10 }}>
                 <View style={{ marginBottom: 10 }}>
                     <View style={{
                         flexDirection: 'row',
@@ -339,8 +407,10 @@ export default function TabsIndex() {
                         ) : null}
                     </View>
                 </View>
+            </View>
 
-                {/* Grid */}
+            {/* Scrollable Grid */}
+            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 12, paddingBottom: 80 }}>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -6 }}>
                     {filteredMenu.map(item => (
                         <React.Fragment key={item.id}>
@@ -348,7 +418,7 @@ export default function TabsIndex() {
                         </React.Fragment>
                     ))}
                 </View>
-            </View>
+            </ScrollView>
 
             {/* logout confirm dialog */}
             <ConfirmDialog
