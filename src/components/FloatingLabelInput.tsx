@@ -71,8 +71,16 @@ export default function FloatingLabelInput({
 
             <TouchableOpacity
                 activeOpacity={1}
-                onPress={() => {
-                    if (onPress) return onPress();
+                // use onPressIn so focus happens immediately (prevents keyboard from hiding when switching inputs)
+                onPressIn={() => {
+                    if (onPress) {
+                        try {
+                            onPress();
+                        } catch (e) {
+                            // ignore
+                        }
+                        return;
+                    }
                     if (ref.current && editable) ref.current.focus();
                 }}
             >

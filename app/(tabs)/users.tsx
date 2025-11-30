@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from 'expo-router';
 import { collection, deleteDoc, doc, getDoc, getDocs, setDoc, updateDoc } from 'firebase/firestore';
@@ -34,6 +35,10 @@ type User = {
     role: string;
     photo?: string; // NEW: optional photo URL
     isActive?: boolean; // NEW: activation status
+    createdAt?: any;
+    rejected?: boolean;
+    approved?: boolean;
+    rejectedAt?: any;
 };
 
 const ROLES = ['Member', 'Staff', 'Admin'];
@@ -49,6 +54,10 @@ export default function UsersScreen() {
     const [canManageUsers, setCanManageUsers] = useState(false);
     const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false);
     const [itemToDelete, setItemToDelete] = useState<string | null>(null);
+    const [rejectConfirmVisible, setRejectConfirmVisible] = useState(false);
+    const [itemToReject, setItemToReject] = useState<string | null>(null);
+    const [restoreConfirmVisible, setRestoreConfirmVisible] = useState(false);
+    const [itemToRestore, setItemToRestore] = useState<string | null>(null);
 
     // NEW: role filter state (null = show all, 'Admin'/'Staff'/'Member' = show only that role)
     const [roleFilter, setRoleFilter] = useState<string | null>(null);
@@ -56,8 +65,8 @@ export default function UsersScreen() {
     // NEW: search query for name/email
     const [searchQuery, setSearchQuery] = useState<string>('');
 
-    // NEW: active status filter ('all' | 'active' | 'inactive')
-    const [activeFilter, setActiveFilter] = useState<'all' | 'active' | 'inactive'>('all');
+    // NEW: active status filter ('all' | 'active' | 'inactive' | 'rejected')
+    const [activeFilter, setActiveFilter] = useState<'all' | 'active' | 'inactive' | 'rejected'>('all');
 
     // PAGINATION state
     const USERS_PER_PAGE = 5;
@@ -86,38 +95,31 @@ export default function UsersScreen() {
     // NEW: focused field for outline focus styling
     const [focusedField, setFocusedField] = useState<string | null>(null);
 
+    // NEW: dropdown open states
+    const [genderOpen, setGenderOpen] = useState(false);
+    const [religionOpen, setReligionOpen] = useState(false);
+    const [maritalStatusOpen, setMaritalStatusOpen] = useState(false);
+
     // NEW: shared input styles (outline purple style like provided image)
     const INPUT_BASE: any = {
         borderWidth: 2,
         borderColor: '#7c3aed',
+
         borderRadius: 12,
         paddingVertical: 10,
         paddingHorizontal: 12,
         backgroundColor: '#fff',
-    };
-    const INPUT_FOCUS: any = {
-        borderColor: '#5b21b6',
-        shadowColor: '#7c3aed',
-        shadowOpacity: 0.15,
-        shadowRadius: 8,
-        elevation: 3,
-    };
-    const INPUT_MULTILINE: any = { minHeight: 80, textAlignVertical: 'top' };
-    // placeholder color consistent with FloatingLabelInput inactive label
-    const PLACEHOLDER_COLOR = '#6B7280';
 
-    // NEW: Dropdown states
-    const [genderOpen, setGenderOpen] = useState(false);
-    const [religionOpen, setReligionOpen] = useState(false);
-    const [maritalStatusOpen, setMaritalStatusOpen] = useState(false); // NEW: marital status dropdown
-    const [datePickerVisible, setDatePickerVisible] = useState(false);
-
-    // NEW: state for child date picker
-    const [childDatePickerVisible, setChildDatePickerVisible] = useState(false);
-    const [editingChildIndex, setEditingChildIndex] = useState<number | null>(null);
+    };
 
     // NEW: saving state
     const [saving, setSaving] = useState(false);
+    // track processing state per-user for long-running actions (approve/reject/activate)
+    const [processingIds, setProcessingIds] = useState<Record<string, boolean>>({});
+
+    const startProcessing = (id: string) => setProcessingIds(prev => ({ ...prev, [id]: true }));
+    const stopProcessing = (id: string) => setProcessingIds(prev => { const copy = { ...prev }; delete copy[id]; return copy; });
+    const isProcessing = (id: string) => !!processingIds[id];
 
     const GENDER_OPTIONS = ['Male', 'Female', 'Other'];
     const RELIGION_OPTIONS = ['Islam', 'Christianity', 'Catholicism', 'Hinduism', 'Buddhism', 'Confucianism', 'Other'];
@@ -177,11 +179,35 @@ export default function UsersScreen() {
             setLoading(true);
             const snapshot = await getDocs(collection(db, 'users'));
             const usersList: User[] = [];
+            const deletions: Promise<any>[] = [];
 
             console.log('Total documents in Firestore users collection:', snapshot.size);
 
             snapshot.forEach((docSnap) => {
                 const data = docSnap.data();
+
+                // Cleanup: if a user was rejected and the rejectedAt timestamp is older than 30 days,
+                // schedule deletion from Firestore (do not include in users list).
+                if (data.rejected === true && data.rejectedAt) {
+                    try {
+                        let rejectedDate: Date | null = null;
+                        const ra = data.rejectedAt;
+                        if (typeof ra.toDate === 'function') rejectedDate = ra.toDate();
+                        else if (ra.seconds) rejectedDate = new Date(ra.seconds * 1000);
+                        else if (typeof ra === 'number') rejectedDate = new Date(ra);
+
+                        if (rejectedDate) {
+                            const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+                            if (Date.now() - rejectedDate.getTime() > THIRTY_DAYS_MS) {
+                                // delete after 30 days
+                                deletions.push(deleteDoc(doc(db, 'users', docSnap.id)));
+                                return; // skip adding to usersList
+                            }
+                        }
+                    } catch (err) {
+                        console.warn('Failed to evaluate rejectedAt for cleanup', err);
+                    }
+                }
                 console.log('User document:', {
                     id: docSnap.id,
                     nama: data.nama,
@@ -198,8 +224,22 @@ export default function UsersScreen() {
                     role: data.role || 'Member',
                     photo: data.profileImage || data.photo || data.image || '', // NEW: pick available photo field
                     isActive: data.isActive, // NEW: include activation status
+                    createdAt: data.createdAt,
+                    rejected: data.rejected === true,
+                    rejectedAt: data.rejectedAt,
+                    approved: data.approved === true,
                 });
             });
+
+            // perform deletions for expired rejected users
+            if (deletions.length > 0) {
+                try {
+                    await Promise.all(deletions);
+                    console.log('Cleaned up expired rejected users:', deletions.length);
+                } catch (err) {
+                    console.error('Error cleaning up rejected users:', err);
+                }
+            }
 
             console.log('Total users loaded:', usersList.length);
             console.log('Users list:', usersList);
@@ -220,9 +260,9 @@ export default function UsersScreen() {
     }
 
     function openEdit(u: User) {
-        // Only super admin can edit users
+        // Only admin can edit users
         if (!canManageUsers) {
-            showToast('Permission Denied: Only super admin can edit users', 'error');
+            showToast('Permission Denied: Only admin can edit users', 'error');
             return;
         }
 
@@ -268,7 +308,7 @@ export default function UsersScreen() {
     // NEW: function to open add user modal
     function openAdd() {
         if (!canManageUsers) {
-            showToast('Permission Denied: Only super admin can add users', 'error');
+            showToast('Permission Denied: Only admin can add users', 'error');
             return;
         }
 
@@ -311,6 +351,11 @@ export default function UsersScreen() {
         setFocusedField(null); // clear focus after selection
     }
 
+    // Date picker visibility states (ensure declared)
+    const [datePickerVisible, setDatePickerVisible] = useState(false);
+    const [childDatePickerVisible, setChildDatePickerVisible] = useState(false);
+    const [editingChildIndex, setEditingChildIndex] = useState<number | null>(null);
+
     // NEW: handler for child date picker
     function onChildDateConfirm(date: Date) {
         if (editingChildIndex !== null) {
@@ -327,7 +372,7 @@ export default function UsersScreen() {
 
     async function save() {
         if (!canManageUsers) {
-            showToast('Permission Denied: Only super admin can modify users', 'error');
+            showToast('Permission Denied: Only admin can modify users', 'error');
             return;
         }
 
@@ -357,6 +402,7 @@ export default function UsersScreen() {
 
                 await setDoc(docRef, {
                     nama: name.trim(),
+                    email: email.trim(),
                     phone: phone.trim(),
                     role: role,
                     gender: gender,
@@ -471,7 +517,7 @@ export default function UsersScreen() {
 
     function remove(id: string) {
         if (!canManageUsers) {
-            showToast('Permission Denied: Only super admin can delete users', 'error');
+            showToast('Permission Denied: Only admin can delete users', 'error');
             return;
         }
 
@@ -514,28 +560,141 @@ export default function UsersScreen() {
             if (targetDoc.exists()) {
                 const targetEmail = targetDoc.data().email;
                 if (targetEmail === 'suryadi.hhb@gmail.com') {
-                    showToast('This account cannot be deactivated', 'error');
+                    showToast('This account cannot be toggled', 'error');
                     return;
                 }
             }
 
+            // prevent duplicate operations
+            if (isProcessing(userId)) return;
+            startProcessing(userId);
+
             const newStatus = !currentStatus;
-            await updateDoc(doc(db, 'users', userId), { isActive: newStatus });
-            showToast(`User ${newStatus ? 'activated' : 'deactivated'} successfully`, 'success');
-            await loadUsers(); // Reload to reflect changes
+            // When activating (approving), mark as approved so the user is not treated as pending again
+            try {
+                if (newStatus === true) {
+                    await updateDoc(doc(db, 'users', userId), { isActive: true, approved: true });
+                    showToast('User successfully activated', 'success');
+                } else {
+                    await updateDoc(doc(db, 'users', userId), { isActive: false });
+                    showToast('User successfully deactivated', 'success');
+                }
+                await loadUsers(); // Reload to reflect changes
+            } finally {
+                stopProcessing(userId);
+            }
         } catch (error) {
             console.error('Failed to toggle user activation:', error);
             showToast('Failed to update user status', 'error');
         }
     }
 
+    // Reject a user (mark as rejected)
+    async function rejectUser(userId: string) {
+        if (!canManageUsers) {
+            showToast('Permission Denied: Only admin can reject users', 'error');
+            return;
+        }
+
+        try {
+            // Prevent rejecting master admin
+            const targetDoc = await getDoc(doc(db, 'users', userId));
+            if (targetDoc.exists()) {
+                const targetEmail = targetDoc.data().email;
+                if (targetEmail === 'suryadi.hhb@gmail.com') {
+                    showToast('This account cannot be rejected', 'error');
+                    return;
+                }
+            }
+
+            // prevent duplicate operations
+            if (isProcessing(userId)) return;
+            startProcessing(userId);
+
+            try {
+                // Mark user as rejected and set rejectedAt timestamp. Do not delete immediately.
+                await updateDoc(doc(db, 'users', userId), { isActive: false, rejected: true, rejectedAt: new Date() });
+                showToast('User successfully rejected', 'success');
+                await loadUsers();
+            } finally {
+                stopProcessing(userId);
+            }
+        } catch (err) {
+            console.error('Failed to reject user:', err);
+            showToast('Failed to reject user', 'error');
+        }
+    }
+
+    // Restore a rejected user so they appear in the 'All' list (not pending)
+    async function restoreUser(userId: string) {
+        if (!canManageUsers) {
+            showToast('Permission Denied: Only admin can restore users', 'error');
+            return;
+        }
+
+        try {
+            const targetDoc = await getDoc(doc(db, 'users', userId));
+            if (targetDoc.exists()) {
+                const targetEmail = targetDoc.data().email;
+                if (targetEmail === 'suryadi.hhb@gmail.com') {
+                    showToast('This account cannot be restored', 'error');
+                    return;
+                }
+            }
+
+            if (isProcessing(userId)) return;
+            startProcessing(userId);
+
+            try {
+                // Restore as pending so admin can Approve/Reject again:
+                // set createdAt to now so it is treated as newly-registered (pending)
+                const now = new Date();
+                await updateDoc(doc(db, 'users', userId), {
+                    rejected: false,
+                    rejectedAt: null,
+                    approved: false,
+                    isActive: false,
+                    createdAt: now,
+                });
+                showToast('User successfully restored', 'success');
+                await loadUsers();
+                // ensure the UI shows the All list where pending users are visible
+                setActiveFilter('all');
+            } finally {
+                stopProcessing(userId);
+            }
+        } catch (err) {
+            console.error('Failed to restore user:', err);
+            showToast('Failed to restore user', 'error');
+        }
+    }
+
     // NEW: filtered users based on roleFilter and activeFilter
+    function isUserPending(u: User) {
+        try {
+            const now = Date.now();
+            const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+            let createdDate: Date | null = null;
+            if (u.createdAt) {
+                if (typeof (u as any).createdAt.toDate === 'function') createdDate = (u as any).createdAt.toDate();
+                else if ((u as any).createdAt.seconds) createdDate = new Date((u as any).createdAt.seconds * 1000);
+                else if (typeof (u as any).createdAt === 'number') createdDate = new Date((u as any).createdAt);
+            }
+            return !!createdDate && (now - createdDate.getTime() <= sevenDaysMs) && u.isActive !== true && u.rejected !== true && u.approved !== true;
+        } catch (err) {
+            return false;
+        }
+    }
+
     const filteredUsers = users
         .filter(u => (roleFilter ? u.role === roleFilter : true))
         .filter(u => {
+            // 'all' should show everyone except rejected (include pending/new users)
+            if (activeFilter === 'all') return u.rejected !== true;
             if (activeFilter === 'active') return u.isActive === true;
-            if (activeFilter === 'inactive') return u.isActive !== true;
-            return true; // 'all'
+            if (activeFilter === 'inactive') return u.isActive !== true && u.rejected !== true && !isUserPending(u);
+            if (activeFilter === 'rejected') return u.rejected === true;
+            return true;
         })
         .filter(u => {
             const q = (searchQuery || '').trim().toLowerCase();
@@ -569,6 +728,17 @@ export default function UsersScreen() {
         // Mask phone number if user is not admin
         const displayPhone = canManageUsers ? item.phone : maskPhoneNumber(item.phone);
 
+        // Compute pending status (newly-registered within 7 days and not active/not rejected)
+        const now = Date.now();
+        const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+        let createdDate: Date | null = null;
+        if (item.createdAt) {
+            if (typeof item.createdAt.toDate === 'function') createdDate = item.createdAt.toDate();
+            else if (item.createdAt.seconds) createdDate = new Date(item.createdAt.seconds * 1000);
+            else if (typeof item.createdAt === 'number') createdDate = new Date(item.createdAt);
+        }
+        const isPending = !!createdDate && (now - createdDate.getTime() <= sevenDaysMs) && item.isActive !== true && item.rejected !== true && item.approved !== true;
+
         // Activation status indicator
         const activationStatus = item.isActive === true ? 'Active' : 'Inactive';
         const activationColor = item.isActive === true ? '#10B981' : '#EF4444';
@@ -590,28 +760,81 @@ export default function UsersScreen() {
                 }}>
                     {/* Top row: badge + activation switch (admin only) */}
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                        <View style={{
-                            backgroundColor: colors.bg,
-                            paddingHorizontal: 10,
-                            paddingVertical: 4,
-                            borderRadius: 999,
-                            borderWidth: roleFilter === item.role ? 1 : 0,
-                            borderColor: roleFilter === item.role ? colors.border : undefined,
-                        }}>
-                            <Text style={{
-                                color: colors.text,
-                                fontWeight: '700',
-                                fontSize: 11,
+                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                            <View style={{
+                                backgroundColor: colors.bg,
+                                paddingHorizontal: 10,
+                                paddingVertical: 4,
+                                borderRadius: 999,
+                                borderWidth: roleFilter === item.role ? 1 : 0,
+                                borderColor: roleFilter === item.role ? colors.border : undefined,
                             }}>
-                                {item.role}
-                            </Text>
+                                <Text style={{
+                                    color: colors.text,
+                                    fontWeight: '700',
+                                    fontSize: 11,
+                                }}>
+                                    {item.role}
+                                </Text>
+                            </View>
+
+                            {/* Move Approve/Reject inline next to role badge for pending users */}
+                            {isPending && canManageUsers && (
+                                <View style={{ flexDirection: 'row', marginLeft: 8, gap: 8 }}>
+                                    <TouchableOpacity
+                                        onPress={() => { if (!isProcessing(item.id)) toggleUserActivation(item.id, item.isActive); }}
+                                        disabled={isProcessing(item.id)}
+                                        style={{
+                                            backgroundColor: '#DCFCE7',
+                                            paddingHorizontal: 8,
+                                            paddingVertical: 6,
+                                            borderRadius: 8,
+                                            opacity: isProcessing(item.id) ? 0.6 : 1,
+                                        }}
+                                    >
+                                        {isProcessing(item.id) ? (
+                                            <ActivityIndicator size="small" color="#065F46" />
+                                        ) : (
+                                            <Text style={{ color: '#065F46', fontWeight: '700', fontSize: 11 }}>Approve</Text>
+                                        )}
+                                    </TouchableOpacity>
+
+                                    <TouchableOpacity
+                                        onPress={() => {
+                                            if (isProcessing(item.id)) return;
+                                            setItemToReject(item.id);
+                                            setRejectConfirmVisible(true);
+                                        }}
+                                        disabled={isProcessing(item.id)}
+                                        style={{
+                                            backgroundColor: '#FEE2E2',
+                                            paddingHorizontal: 8,
+                                            paddingVertical: 6,
+                                            borderRadius: 8,
+                                            opacity: isProcessing(item.id) ? 0.6 : 1,
+                                        }}
+                                    >
+                                        {isProcessing(item.id) ? (
+                                            <ActivityIndicator size="small" color="#991B1B" />
+                                        ) : (
+                                            <Text style={{ color: '#991B1B', fontWeight: '700', fontSize: 11 }}>Reject</Text>
+                                        )}
+                                    </TouchableOpacity>
+                                </View>
+                            )}
                         </View>
 
                         {/* Activation Switch - Admin Only */}
                         {canManageUsers && (
-                            // Disable switch for protected account
+                            // If user is pending, do not show activation switch here (Approve/Reject shown in actions)
                             (() => {
                                 const isProtected = item.email === 'suryadi.hhb@gmail.com';
+                                if (isPending || activeFilter === 'rejected' || item.rejected === true) {
+                                    // For pending users or when viewing rejected users we hide the activation switch area entirely.
+                                    // Approve/Reject buttons are shown inline for pending users; Restore button shown in Rejected view.
+                                    return null;
+                                }
+
                                 return (
                                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                                         <Text style={{
@@ -621,19 +844,23 @@ export default function UsersScreen() {
                                         }}>
                                             {activationStatus}
                                         </Text>
-                                        <Switch
-                                            value={item.isActive === true}
-                                            onValueChange={() => {
-                                                if (isProtected) {
-                                                    showToast('This account cannot be deactivated', 'error');
-                                                    return;
-                                                }
-                                                toggleUserActivation(item.id, item.isActive);
-                                            }}
-                                            trackColor={{ false: '#E5E7EB', true: '#86EFAC' }}
-                                            thumbColor={item.isActive === true ? '#10B981' : '#9CA3AF'}
-                                            ios_backgroundColor="#E5E7EB"
-                                        />
+                                        {isProcessing(item.id) ? (
+                                            <ActivityIndicator size="small" color="#6366f1" />
+                                        ) : (
+                                            <Switch
+                                                value={item.isActive === true}
+                                                onValueChange={() => {
+                                                    if (isProtected) {
+                                                        showToast('This account cannot be toggled', 'error');
+                                                        return;
+                                                    }
+                                                    toggleUserActivation(item.id, item.isActive);
+                                                }}
+                                                trackColor={{ false: '#E5E7EB', true: '#86EFAC' }}
+                                                thumbColor={item.isActive === true ? '#10B981' : '#9CA3AF'}
+                                                ios_backgroundColor="#E5E7EB"
+                                            />
+                                        )}
                                     </View>
                                 );
                             })()
@@ -671,34 +898,62 @@ export default function UsersScreen() {
                         {/* Right: action buttons stacked */}
                         {canManageUsers && (
                             <View style={{ marginLeft: 12, alignItems: 'flex-end', justifyContent: 'flex-start' }}>
-                                <TouchableOpacity
-                                    onPress={() => openEdit(item)}
-                                    style={{
-                                        backgroundColor: '#E0F2FE',
-                                        paddingHorizontal: 10,
-                                        paddingVertical: 6,
-                                        borderRadius: 8,
-                                        marginBottom: 8,
-                                    }}
-                                >
-                                    <Text style={{ color: '#0369A1', fontWeight: '700', fontSize: 11 }}>
-                                        Edit
-                                    </Text>
-                                </TouchableOpacity>
+                                {/* If viewing rejected list, show Restore action in actions column */}
+                                {activeFilter === 'rejected' ? (
+                                    <TouchableOpacity
+                                        onPress={() => {
+                                            if (isProcessing(item.id)) return;
+                                            setItemToRestore(item.id);
+                                            setRestoreConfirmVisible(true);
+                                        }}
+                                        disabled={isProcessing(item.id)}
+                                        style={{
+                                            backgroundColor: '#E0F2FE',
+                                            paddingHorizontal: 10,
+                                            paddingVertical: 6,
+                                            borderRadius: 8,
+                                            marginBottom: 8,
+                                            opacity: isProcessing(item.id) ? 0.6 : 1
+                                        }}
+                                    >
+                                        {isProcessing(item.id) ? (
+                                            <ActivityIndicator size="small" color="#0369A1" />
+                                        ) : (
+                                            <Text style={{ color: '#0369A1', fontWeight: '700', fontSize: 11 }}>Restore</Text>
+                                        )}
+                                    </TouchableOpacity>
+                                ) : (
+                                    <>
+                                        <TouchableOpacity
+                                            onPress={() => openEdit(item)}
+                                            style={{
+                                                backgroundColor: '#E0F2FE',
+                                                paddingHorizontal: 10,
+                                                paddingVertical: 6,
+                                                borderRadius: 8,
+                                                marginBottom: 8,
+                                            }}
+                                        >
+                                            <Text style={{ color: '#0369A1', fontWeight: '700', fontSize: 11 }}>
+                                                Edit
+                                            </Text>
+                                        </TouchableOpacity>
 
-                                <TouchableOpacity
-                                    onPress={() => remove(item.id)}
-                                    style={{
-                                        backgroundColor: '#FEE2E2',
-                                        paddingHorizontal: 10,
-                                        paddingVertical: 6,
-                                        borderRadius: 8,
-                                    }}
-                                >
-                                    <Text style={{ color: '#991B1B', fontWeight: '700', fontSize: 11 }}>
-                                        Delete
-                                    </Text>
-                                </TouchableOpacity>
+                                        <TouchableOpacity
+                                            onPress={() => remove(item.id)}
+                                            style={{
+                                                backgroundColor: '#FEE2E2',
+                                                paddingHorizontal: 10,
+                                                paddingVertical: 6,
+                                                borderRadius: 8,
+                                            }}
+                                        >
+                                            <Text style={{ color: '#991B1B', fontWeight: '700', fontSize: 11 }}>
+                                                Delete
+                                            </Text>
+                                        </TouchableOpacity>
+                                    </>
+                                )}
                             </View>
                         )}
                     </View>
@@ -823,7 +1078,7 @@ export default function UsersScreen() {
                             fontWeight: '800',
                             fontSize: 14,
                             marginTop: 1
-                        }}>{users.length}</Text>
+                        }}>{users.filter(u => u.rejected !== true).length}</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
@@ -852,7 +1107,7 @@ export default function UsersScreen() {
                             fontWeight: '800',
                             fontSize: 14,
                             marginTop: 1
-                        }}>{users.filter(u => u.role === 'Admin').length}</Text>
+                        }}>{users.filter(u => u.role === 'Admin' && u.rejected !== true).length}</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
@@ -881,7 +1136,7 @@ export default function UsersScreen() {
                             fontWeight: '800',
                             fontSize: 14,
                             marginTop: 1
-                        }}>{users.filter(u => u.role === 'Staff').length}</Text>
+                        }}>{users.filter(u => u.role === 'Staff' && u.rejected !== true).length}</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
@@ -910,13 +1165,13 @@ export default function UsersScreen() {
                             fontWeight: '800',
                             fontSize: 14,
                             marginTop: 1
-                        }}>{users.filter(u => u.role === 'Member').length}</Text>
+                        }}>{users.filter(u => u.role === 'Member' && u.rejected !== true).length}</Text>
                     </TouchableOpacity>
                 </View>
             </View>
 
-            {/* NEW: Activation Status Filter */}
-            <View style={{ paddingHorizontal: 20, marginTop: 12, marginBottom: 12, flexDirection: 'row', gap: 10 }}>
+            {/* NEW: Activation Status Filter (All/Active/Inactive) with Rejected separated to the right */}
+            <View style={{ paddingHorizontal: 20, marginTop: 12, marginBottom: 12, flexDirection: 'row', gap: 10, alignItems: 'center' }}>
                 <View style={{ flex: 1, flexDirection: 'row', backgroundColor: '#fff', borderRadius: 10, padding: 4 }}>
                     <TouchableOpacity
                         onPress={() => setActiveFilter('all')}
@@ -957,6 +1212,35 @@ export default function UsersScreen() {
                         <Text style={{ fontSize: 14, fontWeight: '600', color: activeFilter === 'inactive' ? '#FFFFFF' : '#1F2937' }}>⏳ Inactive</Text>
                     </TouchableOpacity>
                 </View>
+
+                {/* Rejected button separated on the right, circular like Feedback List's mark button */}
+                <TouchableOpacity
+                    onPress={() => setActiveFilter('rejected')}
+                    style={{
+                        width: 44,
+                        height: 44,
+                        backgroundColor: activeFilter === 'rejected' ? '#6D28D9' : '#d72d27',
+                        borderRadius: 12,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        borderWidth: activeFilter === 'rejected' ? 0 : 1,
+                        borderColor: '#d72d27'
+                    }}
+                >
+                    <View
+                        style={{
+                            width: 24,
+                            height: 24,
+                            borderRadius: 12,
+                            backgroundColor: activeFilter === 'rejected' ? '#FFF' : '#FFF',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                        }}
+                    >
+                        <Ionicons name="trash" size={18} color={activeFilter === 'rejected' ? '#6D28D9' : '#d72d27'} />
+                    </View>
+                </TouchableOpacity>
+
             </View>
 
             {/* Info/Warning banner */}
@@ -975,7 +1259,7 @@ export default function UsersScreen() {
                         elevation: 2
                     }}>
                         <Text style={{ color: '#991B1B', textAlign: 'center', fontSize: 13, fontWeight: '600' }}>
-                            🔒 Only super admin can manage users
+                            🔒 Only admin can manage users
                         </Text>
                     </View>
                 </View>
@@ -1112,8 +1396,9 @@ export default function UsersScreen() {
                                 value={email}
                                 onChangeText={setEmail}
                                 keyboardType="email-address"
-                                editable={!editingId}
-                                inputStyle={editingId ? { backgroundColor: '#F9FAFB' } : undefined}
+                                // editable when creating new user, or when admin and not editing protected master
+                                editable={!editingId || (canManageUsers && email !== 'suryadi.hhb@gmail.com')}
+                                inputStyle={(!editingId || (canManageUsers && email !== 'suryadi.hhb@gmail.com')) ? undefined : { backgroundColor: '#F9FAFB' }}
                                 placeholder="email@example.com"
                             />
 
@@ -1311,6 +1596,46 @@ export default function UsersScreen() {
                 onConfirm={removeConfirmed}
                 onCancel={() => { setDeleteConfirmVisible(false); setItemToDelete(null); }}
                 confirmText="Delete"
+                cancelText="Cancel"
+            />
+
+            {/* Confirm dialog for rejecting users (deletes their firestore doc) */}
+            <ConfirmDialog
+                visible={rejectConfirmVisible}
+                title="Reject user"
+                message="Reject this user? This action will move the user to Rejected list and remove after 30 days."
+                onConfirm={async () => {
+                    try {
+                        setRejectConfirmVisible(false);
+                        if (itemToReject) {
+                            await rejectUser(itemToReject);
+                        }
+                    } finally {
+                        setItemToReject(null);
+                    }
+                }}
+                onCancel={() => { setRejectConfirmVisible(false); setItemToReject(null); }}
+                confirmText="Reject"
+                cancelText="Cancel"
+            />
+
+            {/* Confirm dialog for restoring users from Rejected list */}
+            <ConfirmDialog
+                visible={restoreConfirmVisible}
+                title="Restore user"
+                message="Restore this user to pending review? The user will appear in the All list and admin can Approve or Reject."
+                onConfirm={async () => {
+                    try {
+                        setRestoreConfirmVisible(false);
+                        if (itemToRestore) {
+                            await restoreUser(itemToRestore);
+                        }
+                    } finally {
+                        setItemToRestore(null);
+                    }
+                }}
+                onCancel={() => { setRestoreConfirmVisible(false); setItemToRestore(null); }}
+                confirmText="Restore"
                 cancelText="Cancel"
             />
         </SafeAreaView>

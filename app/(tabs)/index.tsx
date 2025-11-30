@@ -89,6 +89,7 @@ export default function TabsIndex() {
 
     const [unreadNotifications, setUnreadNotifications] = useState(0);
     const [unreadFeedback, setUnreadFeedback] = useState(0);
+    const [unreadNewUsers, setUnreadNewUsers] = useState(0);
     const [isAdmin, setIsAdmin] = useState(false);
 
     // check admin role
@@ -191,6 +192,48 @@ export default function TabsIndex() {
         return () => unsubscribe();
     }, [isAdmin]);
 
+    // listen for newly-registered users (admin only)
+    useEffect(() => {
+        if (!isAdmin) return;
+
+        const q = query(collection(db, 'users'));
+        const unsubscribe = onSnapshot(q, (snapshot: any) => {
+            try {
+                const now = Date.now();
+                const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+
+                // Count only new users (created within timeframe) that are still pending
+                const newCount = snapshot.docs.filter((d: any) => {
+                    const data = d.data() as any;
+                    const createdAt = data?.createdAt;
+                    const isActive = data?.isActive === true;
+                    const isRejected = data?.rejected === true;
+
+                    if (isActive || isRejected) return false; // already handled
+
+                    let createdDate: Date | null = null;
+                    if (!createdAt) return false;
+                    // Firestore Timestamp
+                    if (typeof createdAt.toDate === 'function') {
+                        createdDate = createdAt.toDate();
+                    } else if (createdAt.seconds) {
+                        createdDate = new Date(createdAt.seconds * 1000);
+                    } else if (typeof createdAt === 'number') {
+                        createdDate = new Date(createdAt);
+                    }
+                    if (!createdDate) return false;
+                    return now - createdDate.getTime() <= sevenDaysMs;
+                }).length;
+
+                setUnreadNewUsers(newCount);
+            } catch (err) {
+                console.error('Error computing new users count', err);
+            }
+        }, (err: any) => console.error('users onSnapshot error', err));
+
+        return () => unsubscribe();
+    }, [isAdmin]);
+
     const filteredMenu = useMemo(() => {
         let items = MENU_ITEMS;
         if (!isAdmin) {
@@ -280,6 +323,25 @@ export default function TabsIndex() {
                                 </Text>
                             </View>
                         )}
+                        {item.id === 'users' && unreadNewUsers > 0 && (
+                            <View style={{
+                                position: 'absolute',
+                                top: -6,
+                                right: -6,
+                                backgroundColor: '#EF4444',
+                                borderRadius: 10,
+                                minWidth: 20,
+                                height: 20,
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                borderWidth: 2,
+                                borderColor: '#fff'
+                            }}>
+                                <Text style={{ color: '#fff', fontSize: 10, fontWeight: 'bold', paddingHorizontal: 4 }}>
+                                    {unreadNewUsers > 99 ? '99+' : unreadNewUsers}
+                                </Text>
+                            </View>
+                        )}
                     </View>
                     <Text
                         style={{ fontSize: 12, color: '#111827', textAlign: 'center', fontWeight: '700' }}
@@ -340,7 +402,6 @@ export default function TabsIndex() {
 
             {/* Decorative wave between gradient and content (SVG if available, else rounded View fallback) */}
             {Svg && Path ? (
-                // kembali ke gelombang yang lebih konservatif/smooth
                 <Svg
                     viewBox="0 0 1440 120"
                     preserveAspectRatio="none"
