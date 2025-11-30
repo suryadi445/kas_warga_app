@@ -509,6 +509,16 @@ export default function UsersScreen() {
         }
 
         try {
+            // Server-side guard: ensure protected email cannot be toggled even if UI is bypassed
+            const targetDoc = await getDoc(doc(db, 'users', userId));
+            if (targetDoc.exists()) {
+                const targetEmail = targetDoc.data().email;
+                if (targetEmail === 'suryadi.hhb@gmail.com') {
+                    showToast('This account cannot be deactivated', 'error');
+                    return;
+                }
+            }
+
             const newStatus = !currentStatus;
             await updateDoc(doc(db, 'users', userId), { isActive: newStatus });
             showToast(`User ${newStatus ? 'activated' : 'deactivated'} successfully`, 'success');
@@ -599,22 +609,34 @@ export default function UsersScreen() {
 
                         {/* Activation Switch - Admin Only */}
                         {canManageUsers && (
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                                <Text style={{
-                                    fontSize: 11,
-                                    fontWeight: '600',
-                                    color: activationColor
-                                }}>
-                                    {activationStatus}
-                                </Text>
-                                <Switch
-                                    value={item.isActive === true}
-                                    onValueChange={() => toggleUserActivation(item.id, item.isActive)}
-                                    trackColor={{ false: '#E5E7EB', true: '#86EFAC' }}
-                                    thumbColor={item.isActive === true ? '#10B981' : '#9CA3AF'}
-                                    ios_backgroundColor="#E5E7EB"
-                                />
-                            </View>
+                            // Disable switch for protected account
+                            (() => {
+                                const isProtected = item.email === 'suryadi.hhb@gmail.com';
+                                return (
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                        <Text style={{
+                                            fontSize: 11,
+                                            fontWeight: '600',
+                                            color: activationColor
+                                        }}>
+                                            {activationStatus}
+                                        </Text>
+                                        <Switch
+                                            value={item.isActive === true}
+                                            onValueChange={() => {
+                                                if (isProtected) {
+                                                    showToast('This account cannot be deactivated', 'error');
+                                                    return;
+                                                }
+                                                toggleUserActivation(item.id, item.isActive);
+                                            }}
+                                            trackColor={{ false: '#E5E7EB', true: '#86EFAC' }}
+                                            thumbColor={item.isActive === true ? '#10B981' : '#9CA3AF'}
+                                            ios_backgroundColor="#E5E7EB"
+                                        />
+                                    </View>
+                                );
+                            })()
                         )}
                     </View>
 
@@ -894,36 +916,19 @@ export default function UsersScreen() {
             </View>
 
             {/* NEW: Activation Status Filter */}
-            <View style={{ paddingHorizontal: 20, marginTop: 12, marginBottom: 12 }}>
-                <View style={{
-                    flexDirection: 'row',
-                    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-                    borderRadius: 12,
-                    padding: 4,
-                    borderWidth: 1,
-                    borderColor: 'rgba(255, 255, 255, 0.25)',
-                    gap: 4
-                }}>
+            <View style={{ paddingHorizontal: 20, marginTop: 12, marginBottom: 12, flexDirection: 'row', gap: 10 }}>
+                <View style={{ flex: 1, flexDirection: 'row', backgroundColor: '#fff', borderRadius: 10, padding: 4 }}>
                     <TouchableOpacity
                         onPress={() => setActiveFilter('all')}
                         style={{
                             flex: 1,
                             paddingVertical: 8,
-                            backgroundColor: activeFilter === 'all' ? '#FFFFFF' : 'transparent',
-                            borderRadius: 9,
-                            shadowColor: activeFilter === 'all' ? '#000' : 'transparent',
-                            shadowOffset: { width: 0, height: 2 },
-                            shadowOpacity: 0.1,
-                            shadowRadius: 6,
-                            elevation: activeFilter === 'all' ? 3 : 0,
+                            borderRadius: 8,
                             alignItems: 'center',
+                            backgroundColor: activeFilter === 'all' ? '#6D28D9' : 'transparent'
                         }}
                     >
-                        <Text style={{
-                            color: activeFilter === 'all' ? '#7C3AED' : 'rgba(255, 255, 255, 0.9)',
-                            fontWeight: '700',
-                            fontSize: 12
-                        }}>All Users</Text>
+                        <Text style={{ fontSize: 14, fontWeight: '600', color: activeFilter === 'all' ? '#FFFFFF' : '#1F2937' }}>All</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
@@ -931,21 +936,12 @@ export default function UsersScreen() {
                         style={{
                             flex: 1,
                             paddingVertical: 8,
-                            backgroundColor: activeFilter === 'active' ? '#FFFFFF' : 'transparent',
-                            borderRadius: 9,
-                            shadowColor: activeFilter === 'active' ? '#000' : 'transparent',
-                            shadowOffset: { width: 0, height: 2 },
-                            shadowOpacity: 0.1,
-                            shadowRadius: 6,
-                            elevation: activeFilter === 'active' ? 3 : 0,
+                            borderRadius: 8,
                             alignItems: 'center',
+                            backgroundColor: activeFilter === 'active' ? '#6D28D9' : 'transparent'
                         }}
                     >
-                        <Text style={{
-                            color: activeFilter === 'active' ? '#7C3AED' : 'rgba(255, 255, 255, 0.9)',
-                            fontWeight: '700',
-                            fontSize: 12
-                        }}>✓ Active</Text>
+                        <Text style={{ fontSize: 14, fontWeight: '600', color: activeFilter === 'active' ? '#FFFFFF' : '#1F2937' }}>✓ Active</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
@@ -953,21 +949,12 @@ export default function UsersScreen() {
                         style={{
                             flex: 1,
                             paddingVertical: 8,
-                            backgroundColor: activeFilter === 'inactive' ? '#FFFFFF' : 'transparent',
-                            borderRadius: 9,
-                            shadowColor: activeFilter === 'inactive' ? '#000' : 'transparent',
-                            shadowOffset: { width: 0, height: 2 },
-                            shadowOpacity: 0.1,
-                            shadowRadius: 6,
-                            elevation: activeFilter === 'inactive' ? 3 : 0,
+                            borderRadius: 8,
                             alignItems: 'center',
+                            backgroundColor: activeFilter === 'inactive' ? '#6D28D9' : 'transparent'
                         }}
                     >
-                        <Text style={{
-                            color: activeFilter === 'inactive' ? '#7C3AED' : 'rgba(255, 255, 255, 0.9)',
-                            fontWeight: '700',
-                            fontSize: 12
-                        }}>⏳ Inactive</Text>
+                        <Text style={{ fontSize: 14, fontWeight: '600', color: activeFilter === 'inactive' ? '#FFFFFF' : '#1F2937' }}>⏳ Inactive</Text>
                     </TouchableOpacity>
                 </View>
             </View>
