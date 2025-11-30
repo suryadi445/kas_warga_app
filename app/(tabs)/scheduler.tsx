@@ -5,6 +5,7 @@ import {
     ActivityIndicator,
     FlatList,
     Modal,
+    Platform,
     RefreshControl,
     ScrollView,
     StatusBar,
@@ -12,6 +13,7 @@ import {
     TouchableOpacity,
     View
 } from 'react-native';
+import DateTimePickerModal from 'react-native-modal-datetime-picker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import ConfirmDialog from '../../src/components/ConfirmDialog';
 import FloatingLabelInput from '../../src/components/FloatingLabelInput';
@@ -25,8 +27,10 @@ import { getCurrentUser } from '../../src/services/authService';
 type Schedule = {
     id: string;
     activityName: string;
-    time: string; // HH:MM format
-    frequency: 'daily' | 'weekly' | 'month_twice' | 'monthly' | 'quarter' | 'yearly';
+    date?: string; // YYYY-MM-DD
+    time?: string; // HH:MM or display
+    rawTime?: any; // legacy/raw stored value
+    frequency: 'daily' | 'weekly' | 'twice_week' | 'month_twice' | 'monthly' | 'quarter' | 'yearly';
     location: string;
     description: string;
     days?: string[]; // NEW: selected days of week (e.g. ['Sun','Mon'])
@@ -35,6 +39,7 @@ type Schedule = {
 const FREQUENCY_OPTIONS = [
     { value: 'daily', label: 'Daily' },
     { value: 'weekly', label: 'Weekly' },
+    { value: 'twice_week', label: 'Twice a Week' },
     { value: 'month_twice', label: 'Month Twice' },
     { value: 'monthly', label: 'Monthly' },
     { value: 'quarter', label: 'Quarter Month' },
@@ -63,7 +68,10 @@ export default function SchedulerScreen() {
     const [itemToDelete, setItemToDelete] = useState<string | null>(null);
 
     const [activityName, setActivityName] = useState('');
-    const [time, setTime] = useState('09:00');
+    const [date, setDate] = useState<string>('');
+    const [time, setTime] = useState<string>('09:00');
+    const [showDatePicker, setShowDatePicker] = useState(false);
+    const [showTimePicker, setShowTimePicker] = useState(false);
     const [frequency, setFrequency] = useState<Schedule['frequency']>('monthly');
     const [location, setLocation] = useState('');
     const [description, setDescription] = useState('');
@@ -97,10 +105,26 @@ export default function SchedulerScreen() {
         const unsub = onSnapshot(q, (snap) => {
             const rows: Schedule[] = snap.docs.map(d => {
                 const data = d.data() as any;
+                // normalize date/time
+                const dateVal = data.date || '';
+                let timeVal = '';
+                if (data.time) {
+                    // if ISO-like or contains T, parse then format HH:MM
+                    const parsed = new Date(data.time);
+                    if (!isNaN(parsed.getTime())) {
+                        const hh = `${parsed.getHours()}`.padStart(2, '0');
+                        const mm = `${parsed.getMinutes()}`.padStart(2, '0');
+                        timeVal = `${hh}:${mm}`;
+                    } else {
+                        timeVal = String(data.time);
+                    }
+                }
                 return {
                     id: d.id,
                     activityName: data.activityName || '',
-                    time: data.time || '',
+                    date: dateVal,
+                    time: timeVal,
+                    rawTime: data.time || null,
                     frequency: data.frequency || 'monthly',
                     location: data.location || '',
                     description: data.description || '',
@@ -177,6 +201,7 @@ export default function SchedulerScreen() {
         }
         setEditingId(null);
         setActivityName('');
+        setDate('');
         setTime('09:00');
         setFrequency('monthly');
         setLocation('');
@@ -192,7 +217,8 @@ export default function SchedulerScreen() {
         }
         setEditingId(s.id);
         setActivityName(s.activityName);
-        setTime(s.time);
+        setDate((s as any).date || '');
+        setTime(s.time || '09:00');
         setFrequency(s.frequency);
         setLocation(s.location);
         setDescription(s.description);
@@ -209,10 +235,10 @@ export default function SchedulerScreen() {
         try {
             if (editingId) {
                 const ref = doc(db, 'schedules', editingId);
-                await updateDoc(ref, { activityName, time, frequency, location, description, days: selectedDays, updatedAt: serverTimestamp() });
+                await updateDoc(ref, { activityName, date, time, frequency, location, description, days: selectedDays, updatedAt: serverTimestamp() });
                 showToast('Schedule updated', 'success');
             } else {
-                await addDoc(collection(db, 'schedules'), { activityName, time, frequency, location, description, days: selectedDays, createdAt: serverTimestamp() });
+                await addDoc(collection(db, 'schedules'), { activityName, date, time, frequency, location, description, days: selectedDays, createdAt: serverTimestamp() });
                 showToast('Schedule added', 'success');
             }
             setModalVisible(false);
@@ -253,7 +279,20 @@ export default function SchedulerScreen() {
     const totalSchedules = items.length;
     const dailyCount = items.filter(i => i.frequency === 'daily').length;
     const weeklyCount = items.filter(i => i.frequency === 'weekly').length;
+    const twiceWeekCount = items.filter(i => i.frequency === 'twice_week').length;
     const monthlyCount = items.filter(i => i.frequency === 'monthly').length;
+
+    function formatDateOnly(dateStr: string) {
+        if (!dateStr) return '';
+        try {
+            const iso = `${dateStr}T00:00:00`;
+            const d = new Date(iso);
+            if (isNaN(d.getTime())) return dateStr;
+            return d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+        } catch (e) {
+            return dateStr;
+        }
+    }
 
     return (
         <SafeAreaView edges={['bottom']} style={{ flex: 1, backgroundColor: '#F8FAFC' }}>
@@ -398,6 +437,34 @@ export default function SchedulerScreen() {
                             fontSize: 14,
                             marginTop: 1
                         }}>{weeklyCount}</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        onPress={() => setFilterFrequency('twice_week')}
+                        style={{
+                            flex: 1,
+                            paddingVertical: 6,
+                            backgroundColor: filterFrequency === 'twice_week' ? '#FFFFFF' : 'transparent',
+                            borderRadius: 9,
+                            shadowColor: filterFrequency === 'twice_week' ? '#000' : 'transparent',
+                            shadowOffset: { width: 0, height: 2 },
+                            shadowOpacity: 0.1,
+                            shadowRadius: 6,
+                            elevation: filterFrequency === 'twice_week' ? 3 : 0,
+                            alignItems: 'center',
+                        }}
+                    >
+                        <Text style={{
+                            color: filterFrequency === 'twice_week' ? '#059669' : 'rgba(255, 255, 255, 0.9)',
+                            fontWeight: '700',
+                            fontSize: 11
+                        }}>🔁 Twice / Week</Text>
+                        <Text style={{
+                            color: filterFrequency === 'twice_week' ? '#059669' : 'rgba(255, 255, 255, 0.9)',
+                            fontWeight: '800',
+                            fontSize: 14,
+                            marginTop: 1
+                        }}>{twiceWeekCount}</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
@@ -626,6 +693,7 @@ export default function SchedulerScreen() {
                                     daily: { bg: '#FEF9C3', text: '#92400E', border: '#FDE047' },
                                     weekly: { bg: '#DBEAFE', text: '#1E40AF', border: '#60A5FA' },
                                     month_twice: { bg: '#E6FFFA', text: '#065F46', border: '#34D399' },
+                                    twice_week: { bg: '#ECFDF5', text: '#065F46', border: '#34D399' },
                                     monthly: { bg: '#EFF6FF', text: '#3730A3', border: '#818CF8' },
                                     quarter: { bg: '#FEF2F2', text: '#7F1D1D', border: '#F87171' },
                                     yearly: { bg: '#F0FDF4', text: '#065F46', border: '#22C55E' },
@@ -704,18 +772,28 @@ export default function SchedulerScreen() {
                                                 📍 {item.location}
                                             </Text>
 
-                                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                                                {!!item.date && (
+                                                    <View style={{ backgroundColor: '#FEF3C7', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 }}>
+                                                        <Text style={{ color: '#92400E', fontSize: 11, fontWeight: '600' }}>📅 {formatDateOnly(item.date)}</Text>
+                                                    </View>
+                                                )}
+
                                                 {!!item.time && (
                                                     <View style={{ backgroundColor: '#EEF2FF', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 }}>
                                                         <Text style={{ color: '#4338CA', fontSize: 11, fontWeight: '600' }}>🕐 {item.time}</Text>
                                                     </View>
                                                 )}
-                                                {!!item.days?.length && (
+                                            </View>
+
+                                            {/* Days row (separate row under date/time) */}
+                                            {!!item.days?.length && (
+                                                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
                                                     <View style={{ backgroundColor: '#F3F4F6', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 }}>
                                                         <Text style={{ color: '#4B5563', fontSize: 11, fontWeight: '600' }}>📆 {item.days.join(', ')}</Text>
                                                     </View>
-                                                )}
-                                            </View>
+                                                </View>
+                                            )}
 
                                             {!!item.description && (
                                                 <Text numberOfLines={2} style={{ color: '#6B7280', fontSize: 13 }}>
@@ -755,11 +833,60 @@ export default function SchedulerScreen() {
                             />
 
                             <FloatingLabelInput
+                                label="Date"
+                                value={date ? (() => {
+                                    try {
+                                        const iso = `${date}T00:00:00`;
+                                        const d = new Date(iso);
+                                        return d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+                                    } catch (e) { return date; }
+                                })() : ''}
+                                onChangeText={() => { }}
+                                placeholder="Select date"
+                                editable={Platform.OS === 'web'}
+                                onPress={Platform.OS === 'web' ? undefined : () => setShowDatePicker(true)}
+                            />
+
+                            <DateTimePickerModal
+                                isVisible={showDatePicker}
+                                mode="date"
+                                date={date ? new Date(`${date}T00:00:00`) : new Date()}
+                                onConfirm={(d: Date) => {
+                                    setShowDatePicker(false);
+                                    const y = d.getFullYear();
+                                    const m = `${d.getMonth() + 1}`.padStart(2, '0');
+                                    const day = `${d.getDate()}`.padStart(2, '0');
+                                    setDate(`${y}-${m}-${day}`);
+                                }}
+                                onCancel={() => setShowDatePicker(false)}
+                            />
+
+                            <FloatingLabelInput
                                 label="Time"
                                 value={time}
-                                onChangeText={setTime}
-                                placeholder="HH:MM"
-                                keyboardType="numbers-and-punctuation"
+                                onChangeText={() => { }}
+                                placeholder="Select time"
+                                editable={Platform.OS === 'web'}
+                                onPress={Platform.OS === 'web' ? undefined : () => setShowTimePicker(true)}
+                            />
+
+                            <DateTimePickerModal
+                                isVisible={showTimePicker}
+                                mode="time"
+                                date={(function () {
+                                    if (!time) return new Date();
+                                    const parts = time.split(':');
+                                    const now = new Date();
+                                    now.setHours(Number(parts[0] || 0), Number(parts[1] || 0), 0, 0);
+                                    return now;
+                                })()}
+                                onConfirm={(d: Date) => {
+                                    setShowTimePicker(false);
+                                    const hh = `${d.getHours()}`.padStart(2, '0');
+                                    const mm = `${d.getMinutes()}`.padStart(2, '0');
+                                    setTime(`${hh}:${mm}`);
+                                }}
+                                onCancel={() => setShowTimePicker(false)}
                             />
 
                             {/* Days (dropdown multi-select, placed under Time) */}

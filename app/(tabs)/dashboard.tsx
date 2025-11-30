@@ -25,7 +25,7 @@ import { useRefresh } from '../../src/hooks/useRefresh';
 
 type CashItem = { id: string; type: 'in' | 'out'; date: string; amount: number; category?: string; description?: string; deleted?: boolean };
 type Announcement = { id: string; title: string; content: string; startDate?: string; endDate?: string; date?: string; role?: string; category?: string };
-type Schedule = { id: string; activityName: string; time?: string; frequency?: string; days?: string[]; location?: string; description?: string };
+type Schedule = { id: string; activityName: string; time?: string; frequency?: string; days?: string[]; location?: string; description?: string; createdAt?: any };
 type Activity = { id: string; title: string; location?: string; date?: string; time?: string; description?: string };
 
 const TAB_KEYS = ['cash', 'announcements', 'schedules', 'activities'] as const;
@@ -195,11 +195,21 @@ export default function DashboardPage() {
         try {
             const qSched = query(collection(db, 'schedules'), orderBy('createdAt', 'desc'));
             const unsubSched = onSnapshot(qSched, snap => {
+                const today = new Date();
                 const todayStr = getTodayString();
-                const dayOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][new Date().getDay()];
+                const dayOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][today.getDay()];
                 // console.debug('schedules snapshot docs:', snap.docs.map(d => ({ id: d.id, data: d.data() })));
                 const rows: Schedule[] = snap.docs.map(d => {
                     const data = d.data() as any;
+                    // normalize createdAt to JS Date when available
+                    let createdAt: Date | undefined = undefined;
+                    if (data.createdAt) {
+                        try {
+                            createdAt = data.createdAt.toDate ? data.createdAt.toDate() : new Date(data.createdAt);
+                        } catch (e) {
+                            createdAt = new Date(data.createdAt);
+                        }
+                    }
                     return {
                         id: d.id,
                         activityName: data.activityName ?? '',
@@ -208,10 +218,54 @@ export default function DashboardPage() {
                         days: Array.isArray(data.days) ? data.days : [],
                         location: data.location ?? '',
                         description: data.description ?? data.desc ?? data.details ?? data.body ?? '',
+                        createdAt,
                     };
                 }).filter(item => {
-                    // Filter schedules yang applicable hari ini (cek days of week)
-                    if (!item.days || item.days.length === 0) return true; // no days = show all
+                    // Helper: start of day for date-only comparisons
+                    const startOfDay = (dt: Date) => new Date(dt.getFullYear(), dt.getMonth(), dt.getDate());
+
+                    // If frequency is twice_week (two times per week)
+                    if (item.frequency === 'twice_week') {
+                        // if days specified, honor those
+                        if (item.days && item.days.length > 0) return item.days.includes(dayOfWeek);
+                        // derive two weekdays from createdAt: base day and base+3
+                        const base = item.createdAt ?? today;
+                        const baseIdx = base.getDay();
+                        const secondIdx = (baseIdx + 3) % 7;
+                        const todayIdx = today.getDay();
+                        return todayIdx === baseIdx || todayIdx === secondIdx;
+                    }
+
+                    // If frequency is month_twice (every 14 days)
+                    if (item.frequency === 'month_twice') {
+                        const base = item.createdAt ?? startOfDay(new Date());
+                        const diffMs = startOfDay(today).getTime() - startOfDay(base).getTime();
+                        if (diffMs < 0) return false;
+                        const daysDiff = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+                        if (daysDiff % 14 !== 0) return false; // show only on every 14th day since base
+                        // if days specified, also require day-of-week match
+                        if (item.days && item.days.length > 0) return item.days.includes(dayOfWeek);
+                        return true;
+                    }
+
+                    // If frequency is quarter (every 3 calendar months)
+                    if (item.frequency === 'quarter') {
+                        const base = item.createdAt ?? new Date();
+                        const yearDiff = today.getFullYear() - base.getFullYear();
+                        const monthDiff = today.getMonth() - base.getMonth() + yearDiff * 12;
+                        if (monthDiff < 0) return false;
+                        if (monthDiff % 3 !== 0) return false; // every 3 months
+                        // match day-of-month; if base day > days in current month, match last day
+                        const baseDay = base.getDate();
+                        const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+                        const targetDay = Math.min(baseDay, daysInMonth);
+                        if (today.getDate() !== targetDay) return false;
+                        if (item.days && item.days.length > 0) return item.days.includes(dayOfWeek);
+                        return true;
+                    }
+
+                    // Default behavior: check days of week; if no days provided, show all
+                    if (!item.days || item.days.length === 0) return true;
                     return item.days.includes(dayOfWeek);
                 });
                 setSchedules(rows);
