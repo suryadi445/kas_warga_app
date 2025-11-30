@@ -1,6 +1,6 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import { LinearGradient } from 'expo-linear-gradient';
-import { addDoc, collection, doc, getDocs, orderBy, query, updateDoc } from 'firebase/firestore';
+import { addDoc, collection, doc, getDoc, getDocs, orderBy, query, updateDoc } from 'firebase/firestore';
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Dimensions, FlatList, Modal, PermissionsAndroid, Platform, RefreshControl, ScrollView, StatusBar, Text, TouchableOpacity, View, } from 'react-native';
 import DateTimePickerModal from 'react-native-modal-datetime-picker';
@@ -13,6 +13,7 @@ import { useToast } from '../../src/contexts/ToastContext';
 import { db } from '../../src/firebaseConfig';
 // ADDED: reusable wrapper component import
 import { useRefresh } from '../../src/hooks/useRefresh';
+import { getCurrentUser } from '../../src/services/authService';
 
 type Report = {
     id: string;
@@ -36,6 +37,7 @@ export default function CashReportsScreen() {
     const [operationLoading, setOperationLoading] = useState(false); // for save/delete ops
     const [exporting, setExporting] = useState(false); // NEW: exporting state
     const [savingSAF, setSavingSAF] = useState(false); // NEW: saving via SAF state (separate spinner for "Share / Save to...")
+    const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
 
     // ADDED: modal & editing state (used by openAdd/openEdit/save)
     const [modalVisible, setModalVisible] = useState(false);
@@ -100,6 +102,26 @@ export default function CashReportsScreen() {
         let mounted = true;
         (async () => {
             if (mounted) await loadReports();
+        })();
+        return () => { mounted = false; };
+    }, []);
+
+    // load current user's role for permission checks
+    useEffect(() => {
+        let mounted = true;
+        (async () => {
+            try {
+                const user = getCurrentUser();
+                if (!user) return;
+                const snap = await getDoc(doc(db, 'users', user.uid));
+                if (!mounted) return;
+                if (snap && snap.exists()) {
+                    const data: any = snap.data();
+                    setCurrentUserRole(data?.role || null);
+                }
+            } catch (err) {
+                console.warn('Failed to load current user role', err);
+            }
         })();
         return () => { mounted = false; };
     }, []);
@@ -213,6 +235,10 @@ export default function CashReportsScreen() {
     }, [filterType, filterCategory, filterMonth, filterYear]);
 
     function openAdd() {
+        if (currentUserRole !== 'Admin') {
+            showToast('Permission Denied: Only admin can add reports', 'error');
+            return;
+        }
         setEditingId(null);
         setType('in');
         setDate(defaultDate);
@@ -223,6 +249,10 @@ export default function CashReportsScreen() {
     }
 
     function openEdit(r: Report) {
+        if (currentUserRole !== 'Admin') {
+            showToast('Permission Denied: Only admin can edit reports', 'error');
+            return;
+        }
         setEditingId(r.id);
         setType(r.type);
         setDate(r.date);
@@ -285,6 +315,10 @@ export default function CashReportsScreen() {
     const [itemToDelete, setItemToDelete] = useState<string | null>(null);
 
     function confirmRemove(id: string) {
+        if (currentUserRole !== 'Admin') {
+            showToast('Permission Denied: Only admin can delete reports', 'error');
+            return;
+        }
         setItemToDelete(id);
         setDeleteConfirmVisible(true);
     }
@@ -550,6 +584,23 @@ export default function CashReportsScreen() {
     const renderItem = ({ item }: { item: Report }) => {
         const isIncome = item.type === 'in';
 
+        const actions = currentUserRole === 'Admin' ? [
+            {
+                label: 'Edit',
+                onPress: () => openEdit(item),
+                bg: '#E0F2FE',
+                textColor: '#0369A1',
+                disabled: operationLoading,
+            },
+            {
+                label: 'Delete',
+                onPress: () => confirmRemove(item.id),
+                bg: '#FEE2E2',
+                textColor: '#991B1B',
+                disabled: operationLoading,
+            },
+        ] : [];
+
         return (
             <CardItem
                 icon={isIncome ? '↑' : '↓'}
@@ -565,22 +616,7 @@ export default function CashReportsScreen() {
                 categoryColor="#6B7280"
                 description={item.description}
                 borderLeftColor={isIncome ? '#10B981' : '#EF4444'}
-                actions={[
-                    {
-                        label: 'Edit',
-                        onPress: () => openEdit(item),
-                        bg: '#E0F2FE',
-                        textColor: '#0369A1',
-                        disabled: operationLoading,
-                    },
-                    {
-                        label: 'Delete',
-                        onPress: () => confirmRemove(item.id),
-                        bg: '#FEE2E2',
-                        textColor: '#991B1B',
-                        disabled: operationLoading,
-                    },
-                ]}
+                actions={actions}
             />
         );
     };
@@ -720,29 +756,31 @@ export default function CashReportsScreen() {
                         </TouchableOpacity>
                     </View>
 
-                    {/* Right: Add Report button */}
-                    <View style={{ flex: 1 }}>
-                        <TouchableOpacity activeOpacity={0.9} onPress={openAdd} style={{ width: '100%' }}>
-                            <LinearGradient
-                                colors={['#7c3aed', '#6366f1']}
-                                start={{ x: 0, y: 0 }}
-                                end={{ x: 1, y: 0 }}
-                                style={{
-                                    width: '100%',
-                                    paddingVertical: 10,
-                                    borderRadius: 10,
-                                    alignItems: 'center',
-                                    shadowColor: '#7c3aed',
-                                    shadowOffset: { width: 0, height: 2 },
-                                    shadowOpacity: 0.2,
-                                    shadowRadius: 4,
-                                    elevation: 2,
-                                }}
-                            >
-                                <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>+ Report</Text>
-                            </LinearGradient>
-                        </TouchableOpacity>
-                    </View>
+                    {/* Right: Add Report button (Admin only) */}
+                    {currentUserRole === 'Admin' && (
+                        <View style={{ flex: 1 }}>
+                            <TouchableOpacity activeOpacity={0.9} onPress={openAdd} style={{ width: '100%' }}>
+                                <LinearGradient
+                                    colors={['#7c3aed', '#6366f1']}
+                                    start={{ x: 0, y: 0 }}
+                                    end={{ x: 1, y: 0 }}
+                                    style={{
+                                        width: '100%',
+                                        paddingVertical: 10,
+                                        borderRadius: 10,
+                                        alignItems: 'center',
+                                        shadowColor: '#7c3aed',
+                                        shadowOffset: { width: 0, height: 2 },
+                                        shadowOpacity: 0.2,
+                                        shadowRadius: 4,
+                                        elevation: 2,
+                                    }}
+                                >
+                                    <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>+ Report</Text>
+                                </LinearGradient>
+                            </TouchableOpacity>
+                        </View>
+                    )}
                 </View>
             </View>
 

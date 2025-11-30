@@ -1,5 +1,5 @@
 import { LinearGradient } from 'expo-linear-gradient';
-import { addDoc, collection, deleteDoc, doc, onSnapshot, orderBy, query, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { addDoc, collection, deleteDoc, doc, getDoc, onSnapshot, orderBy, query, serverTimestamp, updateDoc } from 'firebase/firestore';
 import React, { useEffect, useState } from 'react';
 import {
     ActivityIndicator,
@@ -20,6 +20,7 @@ import SelectInput from '../../src/components/SelectInput';
 import { useToast } from '../../src/contexts/ToastContext';
 import { db } from '../../src/firebaseConfig';
 import { useRefresh } from '../../src/hooks/useRefresh';
+import { getCurrentUser } from '../../src/services/authService';
 
 type Schedule = {
     id: string;
@@ -43,6 +44,7 @@ const FREQUENCY_OPTIONS = [
 export default function SchedulerScreen() {
     const { showToast } = useToast();
     const [items, setItems] = useState<Schedule[]>([]); // now loaded from Firestore
+    const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
     // filters -> days + frequency
     const [filterDays, setFilterDays] = useState<string[]>([]); // e.g. ['Sunday','Tuesday']
     const [filterFrequency, setFilterFrequency] = useState<'all' | Schedule['frequency']>('all');
@@ -114,6 +116,26 @@ export default function SchedulerScreen() {
         return () => unsub();
     }, [refreshTrigger]);
 
+    // load current user's role for client-side permission checks
+    useEffect(() => {
+        let mounted = true;
+        (async () => {
+            try {
+                const user = getCurrentUser();
+                if (!user) return;
+                const snap = await getDoc(doc(db, 'users', user.uid));
+                if (!mounted) return;
+                if (snap && snap.exists()) {
+                    const data: any = snap.data();
+                    setCurrentUserRole(data?.role || null);
+                }
+            } catch (err) {
+                console.warn('Failed to load current user role', err);
+            }
+        })();
+        return () => { mounted = false; };
+    }, []);
+
     const { refreshing, onRefresh } = useRefresh(async () => {
         setRefreshTrigger(prev => prev + 1);
     });
@@ -149,6 +171,10 @@ export default function SchedulerScreen() {
     };
 
     function openAdd() {
+        if (currentUserRole !== 'Admin') {
+            showToast('Permission Denied: Only admin can add schedules', 'error');
+            return;
+        }
         setEditingId(null);
         setActivityName('');
         setTime('09:00');
@@ -160,6 +186,10 @@ export default function SchedulerScreen() {
     }
 
     function openEdit(s: Schedule) {
+        if (currentUserRole !== 'Admin') {
+            showToast('Permission Denied: Only admin can edit schedules', 'error');
+            return;
+        }
         setEditingId(s.id);
         setActivityName(s.activityName);
         setTime(s.time);
@@ -195,6 +225,10 @@ export default function SchedulerScreen() {
     }
 
     function confirmRemove(id: string) {
+        if (currentUserRole !== 'Admin') {
+            showToast('Permission Denied: Only admin can delete schedules', 'error');
+            return;
+        }
         setItemToDelete(id);
         setDeleteConfirmVisible(true);
     }
@@ -425,29 +459,31 @@ export default function SchedulerScreen() {
                     </View>
 
                     {/* Right: Add Button */}
-                    <View style={{ flex: 1 }}>
-                        <TouchableOpacity disabled={operationLoading} onPress={openAdd} activeOpacity={0.9}>
-                            <LinearGradient
-                                colors={['#7c3aed', '#6366f1']}
-                                start={{ x: 0, y: 0 }}
-                                end={{ x: 1, y: 0 }}
-                                style={{
-                                    paddingVertical: 12,
-                                    borderRadius: 10,
-                                    alignItems: 'center',
-                                    shadowColor: '#7c3aed',
-                                    shadowOffset: { width: 0, height: 2 },
-                                    shadowOpacity: 0.2,
-                                    shadowRadius: 4,
-                                    elevation: 2,
-                                    height: 50,
-                                    justifyContent: 'center'
-                                }}
-                            >
-                                <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>+ Schedule</Text>
-                            </LinearGradient>
-                        </TouchableOpacity>
-                    </View>
+                    {currentUserRole === 'Admin' && (
+                        <View style={{ flex: 1 }}>
+                            <TouchableOpacity disabled={operationLoading} onPress={openAdd} activeOpacity={0.9}>
+                                <LinearGradient
+                                    colors={['#7c3aed', '#6366f1']}
+                                    start={{ x: 0, y: 0 }}
+                                    end={{ x: 1, y: 0 }}
+                                    style={{
+                                        paddingVertical: 12,
+                                        borderRadius: 10,
+                                        alignItems: 'center',
+                                        shadowColor: '#7c3aed',
+                                        shadowOffset: { width: 0, height: 2 },
+                                        shadowOpacity: 0.2,
+                                        shadowRadius: 4,
+                                        elevation: 2,
+                                        height: 50,
+                                        justifyContent: 'center'
+                                    }}
+                                >
+                                    <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>+ Schedule</Text>
+                                </LinearGradient>
+                            </TouchableOpacity>
+                        </View>
+                    )}
                 </View>
             </View>
 
@@ -612,35 +648,37 @@ export default function SchedulerScreen() {
                                             borderLeftColor: colors.border,
                                             paddingRight: 110,
                                         }}>
-                                            {/* Actions - positioned absolute center right */}
-                                            <View style={{ position: 'absolute', top: '50%', right: 12, zIndex: 5, flexDirection: 'column', gap: 8, transform: [{ translateY: -30 }] }}>
-                                                <TouchableOpacity
-                                                    onPress={() => openEdit(item)}
-                                                    disabled={operationLoading}
-                                                    style={{
-                                                        backgroundColor: '#E0F2FE',
-                                                        paddingHorizontal: 12,
-                                                        paddingVertical: 6,
-                                                        borderRadius: 8,
-                                                        opacity: operationLoading ? 0.5 : 1
-                                                    }}
-                                                >
-                                                    <Text style={{ color: '#0369A1', fontWeight: '600', fontSize: 12 }}>Edit</Text>
-                                                </TouchableOpacity>
-                                                <TouchableOpacity
-                                                    onPress={() => confirmRemove(item.id)}
-                                                    disabled={operationLoading}
-                                                    style={{
-                                                        backgroundColor: '#FEE2E2',
-                                                        paddingHorizontal: 12,
-                                                        paddingVertical: 6,
-                                                        borderRadius: 8,
-                                                        opacity: operationLoading ? 0.5 : 1
-                                                    }}
-                                                >
-                                                    <Text style={{ color: '#991B1B', fontWeight: '600', fontSize: 12 }}>Delete</Text>
-                                                </TouchableOpacity>
-                                            </View>
+                                            {/* Actions - positioned absolute center right (Admin only) */}
+                                            {currentUserRole === 'Admin' && (
+                                                <View style={{ position: 'absolute', top: '50%', right: 12, zIndex: 5, flexDirection: 'column', gap: 8, transform: [{ translateY: -30 }] }}>
+                                                    <TouchableOpacity
+                                                        onPress={() => openEdit(item)}
+                                                        disabled={operationLoading}
+                                                        style={{
+                                                            backgroundColor: '#E0F2FE',
+                                                            paddingHorizontal: 12,
+                                                            paddingVertical: 6,
+                                                            borderRadius: 8,
+                                                            opacity: operationLoading ? 0.5 : 1
+                                                        }}
+                                                    >
+                                                        <Text style={{ color: '#0369A1', fontWeight: '600', fontSize: 12 }}>Edit</Text>
+                                                    </TouchableOpacity>
+                                                    <TouchableOpacity
+                                                        onPress={() => confirmRemove(item.id)}
+                                                        disabled={operationLoading}
+                                                        style={{
+                                                            backgroundColor: '#FEE2E2',
+                                                            paddingHorizontal: 12,
+                                                            paddingVertical: 6,
+                                                            borderRadius: 8,
+                                                            opacity: operationLoading ? 0.5 : 1
+                                                        }}
+                                                    >
+                                                        <Text style={{ color: '#991B1B', fontWeight: '600', fontSize: 12 }}>Delete</Text>
+                                                    </TouchableOpacity>
+                                                </View>
+                                            )}
 
                                             {/* Frequency badge */}
                                             <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 8 }}>
