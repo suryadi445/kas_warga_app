@@ -1,6 +1,6 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from 'expo-router';
-import { collection, deleteDoc, doc, getDoc, getDocs, setDoc } from 'firebase/firestore';
+import { collection, deleteDoc, doc, getDoc, getDocs, setDoc, updateDoc } from 'firebase/firestore';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
     ActivityIndicator,
@@ -10,13 +10,13 @@ import {
     RefreshControl,
     ScrollView,
     StatusBar,
+    Switch,
     Text,
     TouchableOpacity,
     View
 } from 'react-native';
 import DateTimePickerModal from 'react-native-modal-datetime-picker';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import CardItem from '../../src/components/CardItem';
 import ConfirmDialog from '../../src/components/ConfirmDialog';
 import FloatingLabelInput from '../../src/components/FloatingLabelInput';
 import LoadMore from '../../src/components/LoadMore';
@@ -33,6 +33,7 @@ type User = {
     phone: string;
     role: string;
     photo?: string; // NEW: optional photo URL
+    isActive?: boolean; // NEW: activation status
 };
 
 const ROLES = ['Member', 'Staff', 'Admin'];
@@ -54,6 +55,9 @@ export default function UsersScreen() {
 
     // NEW: search query for name/email
     const [searchQuery, setSearchQuery] = useState<string>('');
+
+    // NEW: active status filter ('all' | 'active' | 'inactive')
+    const [activeFilter, setActiveFilter] = useState<'all' | 'active' | 'inactive'>('all');
 
     // PAGINATION state
     const USERS_PER_PAGE = 5;
@@ -193,6 +197,7 @@ export default function UsersScreen() {
                     phone: data.phone !== undefined && data.phone !== null ? String(data.phone) : '',
                     role: data.role || 'Member',
                     photo: data.profileImage || data.photo || data.image || '', // NEW: pick available photo field
+                    isActive: data.isActive, // NEW: include activation status
                 });
             });
 
@@ -218,6 +223,12 @@ export default function UsersScreen() {
         // Only super admin can edit users
         if (!canManageUsers) {
             showToast('Permission Denied: Only super admin can edit users', 'error');
+            return;
+        }
+
+        // NEW: Protect master admin account
+        if (u.email === 'suryadi.hhb@gmail.com') {
+            showToast('This account cannot be edited', 'error');
             return;
         }
 
@@ -463,6 +474,14 @@ export default function UsersScreen() {
             showToast('Permission Denied: Only super admin can delete users', 'error');
             return;
         }
+
+        // NEW: Protect master admin account
+        const userToDelete = users.find(u => u.id === id);
+        if (userToDelete && userToDelete.email === 'suryadi.hhb@gmail.com') {
+            showToast('This account cannot be deleted', 'error');
+            return;
+        }
+
         setItemToDelete(id);
         setDeleteConfirmVisible(true);
     }
@@ -482,9 +501,32 @@ export default function UsersScreen() {
         }
     }
 
-    // NEW: filtered users based on roleFilter
+    // NEW: Toggle user activation status
+    async function toggleUserActivation(userId: string, currentStatus: boolean | undefined) {
+        if (!canManageUsers) {
+            showToast('Permission Denied: Only admin can activate users', 'error');
+            return;
+        }
+
+        try {
+            const newStatus = !currentStatus;
+            await updateDoc(doc(db, 'users', userId), { isActive: newStatus });
+            showToast(`User ${newStatus ? 'activated' : 'deactivated'} successfully`, 'success');
+            await loadUsers(); // Reload to reflect changes
+        } catch (error) {
+            console.error('Failed to toggle user activation:', error);
+            showToast('Failed to update user status', 'error');
+        }
+    }
+
+    // NEW: filtered users based on roleFilter and activeFilter
     const filteredUsers = users
         .filter(u => (roleFilter ? u.role === roleFilter : true))
+        .filter(u => {
+            if (activeFilter === 'active') return u.isActive === true;
+            if (activeFilter === 'inactive') return u.isActive !== true;
+            return true; // 'all'
+        })
         .filter(u => {
             const q = (searchQuery || '').trim().toLowerCase();
             if (!q) return true;
@@ -517,36 +559,129 @@ export default function UsersScreen() {
         // Mask phone number if user is not admin
         const displayPhone = canManageUsers ? item.phone : maskPhoneNumber(item.phone);
 
+        // Activation status indicator
+        const activationStatus = item.isActive === true ? 'Active' : 'Inactive';
+        const activationColor = item.isActive === true ? '#10B981' : '#EF4444';
+
         return (
-            <CardItem
-                icon="👤"
-                badge={item.role}
-                badgeBg={colors.bg}
-                badgeTextColor={colors.text}
-                badgeBorderColor={roleFilter === item.role ? colors.border : undefined}
-                title={item.name}
-                titleColor="#111827"
-                subtitle={item.email}
-                subtitleColor="#6B7280"
-                description={displayPhone}
-                descriptionColor="#6B7280"
-                borderLeftColor={colors.border}
-                containerStyle={{ marginHorizontal: 0 }}
-                actions={canManageUsers ? [
-                    {
-                        label: 'Edit',
-                        onPress: () => openEdit(item),
-                        bg: '#E0F2FE',
-                        textColor: '#0369A1',
-                    },
-                    {
-                        label: 'Delete',
-                        onPress: () => remove(item.id),
-                        bg: '#FEE2E2',
-                        textColor: '#991B1B',
-                    },
-                ] : undefined}
-            />
+            <View style={{ marginHorizontal: 0, marginVertical: 8 }}>
+                <View style={{
+                    backgroundColor: '#fff',
+                    borderRadius: 12,
+                    padding: 16,
+                    elevation: 2,
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: 1 },
+                    shadowOpacity: 0.08,
+                    shadowRadius: 4,
+                    borderLeftWidth: 4,
+                    borderLeftColor: item.isActive === true ? colors.border : '#9CA3AF',
+                    opacity: item.isActive === true ? 1 : 0.7
+                }}>
+                    {/* Top row: badge + activation switch (admin only) */}
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                        <View style={{
+                            backgroundColor: colors.bg,
+                            paddingHorizontal: 10,
+                            paddingVertical: 4,
+                            borderRadius: 999,
+                            borderWidth: roleFilter === item.role ? 1 : 0,
+                            borderColor: roleFilter === item.role ? colors.border : undefined,
+                        }}>
+                            <Text style={{
+                                color: colors.text,
+                                fontWeight: '700',
+                                fontSize: 11,
+                            }}>
+                                {item.role}
+                            </Text>
+                        </View>
+
+                        {/* Activation Switch - Admin Only */}
+                        {canManageUsers && (
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                <Text style={{
+                                    fontSize: 11,
+                                    fontWeight: '600',
+                                    color: activationColor
+                                }}>
+                                    {activationStatus}
+                                </Text>
+                                <Switch
+                                    value={item.isActive === true}
+                                    onValueChange={() => toggleUserActivation(item.id, item.isActive)}
+                                    trackColor={{ false: '#E5E7EB', true: '#86EFAC' }}
+                                    thumbColor={item.isActive === true ? '#10B981' : '#9CA3AF'}
+                                    ios_backgroundColor="#E5E7EB"
+                                />
+                            </View>
+                        )}
+                    </View>
+
+                    {/* Main content row: icon + title/subtitle + actions */}
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                        <View style={{ flex: 1, flexDirection: 'row', alignItems: 'flex-start' }}>
+                            <Text style={{ fontSize: 24, marginRight: 12 }}>👤</Text>
+
+                            <View style={{ flex: 1 }}>
+                                <Text style={{
+                                    fontWeight: '800',
+                                    color: '#111827',
+                                    fontSize: 18,
+                                    marginBottom: 4,
+                                    letterSpacing: -0.5,
+                                }}>
+                                    {item.name}
+                                </Text>
+
+                                <Text style={{ color: '#6B7280', fontSize: 12, marginBottom: 4 }}>
+                                    {item.email}
+                                </Text>
+
+                                {displayPhone && (
+                                    <Text numberOfLines={2} style={{ color: '#6B7280', fontSize: 13, marginTop: 4, lineHeight: 18 }}>
+                                        {displayPhone}
+                                    </Text>
+                                )}
+                            </View>
+                        </View>
+
+                        {/* Right: action buttons stacked */}
+                        {canManageUsers && (
+                            <View style={{ marginLeft: 12, alignItems: 'flex-end', justifyContent: 'flex-start' }}>
+                                <TouchableOpacity
+                                    onPress={() => openEdit(item)}
+                                    style={{
+                                        backgroundColor: '#E0F2FE',
+                                        paddingHorizontal: 10,
+                                        paddingVertical: 6,
+                                        borderRadius: 8,
+                                        marginBottom: 8,
+                                    }}
+                                >
+                                    <Text style={{ color: '#0369A1', fontWeight: '700', fontSize: 11 }}>
+                                        Edit
+                                    </Text>
+                                </TouchableOpacity>
+
+                                <TouchableOpacity
+                                    onPress={() => remove(item.id)}
+                                    style={{
+                                        backgroundColor: '#FEE2E2',
+                                        paddingHorizontal: 10,
+                                        paddingVertical: 6,
+                                        borderRadius: 8,
+                                    }}
+                                >
+                                    <Text style={{ color: '#991B1B', fontWeight: '700', fontSize: 11 }}>
+                                        Delete
+                                    </Text>
+                                </TouchableOpacity>
+                            </View>
+                        )}
+                    </View>
+                </View>
+            </View>
         );
     };
 
@@ -754,6 +889,85 @@ export default function UsersScreen() {
                             fontSize: 14,
                             marginTop: 1
                         }}>{users.filter(u => u.role === 'Member').length}</Text>
+                    </TouchableOpacity>
+                </View>
+            </View>
+
+            {/* NEW: Activation Status Filter */}
+            <View style={{ paddingHorizontal: 20, marginTop: 12, marginBottom: 12 }}>
+                <View style={{
+                    flexDirection: 'row',
+                    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+                    borderRadius: 12,
+                    padding: 4,
+                    borderWidth: 1,
+                    borderColor: 'rgba(255, 255, 255, 0.25)',
+                    gap: 4
+                }}>
+                    <TouchableOpacity
+                        onPress={() => setActiveFilter('all')}
+                        style={{
+                            flex: 1,
+                            paddingVertical: 8,
+                            backgroundColor: activeFilter === 'all' ? '#FFFFFF' : 'transparent',
+                            borderRadius: 9,
+                            shadowColor: activeFilter === 'all' ? '#000' : 'transparent',
+                            shadowOffset: { width: 0, height: 2 },
+                            shadowOpacity: 0.1,
+                            shadowRadius: 6,
+                            elevation: activeFilter === 'all' ? 3 : 0,
+                            alignItems: 'center',
+                        }}
+                    >
+                        <Text style={{
+                            color: activeFilter === 'all' ? '#7C3AED' : 'rgba(255, 255, 255, 0.9)',
+                            fontWeight: '700',
+                            fontSize: 12
+                        }}>All Users</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        onPress={() => setActiveFilter('active')}
+                        style={{
+                            flex: 1,
+                            paddingVertical: 8,
+                            backgroundColor: activeFilter === 'active' ? '#FFFFFF' : 'transparent',
+                            borderRadius: 9,
+                            shadowColor: activeFilter === 'active' ? '#000' : 'transparent',
+                            shadowOffset: { width: 0, height: 2 },
+                            shadowOpacity: 0.1,
+                            shadowRadius: 6,
+                            elevation: activeFilter === 'active' ? 3 : 0,
+                            alignItems: 'center',
+                        }}
+                    >
+                        <Text style={{
+                            color: activeFilter === 'active' ? '#7C3AED' : 'rgba(255, 255, 255, 0.9)',
+                            fontWeight: '700',
+                            fontSize: 12
+                        }}>✓ Active</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        onPress={() => setActiveFilter('inactive')}
+                        style={{
+                            flex: 1,
+                            paddingVertical: 8,
+                            backgroundColor: activeFilter === 'inactive' ? '#FFFFFF' : 'transparent',
+                            borderRadius: 9,
+                            shadowColor: activeFilter === 'inactive' ? '#000' : 'transparent',
+                            shadowOffset: { width: 0, height: 2 },
+                            shadowOpacity: 0.1,
+                            shadowRadius: 6,
+                            elevation: activeFilter === 'inactive' ? 3 : 0,
+                            alignItems: 'center',
+                        }}
+                    >
+                        <Text style={{
+                            color: activeFilter === 'inactive' ? '#7C3AED' : 'rgba(255, 255, 255, 0.9)',
+                            fontWeight: '700',
+                            fontSize: 12
+                        }}>⏳ Inactive</Text>
                     </TouchableOpacity>
                 </View>
             </View>

@@ -46,8 +46,13 @@ export default function RegisterScreen() {
         try {
             setLoading(true);
             await signUp(email, password, name);
-            showToast('Registration successful!', 'success');
-            router.replace('/(tabs)/dashboard');
+
+            // NEW: Sign out immediately since account needs admin activation
+            const { signOut } = await import('../src/services/authService');
+            await signOut();
+
+            showToast('Account created! Please wait for admin activation before logging in.', 'success');
+            router.replace('/login');
         } catch (error: any) {
             showToast(error.message || 'Registration failed', 'error');
         } finally {

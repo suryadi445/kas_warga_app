@@ -32,9 +32,16 @@ export default function LoginScreen() {
 
         try {
             setLoading(true);
-            await signIn(email, password);
-            showToast('Login successful!', 'success');
-            router.replace('/(tabs)/dashboard');
+            const result = await signIn(email, password);
+
+            // Check if login was successful
+            if (result.success) {
+                showToast('Login successful!', 'success');
+                router.replace('/(tabs)/dashboard');
+            } else {
+                // Handle errors including activation check
+                showToast(result.error || 'Login failed', 'error');
+            }
         } catch (error: any) {
             showToast(error.message || 'Login failed', 'error');
         } finally {

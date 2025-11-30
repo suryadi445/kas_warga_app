@@ -60,6 +60,7 @@ export const signUp = async (email: string, password: string, nama: string, phon
             nama: nama.trim(),
             phone: phone.trim(),
             role: 'Member', // default role
+            isActive: false, // NEW: requires admin activation
             gender: '',
             birthday: '',
             religion: '',
@@ -123,6 +124,17 @@ export const signIn = async (email: string, password: string): Promise<AuthResul
             const docRef = doc(db, 'users', user.uid);
             const snap = await getDocWithRetry(docRef);
             profile = snap.exists() ? snap.data() : null;
+
+            // NEW: Check if user is activated
+            if (profile && profile.isActive === false) {
+                // Sign out the user since they can't proceed
+                await auth.signOut();
+                return {
+                    success: false,
+                    error: 'Your account is pending activation. Please contact an administrator.',
+                    code: 'auth/account-not-activated'
+                };
+            }
         } catch (fireErr: any) {
             const msg = (fireErr?.message || '').toLowerCase();
             const code = fireErr?.code || '';
