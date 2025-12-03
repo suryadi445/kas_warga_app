@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { doc, onSnapshot, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
 import { getDownloadURL, getStorage, ref as storageRef, uploadBytes } from 'firebase/storage';
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
     ActivityIndicator,
     Image,
@@ -14,7 +15,7 @@ import {
     StatusBar,
     Text,
     TouchableOpacity,
-    View
+    View,
 } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -25,18 +26,8 @@ import { db } from '../../src/firebaseConfig';
 import { useRefresh } from '../../src/hooks/useRefresh';
 
 const MONTHS = [
-    'January',
-    'February',
-    'March',
-    'April',
-    'May',
-    'June',
-    'July',
-    'August',
-    'September',
-    'October',
-    'November',
-    'December',
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
 ];
 
 // import { LinearGradient } from 'expo-linear-gradient';
@@ -47,6 +38,7 @@ const LinearGradient = (LinearGradientModule as any)?.LinearGradient ?? (LinearG
 
 export default function SettingsScreen() {
     const { showToast } = useToast(); // added
+    const { t } = useTranslation();
     const [appName, setAppName] = useState('Kas Warga');
     const [appImage, setAppImage] = useState<string | undefined>(undefined);
     const [uploadingImage, setUploadingImage] = useState(false);
@@ -241,20 +233,20 @@ export default function SettingsScreen() {
                 const downloadUrl = await uploadImageToStorage(uri);
                 if (downloadUrl) {
                     setAppImage(downloadUrl);
-                    showToast('Image uploaded', 'success');
+                    showToast(t('image_uploaded', { defaultValue: 'Image uploaded' }), 'success');
                 } else {
-                    showToast('Failed to upload image', 'error');
+                    showToast(t('failed_to_upload_image', { defaultValue: 'Failed to upload image' }), 'error');
                 }
             }
         } catch (err) {
             console.error('pickAppImage error', err);
-            showToast('Failed to pick/upload image', 'error');
+            showToast(t('failed_to_pick_upload_image', { defaultValue: 'Failed to pick/upload image' }), 'error');
         }
     }
 
     function save() {
         if (!appName.trim()) {
-            showToast('App name is required', 'error');
+            showToast(t('app_name_required', { defaultValue: 'App name is required' }), 'error');
             return;
         }
         // commit tmp coords if map modal still open values were edited
@@ -298,15 +290,15 @@ export default function SettingsScreen() {
             try {
                 await AsyncStorage.setItem('settings', JSON.stringify(payload));
             } catch { }
-            showToast('Settings saved to cloud', 'success');
+            showToast(t('settings_saved_cloud', { defaultValue: 'Settings saved to cloud' }), 'success');
         } catch (e) {
             console.error('saveSettings error', e);
             // fallback to AsyncStorage only
             try {
                 await AsyncStorage.setItem('settings', JSON.stringify(payload));
-                showToast('Settings saved locally (no network)', 'info');
+                showToast(t('settings_saved_locally', { defaultValue: 'Settings saved locally (no network)' }), 'info');
             } catch {
-                showToast('Failed to save settings', 'error');
+                showToast(t('failed_to_save_settings', { defaultValue: 'Failed to save settings' }), 'error');
             }
         } finally {
             setModalVisible(false);
@@ -329,7 +321,7 @@ export default function SettingsScreen() {
         if (!pmToDelete) return;
         setPaymentMethods((p) => p.filter((m) => m.id !== pmToDelete));
         setPmDeleteVisible(false);
-        showToast('Payment method removed', 'success');
+        showToast(t('payment_method_removed', { defaultValue: 'Payment method removed' }), 'success');
         setPmToDelete(null);
     }
 
@@ -408,7 +400,7 @@ export default function SettingsScreen() {
                                     <Text style={{ fontSize: 14 }}>📞</Text>
                                 </View>
                                 <View style={{ flex: 1 }}>
-                                    <Text style={{ color: '#9CA3AF', fontSize: 10, fontWeight: '600' }}>Phone</Text>
+                                    <Text style={{ color: '#9CA3AF', fontSize: 10, fontWeight: '600' }}>{t('phone_label', { defaultValue: 'Phone' })}</Text>
                                     <Text numberOfLines={1} style={{ color: '#111827', fontSize: 13, fontWeight: '600' }}>{phone}</Text>
                                 </View>
                             </View>
@@ -421,7 +413,7 @@ export default function SettingsScreen() {
                                     <Text style={{ fontSize: 14 }}>✉️</Text>
                                 </View>
                                 <View style={{ flex: 1 }}>
-                                    <Text style={{ color: '#9CA3AF', fontSize: 10, fontWeight: '600' }}>Email</Text>
+                                    <Text style={{ color: '#9CA3AF', fontSize: 10, fontWeight: '600' }}>{t('email_label', { defaultValue: 'Email' })}</Text>
                                     <Text numberOfLines={1} style={{ color: '#111827', fontSize: 13, fontWeight: '600' }}>{email}</Text>
                                 </View>
                             </View>
@@ -434,7 +426,7 @@ export default function SettingsScreen() {
                                     <Text style={{ fontSize: 14 }}>📍</Text>
                                 </View>
                                 <View style={{ flex: 1 }}>
-                                    <Text style={{ color: '#9CA3AF', fontSize: 10, fontWeight: '600', marginBottom: 2 }}>Address</Text>
+                                    <Text style={{ color: '#9CA3AF', fontSize: 10, fontWeight: '600', marginBottom: 2 }}>{t('address_label', { defaultValue: 'Address' })}</Text>
                                     <Text style={{ color: '#111827', fontSize: 12, lineHeight: 16 }}>{address}</Text>
                                 </View>
                             </View>
@@ -448,7 +440,7 @@ export default function SettingsScreen() {
                                         <Text style={{ fontSize: 14 }}>🏦</Text>
                                     </View>
                                     <View style={{ flex: 1 }}>
-                                        <Text style={{ color: '#9CA3AF', fontSize: 10, fontWeight: '600' }}>Bank Account</Text>
+                                        <Text style={{ color: '#9CA3AF', fontSize: 10, fontWeight: '600' }}>{t('bank_account_label', { defaultValue: 'Bank Account' })}</Text>
                                         <Text numberOfLines={1} style={{ color: '#111827', fontSize: 12, fontWeight: '600' }}>{bankAccount}</Text>
                                     </View>
                                 </View>
@@ -475,7 +467,7 @@ export default function SettingsScreen() {
                                     shadowRadius: 6
                                 }}
                             >
-                                <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>✏️ Edit Settings</Text>
+                                <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>{t('edit_settings', { defaultValue: '✏️ Edit Settings' })}</Text>
                             </LinearGradient>
                         </TouchableOpacity>
                     </View>
@@ -487,7 +479,7 @@ export default function SettingsScreen() {
                 <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.3)' }}>
                     <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 16, maxHeight: '90%', flex: 1 }}>
                         <ScrollView showsVerticalScrollIndicator={false}>
-                            <Text style={{ fontSize: 18, fontWeight: '700', marginBottom: 16 }}>App Settings</Text>
+                            <Text style={{ fontSize: 18, fontWeight: '700', marginBottom: 16 }}>{t('app_settings', { defaultValue: 'App Settings' })}</Text>
 
                             {/* App Image Section */}
                             <View style={{ alignItems: 'center', marginBottom: 16 }}>
@@ -500,61 +492,61 @@ export default function SettingsScreen() {
                                         </View>
                                     )}
                                 </View>
-                                <Text style={{ color: '#374151', marginBottom: 6, fontSize: 12 }}>App Logo</Text>
+                                <Text style={{ color: '#374151', marginBottom: 6, fontSize: 12 }}>{t('app_logo', { defaultValue: 'App Logo' })}</Text>
                                 <View style={{ flexDirection: 'row', gap: 8, justifyContent: 'center' }}>
                                     <TouchableOpacity onPress={pickAppImage} style={{ backgroundColor: '#F3F4F6', padding: 8, borderRadius: 8 }}>
-                                        <Text style={{ color: '#374151', fontSize: 12 }}>{uploadingImage ? 'Uploading...' : 'Pick Image'}</Text>
+                                        <Text style={{ color: '#374151', fontSize: 12 }}>{uploadingImage ? t('uploading', { defaultValue: 'Uploading...' }) : t('pick_image', { defaultValue: 'Pick Image' })}</Text>
                                     </TouchableOpacity>
                                     <TouchableOpacity onPress={() => setAppImage(undefined)} style={{ backgroundColor: '#FEF2F2', padding: 8, borderRadius: 8 }}>
-                                        <Text style={{ color: '#EF4444', fontSize: 12 }}>Clear</Text>
+                                        <Text style={{ color: '#EF4444', fontSize: 12 }}>{t('clear', { defaultValue: 'Clear' })}</Text>
                                     </TouchableOpacity>
                                 </View>
                             </View>
 
                             <FloatingLabelInput
-                                label="App Name"
+                                label={t('app_name_label', { defaultValue: 'App Name' })}
                                 value={appName}
                                 onChangeText={setAppName}
-                                placeholder="Enter app name"
+                                placeholder={t('enter_app_name', { defaultValue: 'Enter app name' })}
                             />
 
                             <FloatingLabelInput
-                                label="App Description"
+                                label={t('app_description_label', { defaultValue: 'App Description' })}
                                 value={appDescription}
                                 onChangeText={setAppDescription}
-                                placeholder="Short description shown on main page"
+                                placeholder={t('short_description_placeholder', { defaultValue: 'Short description shown on main page' })}
                                 multiline
                                 inputStyle={{ minHeight: 80, paddingTop: 18 }}
                             />
 
                             <FloatingLabelInput
-                                label="Business Type"
+                                label={t('business_type_label', { defaultValue: 'Business Type' })}
                                 value={businessType}
                                 onChangeText={setBusinessType}
-                                placeholder="Business / organization type"
+                                placeholder={t('business_type_placeholder', { defaultValue: 'Business / organization type' })}
                             />
 
                             <FloatingLabelInput
-                                label="Phone"
+                                label={t('phone_label', { defaultValue: 'Phone' })}
                                 value={phone}
                                 onChangeText={setPhone}
-                                placeholder="08xxxx"
+                                placeholder={t('phone_placeholder', { defaultValue: '08xxxx' })}
                                 keyboardType="phone-pad"
                             />
 
                             <FloatingLabelInput
-                                label="Email"
+                                label={t('email_label', { defaultValue: 'Email' })}
                                 value={email}
                                 onChangeText={setEmail}
-                                placeholder="email@example.com"
+                                placeholder={t('email_placeholder', { defaultValue: 'email@example.com' })}
                                 keyboardType="email-address"
                             />
 
                             <FloatingLabelInput
-                                label="Address"
+                                label={t('address_label', { defaultValue: 'Address' })}
                                 value={address}
                                 onChangeText={setAddress}
-                                placeholder="Enter address"
+                                placeholder={t('enter_address', { defaultValue: 'Enter address' })}
                                 multiline
                                 inputStyle={{ minHeight: 100, paddingTop: 18 }}
                             />
@@ -572,16 +564,16 @@ export default function SettingsScreen() {
                                     }}
                                 >
                                     <Text style={{ color: '#3B82F6', fontWeight: '600', fontSize: 12 }}>
-                                        📍 Pick location on map
+                                        {t('pick_location_on_map', { defaultValue: '📍 Pick location on map' })}
                                     </Text>
                                 </TouchableOpacity>
                             </View>
 
                             <FloatingLabelInput
-                                label="Bank Account"
+                                label={t('bank_account_label', { defaultValue: 'Bank Account' })}
                                 value={bankAccount}
                                 onChangeText={setBankAccount}
-                                placeholder="1234567890 (Bank Name - Account Name)"
+                                placeholder={t('bank_account_placeholder', { defaultValue: '1234567890 (Bank Name - Account Name)' })}
                             />
 
                             {/* Payment Methods - wrapped with FloatingLabel style */}
@@ -600,7 +592,7 @@ export default function SettingsScreen() {
                                         fontSize: 12,
                                         fontWeight: '600'
                                     }}>
-                                        Payment Methods
+                                        {t('payment_methods_label', { defaultValue: 'Payment Methods' })}
                                     </Text>
                                 </View>
 
@@ -620,23 +612,23 @@ export default function SettingsScreen() {
                                             backgroundColor: '#fff'
                                         }}>
                                             <FloatingLabelInput
-                                                label="Phone Number"
+                                                label={t('phone_number_label', { defaultValue: 'Phone Number' })}
                                                 value={pm.number}
                                                 onChangeText={(v) => updatePaymentMethod(pm.id, 'number', v)}
-                                                placeholder="e.g. 0899xxxxxx"
+                                                placeholder={t('phone_example', { defaultValue: 'e.g. 0899xxxxxx' })}
                                                 keyboardType="phone-pad"
                                                 containerStyle={{ marginBottom: 8 }}
                                             />
                                             <FloatingLabelInput
-                                                label="Provider"
+                                                label={t('provider_label', { defaultValue: 'Provider' })}
                                                 value={pm.provider}
                                                 onChangeText={(v) => updatePaymentMethod(pm.id, 'provider', v)}
-                                                placeholder="e.g. OVO / GoPay / Dana"
+                                                placeholder={t('provider_example', { defaultValue: 'e.g. OVO / GoPay / Dana' })}
                                                 containerStyle={{ marginBottom: 0 }}
                                             />
                                             <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 4 }}>
                                                 <TouchableOpacity onPress={() => confirmRemovePaymentMethod(pm.id)} style={{ padding: 6 }}>
-                                                    <Text style={{ color: '#EF4444', fontWeight: '600', fontSize: 13 }}>✕ Remove</Text>
+                                                    <Text style={{ color: '#EF4444', fontWeight: '600', fontSize: 13 }}>✕ {t('remove', { defaultValue: 'Remove' })}</Text>
                                                 </TouchableOpacity>
                                             </View>
                                         </View>
@@ -653,17 +645,17 @@ export default function SettingsScreen() {
                                             alignItems: 'center',
                                         }}
                                     >
-                                        <Text style={{ color: '#3B82F6', fontWeight: '700', fontSize: 14 }}>+ Add Payment Method</Text>
+                                        <Text style={{ color: '#3B82F6', fontWeight: '700', fontSize: 14 }}>{t('add_payment_method', { defaultValue: '+ Add Payment Method' })}</Text>
                                     </TouchableOpacity>
                                 </View>
                             </View>
 
                             <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 16 }}>
                                 <TouchableOpacity onPress={() => setModalVisible(false)} disabled={savingSettings} style={{ padding: 10, opacity: savingSettings ? 0.6 : 1 }}>
-                                    <Text style={{ color: '#6B7280' }}>Cancel</Text>
+                                    <Text style={{ color: '#6B7280' }}>{t('cancel', { defaultValue: 'Cancel' })}</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity onPress={saveSettings} disabled={savingSettings} style={{ padding: 10 }}>
-                                    {savingSettings ? <ActivityIndicator size="small" color="#4fc3f7" /> : <Text style={{ color: '#4fc3f7', fontWeight: '700' }}>Save</Text>}
+                                    {savingSettings ? <ActivityIndicator size="small" color="#4fc3f7" /> : <Text style={{ color: '#4fc3f7', fontWeight: '700' }}>{t('save', { defaultValue: 'Save' })}</Text>}
                                 </TouchableOpacity>
                             </View>
                         </ScrollView>
@@ -687,7 +679,7 @@ export default function SettingsScreen() {
                         shadowRadius: 8,
                     }}>
                         <Text style={{ fontSize: 18, fontWeight: '700', marginBottom: 16, color: '#111827' }}>
-                            Select Location on Map
+                            {t('select_location_on_map', { defaultValue: 'Select Location on Map' })}
                         </Text>
 
                         {/* Map View for selecting location */}
@@ -708,7 +700,7 @@ export default function SettingsScreen() {
                                 {latitude !== null && longitude !== null && (
                                     <Marker
                                         coordinate={{ latitude, longitude }}
-                                        title="Selected Location"
+                                        title={t('selected_location', { defaultValue: 'Selected Location' })}
                                         description={address}
                                         pinColor="#6366f1"
                                     />
@@ -718,16 +710,16 @@ export default function SettingsScreen() {
 
                         {/* Address and Coordinates Display */}
                         <View style={{ marginBottom: 16 }}>
-                            <Text style={{ color: '#6B7280', fontSize: 12, marginBottom: 4 }}>Selected Address:</Text>
+                            <Text style={{ color: '#6B7280', fontSize: 12, marginBottom: 4 }}>{t('selected_address', { defaultValue: 'Selected Address:' })}</Text>
                             <Text style={{ color: '#111827', fontSize: 14, fontWeight: '500' }}>
-                                {address || 'No address selected'}
+                                {address || t('no_address_selected', { defaultValue: 'No address selected' })}
                             </Text>
                         </View>
 
                         <View style={{ flexDirection: 'row', marginBottom: 2, marginTop: 12 }}>
                             <View style={{ flex: 1 }}>
                                 <FloatingLabelInput
-                                    label="Latitude"
+                                    label={t('latitude', { defaultValue: 'Latitude' })}
                                     value={String(tmpLat ?? '')}
                                     onChangeText={(text) => setTmpLat(parseFloat(text))}
                                     keyboardType="numeric"
@@ -739,7 +731,7 @@ export default function SettingsScreen() {
                         <View style={{ flexDirection: 'row', marginBottom: 10 }}>
                             <View style={{ flex: 1 }}>
                                 <FloatingLabelInput
-                                    label="Longitude"
+                                    label={t('longitude', { defaultValue: 'Longitude' })}
                                     value={String(tmpLng ?? '')}
                                     onChangeText={(text) => setTmpLng(parseFloat(text))}
                                     keyboardType="numeric"
@@ -765,7 +757,7 @@ export default function SettingsScreen() {
                                     shadowRadius: 4,
                                 }}
                             >
-                                <Text style={{ color: '#111827', fontWeight: '500' }}>Cancel</Text>
+                                <Text style={{ color: '#111827', fontWeight: '500' }}>{t('cancel', { defaultValue: 'Cancel' })}</Text>
                             </TouchableOpacity>
 
                             <TouchableOpacity
@@ -783,7 +775,7 @@ export default function SettingsScreen() {
                                 }}
                             >
                                 <Text style={{ color: '#fff', fontWeight: '700' }}>
-                                    {savingSettings ? <ActivityIndicator color="#fff" size="small" /> : 'Save Location'}
+                                    {savingSettings ? <ActivityIndicator color="#fff" size="small" /> : t('save_location', { defaultValue: 'Save Location' })}
                                 </Text>
                             </TouchableOpacity>
                         </View>
@@ -793,27 +785,27 @@ export default function SettingsScreen() {
 
             <ConfirmDialog
                 visible={pmDeleteVisible}
-                title="Remove payment method"
-                message="Are you sure you want to remove this payment method?"
+                title={t('remove_payment_method_title', { defaultValue: 'Remove payment method' })}
+                message={t('remove_payment_method_message', { defaultValue: 'Are you sure you want to remove this payment method?' })}
                 onConfirm={removePaymentMethodConfirmed}
                 onCancel={() => { setPmDeleteVisible(false); setPmToDelete(null); }}
-                confirmText="Remove"
-                cancelText="Cancel"
+                confirmText={t('remove', { defaultValue: 'Remove' })}
+                cancelText={t('cancel', { defaultValue: 'Cancel' })}
             />
 
             <ConfirmDialog
                 visible={permDialogVisible}
-                title="Gallery permission required"
-                message="Gallery access is required to pick an app image. Open app settings to grant permission?"
+                title={t('gallery_permission_title', { defaultValue: 'Gallery permission required' })}
+                message={t('gallery_permission_message', { defaultValue: 'Gallery access is required to pick an app image. Open app settings to grant permission?' })}
                 onConfirm={() => {
                     setPermDialogVisible(false);
                     Linking.openSettings().catch(() => {
-                        showToast?.('Unable to open settings', 'error');
+                        showToast?.(t('unable_open_settings', { defaultValue: 'Unable to open settings' }), 'error');
                     });
                 }}
                 onCancel={() => setPermDialogVisible(false)}
-                confirmText="Open settings"
-                cancelText="Cancel"
+                confirmText={t('open_settings', { defaultValue: 'Open settings' })}
+                cancelText={t('cancel', { defaultValue: 'Cancel' })}
             />
         </SafeAreaView>
     );

@@ -3,6 +3,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
     ActivityIndicator,
     KeyboardAvoidingView,
@@ -22,6 +23,7 @@ import { db } from '../../src/firebaseConfig';
 
 export default function FeedbackScreen() {
     const router = useRouter();
+    const { t } = useTranslation();
     const { showToast } = useToast();
     const [message, setMessage] = useState('');
     const [type, setType] = useState('');
@@ -29,11 +31,11 @@ export default function FeedbackScreen() {
 
     const handleSubmit = async () => {
         if (!type) {
-            showToast?.('Please select a feedback type', 'error');
+            showToast?.(t('please_select_feedback_type', { defaultValue: 'Please select a feedback type' }), 'error');
             return;
         }
         if (!message.trim()) {
-            showToast?.('Please enter a message', 'error');
+            showToast?.(t('please_enter_feedback_message', { defaultValue: 'Please enter a message' }), 'error');
             return;
         }
 
@@ -44,13 +46,13 @@ export default function FeedbackScreen() {
                 message: message.trim(),
                 created_date: serverTimestamp(),
             });
-            showToast?.('Feedback sent successfully!', 'success');
+            showToast?.(t('feedback_sent_success', { defaultValue: 'Feedback sent successfully!' }), 'success');
             setMessage('');
             setType('');
             router.back();
         } catch (error) {
             console.error('Error sending feedback:', error);
-            showToast?.('Failed to send feedback. Please try again.', 'error');
+            showToast?.(t('failed_send_feedback', { defaultValue: 'Failed to send feedback. Please try again.' }), 'error');
         } finally {
             setLoading(false);
         }
@@ -78,10 +80,9 @@ export default function FeedbackScreen() {
 
                     {/* Title on the right */}
                     <View style={styles.headerTitleContainer}>
-                        <Text style={styles.headerTitle}>Feedback</Text>
+                        <Text style={styles.headerTitle}>{t('feedback_title', { defaultValue: 'Feedback' })}</Text>
                         <Text style={styles.headerSubtitle}>
-                            Send us your suggestions or report any issues you find. Your feedback helps us
-                            improve the app, fix problems faster, and create a better experience for everyone.
+                            {t('feedback_subtitle', { defaultValue: 'Send feedback or report an issue. Your input helps us improve our service and fix problems faster.' })}
                         </Text>
                     </View>
                 </View>
@@ -94,21 +95,21 @@ export default function FeedbackScreen() {
                 <ScrollView contentContainerStyle={styles.content}>
                     <View style={styles.card}>
                         <SelectInput
-                            label="Feedback Type"
+                            label={t('feedback_type_label', { defaultValue: 'Feedback Type' })}
                             value={type}
                             options={[
-                                { label: 'Criticism', value: 'criticism' },
-                                { label: 'Suggestion', value: 'suggestion' },
+                                { label: t('criticism', { defaultValue: 'Criticism' }), value: 'criticism' },
+                                { label: t('suggestion', { defaultValue: 'Suggestion' }), value: 'suggestion' },
                             ]}
                             onValueChange={setType}
-                            placeholder="Select Type"
+                            placeholder={t('select_feedback_type', { defaultValue: 'Select Type' })}
                         />
 
                         <FloatingLabelInput
-                            label="Your Message"
+                            label={t('your_message_label', { defaultValue: 'Your Message' })}
                             value={message}
                             onChangeText={setMessage}
-                            placeholder="Type your feedback here..."
+                            placeholder={t('feedback_placeholder', { defaultValue: 'Type your feedback here...' })}
                             multiline
                             inputStyle={{ minHeight: 150 }}
                         />
@@ -119,19 +120,21 @@ export default function FeedbackScreen() {
                             disabled={loading}
                             activeOpacity={0.9}
                         >
-                            {loading ? (
-                                <ActivityIndicator color="#fff" />
-                            ) : (
-                                <LinearGradient
-                                    colors={['#7c3aed', '#6366f1']}
-                                    start={{ x: 0, y: 0 }}
-                                    end={{ x: 1, y: 0 }}
-                                    style={styles.buttonGradient}
-                                >
-                                    <Text style={styles.buttonText}>Send Feedback</Text>
-                                    <Ionicons name="send" size={18} color="#fff" style={{ marginLeft: 8 }} />
-                                </LinearGradient>
-                            )}
+                            <LinearGradient
+                                colors={['#7c3aed', '#6366f1']}
+                                start={{ x: 0, y: 0 }}
+                                end={{ x: 1, y: 0 }}
+                                style={styles.buttonGradient}
+                            >
+                                {loading ? (
+                                    <ActivityIndicator color="#fff" size="small" />
+                                ) : (
+                                    <>
+                                        <Text style={styles.buttonText}>{t('send_feedback', { defaultValue: 'Send Feedback' })}</Text>
+                                        <Ionicons name="send" size={18} color="#fff" style={{ marginLeft: 8 }} />
+                                    </>
+                                )}
+                            </LinearGradient>
                         </TouchableOpacity>
                     </View>
                 </ScrollView>

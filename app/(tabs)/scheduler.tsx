@@ -1,6 +1,7 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { addDoc, collection, deleteDoc, doc, getDoc, onSnapshot, orderBy, query, serverTimestamp, updateDoc } from 'firebase/firestore';
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
     ActivityIndicator,
     FlatList,
@@ -36,18 +37,12 @@ type Schedule = {
     days?: string[]; // NEW: selected days of week (e.g. ['Sun','Mon'])
 };
 
-const FREQUENCY_OPTIONS = [
-    { value: 'daily', label: 'Daily' },
-    { value: 'weekly', label: 'Weekly' },
-    { value: 'twice_week', label: 'Twice a Week' },
-    { value: 'month_twice', label: 'Month Twice' },
-    { value: 'monthly', label: 'Monthly' },
-    { value: 'quarter', label: 'Quarter Month' },
-    { value: 'yearly', label: 'Yearly' },
-];
+const FREQUENCY_VALUES = ['daily', 'weekly', 'twice_week', 'month_twice', 'monthly', 'quarter', 'yearly'];
 
 export default function SchedulerScreen() {
     const { showToast } = useToast();
+    const { t } = useTranslation();
+    const FREQUENCY_OPTIONS = FREQUENCY_VALUES.map(v => ({ value: v as Schedule['frequency'], label: t(`frequency_${v}`) }));
     const [items, setItems] = useState<Schedule[]>([]); // now loaded from Firestore
     const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
     // filters -> days + frequency
@@ -86,6 +81,27 @@ export default function SchedulerScreen() {
     const WEEK_DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const [selectedDays, setSelectedDays] = useState<string[]>([]);
     const [selectedDaysOpen, setSelectedDaysOpen] = useState(false); // NEW: dropdown open state
+
+    // Helper: normalize and sort days so UI shows Monday..Sunday order
+    const WEEK_ORDER_MONDAY_FIRST = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    function normalizeDayName(d: string) {
+        if (!d) return '';
+        const s = String(d).trim().toLowerCase();
+        const map: Record<string, string> = {
+            mon: 'Monday', tue: 'Tuesday', wed: 'Wednesday', thu: 'Thursday', fri: 'Friday', sat: 'Saturday', sun: 'Sunday',
+            monday: 'Monday', tuesday: 'Tuesday', wednesday: 'Wednesday', thursday: 'Thursday', friday: 'Friday', saturday: 'Saturday', sunday: 'Sunday'
+        };
+        const key = s.slice(0, 3);
+        return map[key] || '';
+    }
+
+    function sortDaysMondayFirst(days?: string[] | null) {
+        if (!days || days.length === 0) return [] as string[];
+        const normalized = days.map(d => normalizeDayName(d)).filter(Boolean);
+        // remove duplicates while preserving order defined by WEEK_ORDER_MONDAY_FIRST
+        const unique = Array.from(new Set(normalized));
+        return unique.sort((a, b) => WEEK_ORDER_MONDAY_FIRST.indexOf(a) - WEEK_ORDER_MONDAY_FIRST.indexOf(b));
+    }
 
     // PAGINATION state
     const SCHEDULES_PER_PAGE = 5;
@@ -196,7 +212,10 @@ export default function SchedulerScreen() {
 
     function openAdd() {
         if (currentUserRole !== 'Admin') {
-            showToast('Permission Denied: Only admin can add schedules', 'error');
+            showToast(
+                t('permission_denied_admin_add', { defaultValue: 'Permission Denied: Only admin can add schedules' }),
+                'error'
+            );
             return;
         }
         setEditingId(null);
@@ -212,7 +231,10 @@ export default function SchedulerScreen() {
 
     function openEdit(s: Schedule) {
         if (currentUserRole !== 'Admin') {
-            showToast('Permission Denied: Only admin can edit schedules', 'error');
+            showToast(
+                t('permission_denied_admin_edit', { defaultValue: 'Permission Denied: Only admin can edit schedules' }),
+                'error'
+            );
             return;
         }
         setEditingId(s.id);
@@ -235,16 +257,20 @@ export default function SchedulerScreen() {
         try {
             if (editingId) {
                 const ref = doc(db, 'schedules', editingId);
-                await updateDoc(ref, { activityName, date, time, frequency, location, description, days: selectedDays, updatedAt: serverTimestamp() });
-                showToast('Schedule updated', 'success');
+                const daysToSave = sortDaysMondayFirst(selectedDays);
+                await updateDoc(ref, { activityName, date, time, frequency, location, description, days: daysToSave, updatedAt: serverTimestamp() });
+                setSelectedDays(daysToSave);
+                showToast(t('schedule_updated', { defaultValue: 'Schedule updated' }), 'success');
             } else {
-                await addDoc(collection(db, 'schedules'), { activityName, date, time, frequency, location, description, days: selectedDays, createdAt: serverTimestamp() });
-                showToast('Schedule added', 'success');
+                const daysToSave = sortDaysMondayFirst(selectedDays);
+                await addDoc(collection(db, 'schedules'), { activityName, date, time, frequency, location, description, days: daysToSave, createdAt: serverTimestamp() });
+                setSelectedDays(daysToSave);
+                showToast(t('schedule_added', { defaultValue: 'Schedule added' }), 'success');
             }
             setModalVisible(false);
         } catch (e) {
             console.error('schedule save error', e);
-            showToast('Failed to save schedule', 'error');
+            showToast(t('failed_to_save_schedule', { defaultValue: 'Failed to save schedule' }), 'error');
         } finally {
             setOperationLoading(false);
         }
@@ -279,7 +305,6 @@ export default function SchedulerScreen() {
     const totalSchedules = items.length;
     const dailyCount = items.filter(i => i.frequency === 'daily').length;
     const weeklyCount = items.filter(i => i.frequency === 'weekly').length;
-    const twiceWeekCount = items.filter(i => i.frequency === 'twice_week').length;
     const monthlyCount = items.filter(i => i.frequency === 'monthly').length;
 
     function formatDateOnly(dateStr: string) {
@@ -337,9 +362,9 @@ export default function SchedulerScreen() {
 
                     {/* Text on right */}
                     <View style={{ flex: 1 }}>
-                        <Text style={{ color: '#FFFFFF', fontSize: 22, fontWeight: '800', letterSpacing: 0.3 }}>Activity Schedule</Text>
+                        <Text style={{ color: '#FFFFFF', fontSize: 22, fontWeight: '800', letterSpacing: 0.3 }}>{t('scheduler_title', { defaultValue: 'Activity Schedule' })}</Text>
                         <Text style={{ color: 'rgba(255, 255, 255, 0.85)', marginTop: 4, fontSize: 13, lineHeight: 18 }}>
-                            Manage routine and incidental community activities schedule.
+                            {t('scheduler_subtitle', { defaultValue: 'Manage routine and incidental community activities schedule.' })}
                         </Text>
                     </View>
                 </View>
@@ -374,7 +399,7 @@ export default function SchedulerScreen() {
                             color: filterFrequency === 'all' ? '#7C3AED' : 'rgba(255, 255, 255, 0.9)',
                             fontWeight: '700',
                             fontSize: 11
-                        }}>📢 All</Text>
+                        }}>{t('scheduler_tab_all', { defaultValue: '📢 All' })}</Text>
                         <Text style={{
                             color: filterFrequency === 'all' ? '#7C3AED' : 'rgba(255, 255, 255, 0.9)',
                             fontWeight: '800',
@@ -402,7 +427,7 @@ export default function SchedulerScreen() {
                             color: filterFrequency === 'daily' ? '#D97706' : 'rgba(255, 255, 255, 0.9)',
                             fontWeight: '700',
                             fontSize: 11
-                        }}>☀️ Daily</Text>
+                        }}>{t('scheduler_tab_daily', { defaultValue: '☀️ Daily' })}</Text>
                         <Text style={{
                             color: filterFrequency === 'daily' ? '#D97706' : 'rgba(255, 255, 255, 0.9)',
                             fontWeight: '800',
@@ -430,41 +455,13 @@ export default function SchedulerScreen() {
                             color: filterFrequency === 'weekly' ? '#2563EB' : 'rgba(255, 255, 255, 0.9)',
                             fontWeight: '700',
                             fontSize: 11
-                        }}>📅 Weekly</Text>
+                        }}>{t('scheduler_tab_weekly', { defaultValue: '📅 Weekly' })}</Text>
                         <Text style={{
                             color: filterFrequency === 'weekly' ? '#2563EB' : 'rgba(255, 255, 255, 0.9)',
                             fontWeight: '800',
                             fontSize: 14,
                             marginTop: 1
                         }}>{weeklyCount}</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                        onPress={() => setFilterFrequency('twice_week')}
-                        style={{
-                            flex: 1,
-                            paddingVertical: 6,
-                            backgroundColor: filterFrequency === 'twice_week' ? '#FFFFFF' : 'transparent',
-                            borderRadius: 9,
-                            shadowColor: filterFrequency === 'twice_week' ? '#000' : 'transparent',
-                            shadowOffset: { width: 0, height: 2 },
-                            shadowOpacity: 0.1,
-                            shadowRadius: 6,
-                            elevation: filterFrequency === 'twice_week' ? 3 : 0,
-                            alignItems: 'center',
-                        }}
-                    >
-                        <Text style={{
-                            color: filterFrequency === 'twice_week' ? '#059669' : 'rgba(255, 255, 255, 0.9)',
-                            fontWeight: '700',
-                            fontSize: 11
-                        }}>🔁 Twice / Week</Text>
-                        <Text style={{
-                            color: filterFrequency === 'twice_week' ? '#059669' : 'rgba(255, 255, 255, 0.9)',
-                            fontWeight: '800',
-                            fontSize: 14,
-                            marginTop: 1
-                        }}>{twiceWeekCount}</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
@@ -486,7 +483,7 @@ export default function SchedulerScreen() {
                             color: filterFrequency === 'monthly' ? '#4F46E5' : 'rgba(255, 255, 255, 0.9)',
                             fontWeight: '700',
                             fontSize: 11
-                        }}>🌙 Monthly</Text>
+                        }}>{t('scheduler_tab_monthly', { defaultValue: '🌙 Monthly' })}</Text>
                         <Text style={{
                             color: filterFrequency === 'monthly' ? '#4F46E5' : 'rgba(255, 255, 255, 0.9)',
                             fontWeight: '800',
@@ -517,10 +514,10 @@ export default function SchedulerScreen() {
                     {/* Left: Search Input */}
                     <View style={{ flex: 1.5 }}>
                         <FloatingLabelInput
-                            label="Search"
+                            label={t('search', { defaultValue: 'Search' })}
                             value={searchQuery}
                             onChangeText={setSearchQuery}
-                            placeholder="Search..."
+                            placeholder={t('search_placeholder', { defaultValue: 'Search...' })}
                             containerStyle={{ marginBottom: 0 }}
                         />
                     </View>
@@ -546,7 +543,7 @@ export default function SchedulerScreen() {
                                         justifyContent: 'center'
                                     }}
                                 >
-                                    <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>+ Schedule</Text>
+                                    <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>{t('add_schedule_button', { defaultValue: '+ Schedule' })}</Text>
                                 </LinearGradient>
                             </TouchableOpacity>
                         </View>
@@ -573,7 +570,7 @@ export default function SchedulerScreen() {
                         onPress={() => setFiltersOpen(prev => !prev)}
                         style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}
                     >
-                        <Text style={{ fontSize: 14, fontWeight: '800', color: '#111827' }}>🔍 Filters</Text>
+                        <Text style={{ fontSize: 14, fontWeight: '800', color: '#111827' }}>{t('filters', { defaultValue: '🔍 Filters' })}</Text>
                         <Text style={{ fontSize: 16, color: '#7C3AED' }}>{filtersOpen ? '▾' : '▴'}</Text>
                     </TouchableOpacity>
 
@@ -583,10 +580,10 @@ export default function SchedulerScreen() {
                             <View style={{ flexDirection: 'row', gap: 10 }}>
                                 <View style={{ flex: 1 }}>
                                     <FloatingLabelInput
-                                        label="Days"
-                                        value={filterDays.length ? filterDays.join(', ') : ''}
+                                        label={t('days_label', { defaultValue: 'Days' })}
+                                        value={filterDays.length ? filterDays.map(d => t(`weekday_${d.toLowerCase()}`, { defaultValue: d })).join(', ') : ''}
                                         onChangeText={() => { }}
-                                        placeholder="All days"
+                                        placeholder={t('all_days', { defaultValue: 'All days' })}
                                         editable={false}
                                         onPress={() => setFilterDaysOpen(v => !v)}
                                         containerStyle={{ marginBottom: 0 }}
@@ -601,24 +598,25 @@ export default function SchedulerScreen() {
                                                         onPress={() => { setFilterDays([]); setFilterDaysOpen(false); }}
                                                         style={{ paddingVertical: 10, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center' }}
                                                     >
-                                                        <Text style={{ color: '#DC2626', fontWeight: '600' }}>Clear</Text>
+                                                        <Text style={{ color: '#DC2626', fontWeight: '600' }}>{t('clear', { defaultValue: 'Clear' })}</Text>
                                                     </TouchableOpacity>
                                                     <TouchableOpacity
                                                         onPress={() => { setFilterDaysOpen(false); }}
                                                         style={{ paddingVertical: 10, paddingHorizontal: 12, marginRight: 8, alignItems: 'center', justifyContent: 'center' }}
                                                     >
-                                                        <Text style={{ color: '#4fc3f7', fontWeight: '700' }}>Choose</Text>
+                                                        <Text style={{ color: '#4fc3f7', fontWeight: '700' }}>{t('choose', { defaultValue: 'Choose' })}</Text>
                                                     </TouchableOpacity>
                                                 </View>
                                                 {WEEK_DAYS.map((d) => {
                                                     const active = filterDays.includes(d);
+                                                    const label = t(`weekday_${d.toLowerCase()}`, { defaultValue: d });
                                                     return (
                                                         <TouchableOpacity
                                                             key={d}
                                                             onPress={() => toggleFilterDay(d)}
                                                             style={{ paddingVertical: 12, paddingHorizontal: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: '#E5E7EB' }}
                                                         >
-                                                            <Text style={{ color: active ? '#6366f1' : '#111827', fontWeight: active ? '600' : '400' }}>{d}</Text>
+                                                            <Text style={{ color: active ? '#6366f1' : '#111827', fontWeight: active ? '600' : '400' }}>{label}</Text>
                                                             {active ? <Text style={{ color: '#6366f1', fontWeight: '700' }}>✓</Text> : null}
                                                         </TouchableOpacity>
                                                     );
@@ -629,14 +627,14 @@ export default function SchedulerScreen() {
                                 </View>
                                 <View style={{ flex: 1 }}>
                                     <SelectInput
-                                        label="Frequency"
+                                        label={t('frequency_label', { defaultValue: 'Frequency' })}
                                         value={filterFrequency}
                                         options={[
-                                            { label: 'All Frequency', value: 'all' },
-                                            ...FREQUENCY_OPTIONS
+                                            { label: t('all_frequency', { defaultValue: 'All Frequency' }), value: 'all' },
+                                            ...FREQUENCY_OPTIONS.map(f => ({ label: t(`frequency_${f.value}`, { defaultValue: f.label }), value: f.value }))
                                         ]}
                                         onValueChange={(v: string) => setFilterFrequency(v as any)}
-                                        placeholder="Select frequency"
+                                        placeholder={t('select_frequency', { defaultValue: 'Select frequency' })}
                                         containerStyle={{ marginBottom: 0 }}
                                     />
                                 </View>
@@ -681,14 +679,14 @@ export default function SchedulerScreen() {
                             ListEmptyComponent={() => (
                                 <View style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: 60 }}>
                                     <Text style={{ fontSize: 48, marginBottom: 12 }}>📭</Text>
-                                    <Text style={{ color: '#6B7280', fontSize: 16, fontWeight: '600' }}>No schedules found</Text>
+                                    <Text style={{ color: '#6B7280', fontSize: 16, fontWeight: '600' }}>{t('no_schedules_found', { defaultValue: 'No schedules found' })}</Text>
                                     <Text style={{ color: '#9CA3AF', fontSize: 13, marginTop: 4, textAlign: 'center' }}>
-                                        No schedules match your filters
+                                        {t('no_schedules_match_filters', { defaultValue: 'No schedules match your filters' })}
                                     </Text>
                                 </View>
                             )}
                             renderItem={({ item }) => {
-                                const freqLabel = FREQUENCY_OPTIONS.find((f) => f.value === item.frequency)?.label ?? item.frequency;
+                                const freqLabel = t(`frequency_${item.frequency}`, { defaultValue: FREQUENCY_OPTIONS.find((f) => f.value === item.frequency)?.label ?? item.frequency });
                                 const freqColors: Record<string, { bg: string; text: string; border: string }> = {
                                     daily: { bg: '#FEF9C3', text: '#92400E', border: '#FDE047' },
                                     weekly: { bg: '#DBEAFE', text: '#1E40AF', border: '#60A5FA' },
@@ -730,7 +728,7 @@ export default function SchedulerScreen() {
                                                             opacity: operationLoading ? 0.5 : 1
                                                         }}
                                                     >
-                                                        <Text style={{ color: '#0369A1', fontWeight: '600', fontSize: 12 }}>Edit</Text>
+                                                        <Text style={{ color: '#0369A1', fontWeight: '600', fontSize: 12 }}>{t('edit', { defaultValue: 'Edit' })}</Text>
                                                     </TouchableOpacity>
                                                     <TouchableOpacity
                                                         onPress={() => confirmRemove(item.id)}
@@ -743,7 +741,7 @@ export default function SchedulerScreen() {
                                                             opacity: operationLoading ? 0.5 : 1
                                                         }}
                                                     >
-                                                        <Text style={{ color: '#991B1B', fontWeight: '600', fontSize: 12 }}>Delete</Text>
+                                                        <Text style={{ color: '#991B1B', fontWeight: '600', fontSize: 12 }}>{t('delete', { defaultValue: 'Delete' })}</Text>
                                                     </TouchableOpacity>
                                                 </View>
                                             )}
@@ -790,7 +788,9 @@ export default function SchedulerScreen() {
                                             {!!item.days?.length && (
                                                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
                                                     <View style={{ backgroundColor: '#F3F4F6', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 }}>
-                                                        <Text style={{ color: '#4B5563', fontSize: 11, fontWeight: '600' }}>📆 {item.days.join(', ')}</Text>
+                                                        <Text style={{ color: '#4B5563', fontSize: 11, fontWeight: '600' }}>
+                                                            📆 {item.days.map(d => t(`weekday_${d.toLowerCase()}`, { defaultValue: d })).join(', ')}
+                                                        </Text>
                                                     </View>
                                                 </View>
                                             )}
@@ -823,17 +823,17 @@ export default function SchedulerScreen() {
                     <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 16, maxHeight: '90%', flex: 1 }}>
                         {/* disable parent scrolling while a dropdown list is open so child ScrollView can handle touch */}
                         <ScrollView scrollEnabled={!selectedDaysOpen && !frequencyOpen} showsVerticalScrollIndicator={false}>
-                            <Text style={{ fontSize: 18, fontWeight: '700', marginBottom: 16 }}>{editingId ? 'Edit Schedule' : 'Add Schedule'}</Text>
+                            <Text style={{ fontSize: 18, fontWeight: '700', marginBottom: 16 }}>{editingId ? t('edit_schedule', { defaultValue: 'Edit Schedule' }) : t('add_schedule', { defaultValue: 'Add Schedule' })}</Text>
 
                             <FloatingLabelInput
-                                label="Activity Name"
+                                label={t('activity_name_label', { defaultValue: 'Activity Name' })}
                                 value={activityName}
                                 onChangeText={setActivityName}
-                                placeholder="Enter activity name"
+                                placeholder={t('activity_name_placeholder', { defaultValue: 'Enter activity name' })}
                             />
 
                             <FloatingLabelInput
-                                label="Date"
+                                label={t('date_label', { defaultValue: 'Date' })}
                                 value={date ? (() => {
                                     try {
                                         const iso = `${date}T00:00:00`;
@@ -842,7 +842,7 @@ export default function SchedulerScreen() {
                                     } catch (e) { return date; }
                                 })() : ''}
                                 onChangeText={() => { }}
-                                placeholder="Select date"
+                                placeholder={t('select_date', { defaultValue: 'Select date' })}
                                 editable={Platform.OS === 'web'}
                                 onPress={Platform.OS === 'web' ? undefined : () => setShowDatePicker(true)}
                             />
@@ -862,10 +862,10 @@ export default function SchedulerScreen() {
                             />
 
                             <FloatingLabelInput
-                                label="Time"
+                                label={t('time_label', { defaultValue: 'Time' })}
                                 value={time}
                                 onChangeText={() => { }}
-                                placeholder="Select time"
+                                placeholder={t('select_time', { defaultValue: 'Select time' })}
                                 editable={Platform.OS === 'web'}
                                 onPress={Platform.OS === 'web' ? undefined : () => setShowTimePicker(true)}
                             />
@@ -891,10 +891,10 @@ export default function SchedulerScreen() {
 
                             {/* Days (dropdown multi-select, placed under Time) */}
                             <FloatingLabelInput
-                                label="Days"
-                                value={selectedDays.length ? selectedDays.join(', ') : ''}
+                                label={t('days_label', { defaultValue: 'Days' })}
+                                value={selectedDays.length ? selectedDays.map(d => t(`weekday_${d.toLowerCase()}`)).join(', ') : ''}
                                 onChangeText={() => { }}
-                                placeholder="All days"
+                                placeholder={t('all_days', { defaultValue: 'All days' })}
                                 editable={false}
                                 onPress={() => setSelectedDaysOpen(v => !v)}
                             />
@@ -911,13 +911,13 @@ export default function SchedulerScreen() {
                                                     onPress={() => { setSelectedDays([]); setSelectedDaysOpen(false); }}
                                                     style={{ paddingVertical: 10, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center' }}
                                                 >
-                                                    <Text style={{ color: '#DC2626', fontWeight: '600' }}>Clear</Text>
+                                                    <Text style={{ color: '#DC2626', fontWeight: '600' }}>{t('clear', { defaultValue: 'Clear' })}</Text>
                                                 </TouchableOpacity>
                                                 <TouchableOpacity
                                                     onPress={() => { setSelectedDaysOpen(false); }}
                                                     style={{ paddingVertical: 10, paddingHorizontal: 12, marginRight: 8, alignItems: 'center', justifyContent: 'center' }}
                                                 >
-                                                    <Text style={{ color: '#4fc3f7', fontWeight: '700' }}>Choose</Text>
+                                                    <Text style={{ color: '#4fc3f7', fontWeight: '700' }}>{t('choose', { defaultValue: 'Choose' })}</Text>
                                                 </TouchableOpacity>
                                             </View>
                                             {WEEK_DAYS.map((d) => {
@@ -930,7 +930,7 @@ export default function SchedulerScreen() {
                                                         }}
                                                         style={{ paddingVertical: 12, paddingHorizontal: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: '#E5E7EB' }}
                                                     >
-                                                        <Text style={{ color: active ? '#6366f1' : '#111827', fontWeight: active ? '600' : '400' }}>{d}</Text>
+                                                        <Text style={{ color: active ? '#6366f1' : '#111827', fontWeight: active ? '600' : '400' }}>{t(`weekday_${d.toLowerCase()}`)}</Text>
                                                         {active ? <Text style={{ color: '#6366f1', fontWeight: '700' }}>✓</Text> : null}
                                                     </TouchableOpacity>
                                                 );
@@ -941,35 +941,35 @@ export default function SchedulerScreen() {
                             )}
 
                             <SelectInput
-                                label="Frequency"
+                                label={t('frequency_label', { defaultValue: 'Frequency' })}
                                 value={frequency}
                                 options={FREQUENCY_OPTIONS}
                                 onValueChange={(v: string) => setFrequency(v as Schedule['frequency'])}
-                                placeholder="Select frequency"
+                                placeholder={t('select_frequency', { defaultValue: 'Select frequency' })}
                             />
 
                             <FloatingLabelInput
-                                label="Location"
+                                label={t('location_label', { defaultValue: 'Location' })}
                                 value={location}
                                 onChangeText={setLocation}
-                                placeholder="Enter location"
+                                placeholder={t('location_placeholder', { defaultValue: 'Enter location' })}
                             />
 
                             <FloatingLabelInput
-                                label="Description"
+                                label={t('description_label', { defaultValue: 'Description' })}
                                 value={description}
                                 onChangeText={setDescription}
-                                placeholder="Enter description (optional)"
+                                placeholder={t('description_optional_placeholder', { defaultValue: 'Enter description (optional)' })}
                                 multiline
                                 inputStyle={{ minHeight: 120, paddingTop: 18 }}
                             />
 
                             <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 16 }}>
                                 <TouchableOpacity onPress={() => !operationLoading && setModalVisible(false)} disabled={operationLoading} style={{ padding: 10, opacity: operationLoading ? 0.6 : 1 }}>
-                                    <Text style={{ color: '#6B7280' }}>Cancel</Text>
+                                    <Text style={{ color: '#6B7280' }}>{t('cancel', { defaultValue: 'Cancel' })}</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity disabled={operationLoading} onPress={save} style={{ padding: 10 }}>
-                                    {operationLoading ? <ActivityIndicator size="small" color="#4fc3f7" /> : <Text style={{ color: '#4fc3f7', fontWeight: '700' }}>{editingId ? 'Save' : 'Create'}</Text>}
+                                    {operationLoading ? <ActivityIndicator size="small" color="#4fc3f7" /> : <Text style={{ color: '#4fc3f7', fontWeight: '700' }}>{editingId ? t('save', { defaultValue: 'Save' }) : t('create', { defaultValue: 'Create' })}</Text>}
                                 </TouchableOpacity>
                             </View>
                         </ScrollView>
@@ -979,8 +979,8 @@ export default function SchedulerScreen() {
 
             <ConfirmDialog
                 visible={deleteConfirmVisible}
-                title="Delete Schedule"
-                message="Are you sure you want to delete this schedule? This action cannot be undone."
+                title={t('delete_schedule_title', { defaultValue: 'Delete Schedule' })}
+                message={t('delete_schedule_message', { defaultValue: 'Are you sure you want to delete this schedule? This action cannot be undone.' })}
                 onConfirm={removeConfirmed}
                 onCancel={() => { setDeleteConfirmVisible(false); setItemToDelete(null); }}
             />

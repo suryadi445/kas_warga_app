@@ -1,6 +1,7 @@
 import * as LinearGradientModule from 'expo-linear-gradient';
 import { collection, doc, getDoc, onSnapshot, orderBy, query, updateDoc } from 'firebase/firestore';
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
     FlatList,
     RefreshControl,
@@ -33,6 +34,7 @@ type Notification = {
 
 export default function NotificationsScreen() {
     const { showToast } = useToast();
+    const { t } = useTranslation();
     const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
     const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -180,10 +182,10 @@ export default function NotificationsScreen() {
             });
 
             await Promise.all(updatePromises);
-            showToast(`${toMark.length} notifications marked as read`, 'success');
+            showToast(t('notifications_marked_read', { defaultValue: `${toMark.length} notifications marked as read` }), 'success');
         } catch (e) {
             console.error('Failed to mark all read:', e);
-            showToast('Failed to mark all as read', 'error');
+            showToast(t('failed_to_mark_notifications_read', { defaultValue: 'Failed to mark all as read' }), 'error');
         }
     }
 

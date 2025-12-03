@@ -2,6 +2,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
 import { Magnetometer } from 'expo-sensors';
 import React, { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ActivityIndicator, Platform, RefreshControl, ScrollView, StatusBar, Text, TouchableOpacity, View } from 'react-native';
 import { useRefresh } from '../../src/hooks/useRefresh';
 
@@ -36,6 +37,7 @@ function haversineDistanceKm(lat1: number, lon1: number, lat2: number, lon2: num
 }
 
 export default function PrayerPage() {
+    const { t } = useTranslation();
     const now = new Date();
     const [tab, setTab] = useState<'times' | 'schedule' | 'qibla'>('times');
     const [lat, setLat] = useState<number>(-6.2);
@@ -48,7 +50,7 @@ export default function PrayerPage() {
     const [holidays, setHolidays] = useState<string[]>([]);
     const holidaysFetched = useRef(false);
     const [currentTime, setCurrentTime] = useState(new Date());
-    const [locationName, setLocationName] = useState<string>('Locating...');
+    const [locationName, setLocationName] = useState<string>(t('locating', { defaultValue: 'Locating...' }));
     const [deviceHeading, setDeviceHeading] = useState(0);
     const [magnetometerData, setMagnetometerData] = useState(0); // in microTesla (uT)
     const [bearing, setBearing] = useState(0);
@@ -114,7 +116,7 @@ export default function PrayerPage() {
         (async () => {
             let { status } = await Location.requestForegroundPermissionsAsync();
             if (status !== 'granted') {
-                setError('Permission to access location was denied');
+                setError(t('location_permission_denied', { defaultValue: 'Permission to access location was denied' }));
                 return;
             }
 
@@ -144,12 +146,12 @@ export default function PrayerPage() {
                     if (name) {
                         setLocationName(name);
                     } else {
-                        setLocationName('Unknown Location');
+                        setLocationName(t('unknown_location', { defaultValue: 'Unknown Location' }));
                     }
                 }
             } catch (e) {
                 console.log('Reverse geocoding failed', e);
-                setLocationName('Unknown Location');
+                setLocationName(t('unknown_location', { defaultValue: 'Unknown Location' }));
             }
         })();
     }, []);
@@ -168,8 +170,8 @@ export default function PrayerPage() {
                     const month = hij.month?.en ?? hij.month?.ar ?? '';
                     setHijriDate(`${hij.day} ${month} ${hij.year}`);
                 } else setHijriDate('');
-            } else { setError('Failed to get prayer times'); setHijriDate(''); }
-        } catch { setError('Network error'); setHijriDate(''); }
+            } else { setError(t('failed_get_prayer_times', { defaultValue: 'Failed to get prayer times' })); setHijriDate(''); }
+        } catch { setError(t('network_error', { defaultValue: 'Network error' })); setHijriDate(''); }
         finally { setLoading(false); }
     }
 
@@ -239,7 +241,20 @@ export default function PrayerPage() {
         while (gcells.length % 7 !== 0) gcells.push(null);
         const grow: Array<typeof gcells> = [];
         for (let r = 0; r < gcells.length; r += 7) grow.push(gcells.slice(r, r + 7));
-        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const monthNames = [
+            t('month_jan', { defaultValue: 'Jan' }),
+            t('month_feb', { defaultValue: 'Feb' }),
+            t('month_mar', { defaultValue: 'Mar' }),
+            t('month_apr', { defaultValue: 'Apr' }),
+            t('month_may', { defaultValue: 'May' }),
+            t('month_jun', { defaultValue: 'Jun' }),
+            t('month_jul', { defaultValue: 'Jul' }),
+            t('month_aug', { defaultValue: 'Aug' }),
+            t('month_sep', { defaultValue: 'Sep' }),
+            t('month_oct', { defaultValue: 'Oct' }),
+            t('month_nov', { defaultValue: 'Nov' }),
+            t('month_dec', { defaultValue: 'Dec' }),
+        ];
 
         // Ambil hijri dari tanggal yang sedang dipilih (dateStr)
         const hijriSelected = gregorianToIslamic(gy, gm, gd);
@@ -298,8 +313,16 @@ export default function PrayerPage() {
 
                 {/* Weekday Headers */}
                 <View style={{ flexDirection: 'row', marginTop: 8, marginBottom: 8 }}>
-                    {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((w) => (
-                        <View key={w} style={{ flex: 1, alignItems: 'center' }}>
+                    {[
+                        t('weekday_short_sunday', { defaultValue: 'Sun' }),
+                        t('weekday_short_monday', { defaultValue: 'Mon' }),
+                        t('weekday_short_tuesday', { defaultValue: 'Tue' }),
+                        t('weekday_short_wednesday', { defaultValue: 'Wed' }),
+                        t('weekday_short_thursday', { defaultValue: 'Thu' }),
+                        t('weekday_short_friday', { defaultValue: 'Fri' }),
+                        t('weekday_short_saturday', { defaultValue: 'Sat' }),
+                    ].map((w, i) => (
+                        <View key={i} style={{ flex: 1, alignItems: 'center' }}>
                             <Text style={{ fontSize: 12, fontWeight: '700', color: '#9CA3AF' }}>{w}</Text>
                         </View>
                     ))}
@@ -398,7 +421,7 @@ export default function PrayerPage() {
                         borderLeftWidth: 3,
                         borderLeftColor: '#DC2626'
                     }}>
-                        <Text style={{ color: '#DC2626', fontWeight: '800', marginBottom: 8, fontSize: 14 }}>🎉 National Holidays</Text>
+                        <Text style={{ color: '#DC2626', fontWeight: '800', marginBottom: 8, fontSize: 14 }}>{t('national_holidays', { defaultValue: '🎉 National Holidays' })}</Text>
                         {holidaysInMonth.map(date => {
                             // Format date from "YYYY-MM-DD" to "01 Jan 2025"
                             const formatHolidayDate = (dateStr: string) => {
@@ -423,7 +446,13 @@ export default function PrayerPage() {
     function getNextPrayer() {
         if (!times) return null;
 
-        const prayerNames = ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'];
+        const prayerNames = [
+            t('prayer_fajr', { defaultValue: 'Fajr' }),
+            t('prayer_dhuhr', { defaultValue: 'Dhuhr' }),
+            t('prayer_asr', { defaultValue: 'Asr' }),
+            t('prayer_maghrib', { defaultValue: 'Maghrib' }),
+            t('prayer_isha', { defaultValue: 'Isha' }),
+        ];
         const now = currentTime;
         const currentHour = now.getHours();
         const currentMinute = now.getMinutes();
@@ -512,9 +541,9 @@ export default function PrayerPage() {
                 }}>
                     <Text style={{ fontSize: 40 }}>🕌</Text>
                 </View>
-                <Text style={{ color: '#FFFFFF', fontSize: 28, fontWeight: '800', letterSpacing: 0.5 }}>Prayer Schedule</Text>
+                <Text style={{ color: '#FFFFFF', fontSize: 28, fontWeight: '800', letterSpacing: 0.5 }}>{t('prayer_schedule_title', { defaultValue: 'Prayer Schedule' })}</Text>
                 <Text style={{ color: 'rgba(255, 255, 255, 0.85)', marginTop: 6, textAlign: 'center', fontSize: 15, paddingHorizontal: 20 }}>
-                    View prayer times, qibla direction, and Hijri calendar
+                    {t('prayer_schedule_subtitle', { defaultValue: 'View prayer times, qibla direction, and Hijri calendar' })}
                 </Text>
             </View>
 
@@ -547,7 +576,7 @@ export default function PrayerPage() {
                             fontWeight: '700',
                             textAlign: 'center',
                             fontSize: 14
-                        }}>🕐 Times</Text>
+                        }}>{t('tab_times', { defaultValue: '🕐 Times' })}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                         onPress={() => setTab('schedule')}
@@ -568,7 +597,7 @@ export default function PrayerPage() {
                             fontWeight: '700',
                             textAlign: 'center',
                             fontSize: 14
-                        }}>📅 Calendar</Text>
+                        }}>{t('tab_calendar', { defaultValue: '📅 Calendar' })}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                         onPress={() => setTab('qibla')}
@@ -589,7 +618,7 @@ export default function PrayerPage() {
                             fontWeight: '700',
                             textAlign: 'center',
                             fontSize: 14
-                        }}>🧭 Qibla</Text>
+                        }}>{t('tab_qibla', { defaultValue: '🧭 Qibla' })}</Text>
                     </TouchableOpacity>
                 </View>
             </View>
@@ -616,7 +645,7 @@ export default function PrayerPage() {
                         borderWidth: 1,
                         borderColor: 'rgba(255, 255, 255, 0.3)'
                     }}>
-                        <Text style={{ fontWeight: '800', fontSize: 18, color: '#1F2937', marginBottom: 8 }}>🕐 Prayer Times</Text>
+                        <Text style={{ fontWeight: '800', fontSize: 18, color: '#1F2937', marginBottom: 8 }}>{t('prayer_times_title', { defaultValue: '🕐 Prayer Times' })}</Text>
 
                         {/* Next Prayer Countdown */}
                         {nextPrayer && (
@@ -649,7 +678,7 @@ export default function PrayerPage() {
                                     </View>
                                 ))}
                                 <Text style={{ color: '#9CA3AF', marginTop: 12, fontSize: 12, textAlign: 'center' }}>
-                                    Powered by Aladhan API
+                                    {t('powered_by_aladhan', { defaultValue: 'Powered by Aladhan API' })}
                                 </Text>
                             </View>
                         )}
@@ -669,7 +698,7 @@ export default function PrayerPage() {
                         borderWidth: 1,
                         borderColor: 'rgba(255, 255, 255, 0.3)'
                     }}>
-                        <Text style={{ fontWeight: '800', fontSize: 18, color: '#1F2937', marginBottom: 16 }}>📆 Calendar</Text>
+                        <Text style={{ fontWeight: '800', fontSize: 18, color: '#1F2937', marginBottom: 16 }}>{t('calendar_title', { defaultValue: '📆 Calendar' })}</Text>
                         {renderUnifiedCalendar()}
                         <View style={{ height: 12 }} />
                     </View>
@@ -696,13 +725,13 @@ export default function PrayerPage() {
                         {/* Top Info Bar */}
                         <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%', marginBottom: 20 }}>
                             <View style={{ alignItems: 'center' }}>
-                                <Text style={{ color: '#7C3AED', fontSize: 10, fontWeight: '700', marginBottom: 2 }}>UTARA SEJATI</Text>
+                                <Text style={{ color: '#7C3AED', fontSize: 10, fontWeight: '700', marginBottom: 2 }}>{t('label_true_north_upper', { defaultValue: 'UTARA SEJATI' })}</Text>
                                 <Text style={{ color: '#FF0000', fontSize: 16, fontWeight: 'bold' }}>
                                     {deviceHeading.toFixed(0)}° N
                                 </Text>
                             </View>
                             <View style={{ alignItems: 'center' }}>
-                                <Text style={{ color: '#7C3AED', fontSize: 10, fontWeight: '700', marginBottom: 2 }}>KA'BAH</Text>
+                                <Text style={{ color: '#7C3AED', fontSize: 10, fontWeight: '700', marginBottom: 2 }}>{t('label_kaabah_upper', { defaultValue: "KA'BAH" })}</Text>
                                 {(() => {
                                     let delta = bearing - deviceHeading;
                                     while (delta < -180) delta += 360;
@@ -725,7 +754,7 @@ export default function PrayerPage() {
                                 })()}
                             </View>
                             <View style={{ alignItems: 'center' }}>
-                                <Text style={{ color: '#7C3AED', fontSize: 10, fontWeight: '700', marginBottom: 2 }}>MEDAN MAGNET</Text>
+                                <Text style={{ color: '#7C3AED', fontSize: 10, fontWeight: '700', marginBottom: 2 }}>{t('label_magnetic_field_upper', { defaultValue: 'MEDAN MAGNET' })}</Text>
                                 <Text style={{ color: '#FF0000', fontSize: 16, fontWeight: 'bold' }}>
                                     {magnetometerData.toFixed(0)} µT
                                 </Text>
@@ -847,7 +876,7 @@ export default function PrayerPage() {
                             <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
                                 <Text style={{ fontSize: 18, marginRight: 8 }}>🕋</Text>
                                 <Text style={{ color: '#7C3AED', fontSize: 14, fontWeight: 'bold' }}>
-                                    {bearing.toFixed(0)}° dari Utara Sejati
+                                    {t('bearing_from_true_north', { deg: bearing.toFixed(0), defaultValue: '{{deg}}° from True North' })}
                                 </Text>
                             </View>
                             <View style={{ flexDirection: 'row', alignItems: 'center' }}>

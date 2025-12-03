@@ -2,6 +2,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { addDoc, collection, deleteDoc, doc, getDoc, onSnapshot, orderBy, query, serverTimestamp, updateDoc } from 'firebase/firestore';
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
     ActivityIndicator,
     FlatList,
@@ -40,6 +41,7 @@ const SAMPLE: Org[] = [
 
 export default function OrganizationScreen() {
     const { showToast } = useToast();
+    const { t } = useTranslation();
     const [items, setItems] = useState<Org[]>([]);
     const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
     const [modalVisible, setModalVisible] = useState(false);
@@ -121,7 +123,7 @@ export default function OrganizationScreen() {
 
     function openAdd() {
         if (currentUserRole !== 'Admin') {
-            showToast('Permission Denied: Only admin can add members', 'error');
+            showToast(t('permission_denied_only_admin_add_members'), 'error');
             return;
         }
         setEditingId(null);
@@ -135,7 +137,7 @@ export default function OrganizationScreen() {
 
     function openEdit(o: Org) {
         if (currentUserRole !== 'Admin') {
-            showToast('Permission Denied: Only admin can edit members', 'error');
+            showToast(t('permission_denied_only_admin_edit_members'), 'error');
             return;
         }
         setEditingId(o.id);
@@ -149,7 +151,7 @@ export default function OrganizationScreen() {
 
     async function save() {
         if (!name.trim() || !phone.trim()) {
-            showToast('Name and phone are required', 'error');
+            showToast(t('name_and_phone_required'), 'error');
             return;
         }
         setOperationLoading(true);
@@ -168,15 +170,15 @@ export default function OrganizationScreen() {
             if (editingId) {
                 const ref = doc(db, 'organization', editingId);
                 await updateDoc(ref, { ...payload, updatedAt: serverTimestamp() });
-                showToast('Member updated', 'success');
+                showToast(t('member_updated'), 'success');
             } else {
                 await addDoc(collection(db, 'organization'), { ...payload, createdAt: serverTimestamp() });
-                showToast('Member added', 'success');
+                showToast(t('member_added'), 'success');
             }
             setModalVisible(false);
         } catch (e) {
             console.error('organization save error', e);
-            showToast('Failed to save member', 'error');
+            showToast(t('failed_to_save_member'), 'error');
         } finally {
             setOperationLoading(false);
         }
@@ -184,7 +186,7 @@ export default function OrganizationScreen() {
 
     function confirmRemove(id: string) {
         if (currentUserRole !== 'Admin') {
-            showToast('Permission Denied: Only admin can delete members', 'error');
+            showToast(t('permission_denied_only_admin_delete_members'), 'error');
             return;
         }
         setItemToDelete(id);
@@ -197,10 +199,10 @@ export default function OrganizationScreen() {
         setOperationLoading(true);
         try {
             await deleteDoc(doc(db, 'organization', itemToDelete));
-            showToast('Member deleted', 'success');
+            showToast(t('member_deleted'), 'success');
         } catch (e) {
             console.error('delete org member error', e);
-            showToast('Failed to delete member', 'error');
+            showToast(t('failed_to_save_member'), 'error');
         } finally {
             setOperationLoading(false);
             setItemToDelete(null);
@@ -220,7 +222,7 @@ export default function OrganizationScreen() {
         try {
             const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
             if (!perm.granted) {
-                showToast('Gallery access permission required', 'error');
+                showToast(t('gallery_access_permission_required', { defaultValue: 'Gallery access permission required' }), 'error');
                 return;
             }
             const res = await ImagePicker.launchImageLibraryAsync({ quality: 0.7, base64: false });
@@ -405,9 +407,9 @@ export default function OrganizationScreen() {
 
                     {/* Text on right */}
                     <View style={{ flex: 1 }}>
-                        <Text style={{ color: '#FFFFFF', fontSize: 22, fontWeight: '800', letterSpacing: 0.3 }}>Organization</Text>
+                        <Text style={{ color: '#FFFFFF', fontSize: 22, fontWeight: '800', letterSpacing: 0.3 }}>{t('organization_title', { defaultValue: 'Organization' })}</Text>
                         <Text style={{ color: 'rgba(255, 255, 255, 0.85)', marginTop: 4, fontSize: 13, lineHeight: 18 }}>
-                            Manage members and positions in your community organization.
+                            {t('organization_subtitle', { defaultValue: 'Manage members and positions in your community organization.' })}
                         </Text>
                     </View>
                 </View>
@@ -435,7 +437,7 @@ export default function OrganizationScreen() {
                         shadowRadius: 4,
                         elevation: 2
                     }}>
-                        <Text style={{ color: '#7C3AED', fontWeight: '700', fontSize: 11 }}>👥 Total</Text>
+                        <Text style={{ color: '#7C3AED', fontWeight: '700', fontSize: 11 }}>{t('total_label', { defaultValue: '👥 Total' })}</Text>
                         <Text style={{ color: '#7C3AED', fontWeight: '800', fontSize: 16, marginTop: 1 }}>{items.length}</Text>
                     </View>
                     <View style={{
@@ -443,7 +445,7 @@ export default function OrganizationScreen() {
                         paddingVertical: 8,
                         alignItems: 'center',
                     }}>
-                        <Text style={{ color: 'rgba(255, 255, 255, 0.9)', fontWeight: '700', fontSize: 11 }}>★ Leaders</Text>
+                        <Text style={{ color: 'rgba(255, 255, 255, 0.9)', fontWeight: '700', fontSize: 11 }}>{t('leaders_label', { defaultValue: '★ Leaders' })}</Text>
                         <Text style={{ color: 'rgba(255, 255, 255, 0.9)', fontWeight: '800', fontSize: 16, marginTop: 1 }}>{items.filter(i => i.leader).length}</Text>
                     </View>
                     <View style={{
@@ -451,7 +453,7 @@ export default function OrganizationScreen() {
                         paddingVertical: 8,
                         alignItems: 'center',
                     }}>
-                        <Text style={{ color: 'rgba(255, 255, 255, 0.9)', fontWeight: '700', fontSize: 11 }}>● Members</Text>
+                        <Text style={{ color: 'rgba(255, 255, 255, 0.9)', fontWeight: '700', fontSize: 11 }}>{t('members_label', { defaultValue: '● Members' })}</Text>
                         <Text style={{ color: 'rgba(255, 255, 255, 0.9)', fontWeight: '800', fontSize: 16, marginTop: 1 }}>{items.filter(i => !i.leader).length}</Text>
                     </View>
                 </View>
@@ -477,10 +479,10 @@ export default function OrganizationScreen() {
                     {/* Left: Search Input */}
                     <View style={{ flex: 1.5 }}>
                         <FloatingLabelInput
-                            label="Search"
+                            label={t('search', { defaultValue: 'Search' })}
                             value={searchQuery}
                             onChangeText={setSearchQuery}
-                            placeholder="Search..."
+                            placeholder={t('search_placeholder', { defaultValue: 'Search...' })}
                             containerStyle={{ marginBottom: 0 }}
                         />
                     </View>
@@ -506,7 +508,7 @@ export default function OrganizationScreen() {
                                         justifyContent: 'center'
                                     }}
                                 >
-                                    <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>+ Organization</Text>
+                                    <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>{t('add_organization_button', { defaultValue: '+ Organization' })}</Text>
                                 </LinearGradient>
                             </TouchableOpacity>
                         </View>
@@ -549,9 +551,9 @@ export default function OrganizationScreen() {
                                 } ListEmptyComponent={() => (
                                     <View style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: 60 }}>
                                         <Text style={{ fontSize: 48, marginBottom: 12 }}>📭</Text>
-                                        <Text style={{ color: '#6B7280', fontSize: 16, fontWeight: '600' }}>No members found</Text>
+                                        <Text style={{ color: '#6B7280', fontSize: 16, fontWeight: '600' }}>{t('no_members_found', { defaultValue: 'No members found' })}</Text>
                                         <Text style={{ color: '#9CA3AF', fontSize: 13, marginTop: 4, textAlign: 'center' }}>
-                                            {searchQuery ? 'No members match your search' : 'No organization members yet'}
+                                            {searchQuery ? t('no_members_match_search', { defaultValue: 'No members match your search' }) : t('no_organization_members_yet', { defaultValue: 'No organization members yet' })}
                                         </Text>
                                     </View>
                                 )}
@@ -584,7 +586,7 @@ export default function OrganizationScreen() {
                                                         opacity: operationLoading ? 0.5 : 1
                                                     }}
                                                 >
-                                                    <Text style={{ color: '#0369A1', fontWeight: '600', fontSize: 12 }}>Edit</Text>
+                                                    <Text style={{ color: '#0369A1', fontWeight: '600', fontSize: 12 }}>{t('edit', { defaultValue: 'Edit' })}</Text>
                                                 </TouchableOpacity>
                                                 <TouchableOpacity
                                                     onPress={() => confirmRemove(item.id)}
@@ -597,7 +599,7 @@ export default function OrganizationScreen() {
                                                         opacity: operationLoading ? 0.5 : 1
                                                     }}
                                                 >
-                                                    <Text style={{ color: '#991B1B', fontWeight: '600', fontSize: 12 }}>Delete</Text>
+                                                    <Text style={{ color: '#991B1B', fontWeight: '600', fontSize: 12 }}>{t('delete', { defaultValue: 'Delete' })}</Text>
                                                 </TouchableOpacity>
                                             </View>
 
@@ -613,7 +615,7 @@ export default function OrganizationScreen() {
                                                 marginBottom: 8
                                             }}>
                                                 <Text style={{ color: item.leader ? '#9F1239' : '#4338CA', fontWeight: '700', fontSize: 10 }}>
-                                                    {item.leader ? '★ LEADER' : '● MEMBER'}
+                                                    {item.leader ? t('leader_badge', { defaultValue: '★ LEADER' }) : t('member_badge', { defaultValue: '● MEMBER' })}
                                                 </Text>
                                             </View>
 
@@ -673,39 +675,39 @@ export default function OrganizationScreen() {
                 <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.3)' }}>
                     <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 16, maxHeight: '90%', flex: 1 }}>
                         <ScrollView showsVerticalScrollIndicator={false}>
-                            <Text style={{ fontSize: 18, fontWeight: '700', marginBottom: 16 }}>{editingId ? 'Edit Member' : 'Add Member'}</Text>
+                            <Text style={{ fontSize: 18, fontWeight: '700', marginBottom: 16 }}>{editingId ? t('edit_member', { defaultValue: 'Edit Member' }) : t('add_member', { defaultValue: 'Add Member' })}</Text>
 
                             <FloatingLabelInput
-                                label="Title / Position"
+                                label={t('position_label', { defaultValue: 'Title / Position' })}
                                 value={title}
                                 onChangeText={setTitle}
-                                placeholder="Enter position or title"
+                                placeholder={t('position_placeholder', { defaultValue: 'Enter position or title' })}
                             />
 
                             <FloatingLabelInput
-                                label="Name"
+                                label={t('name_label', { defaultValue: 'Name' })}
                                 value={name}
                                 onChangeText={setName}
-                                placeholder="Enter full name"
+                                placeholder={t('full_name_placeholder', { defaultValue: 'Enter full name' })}
                             />
 
                             <FloatingLabelInput
-                                label="Phone"
+                                label={t('phone_label', { defaultValue: 'Phone' })}
                                 value={phone}
                                 onChangeText={setPhone}
-                                placeholder="08xxxxxxxx"
+                                placeholder={t('phone_placeholder', { defaultValue: '08xxxxxxxx' })}
                                 keyboardType="phone-pad"
                             />
 
                             <View style={{ marginTop: 4, marginBottom: 8 }}>
-                                <Text style={{ color: '#6B7280', fontSize: 12, marginBottom: 8 }}>Profile Image</Text>
+                                <Text style={{ color: '#6B7280', fontSize: 12, marginBottom: 8 }}>{t('profile_image_label', { defaultValue: 'Profile Image' })}</Text>
                             </View>
                             <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
                                 <TouchableOpacity onPress={pickImageNative} style={{ flex: 1, borderWidth: 2, borderColor: '#7c3aed', borderRadius: 12, padding: 14, alignItems: 'center', backgroundColor: '#fff' }}>
-                                    <Text style={{ color: '#7c3aed', fontWeight: '600' }}>📷 Pick Image</Text>
+                                    <Text style={{ color: '#7c3aed', fontWeight: '600' }}>📷 {t('pick_image', { defaultValue: 'Pick Image' })}</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity onPress={() => { revokePreviousImage(); setImage(undefined); }} style={{ flex: 1, borderWidth: 2, borderColor: '#EF4444', borderRadius: 12, padding: 14, alignItems: 'center', backgroundColor: '#fff' }}>
-                                    <Text style={{ color: '#EF4444', fontWeight: '600' }}>✕ Clear</Text>
+                                    <Text style={{ color: '#EF4444', fontWeight: '600' }}>✕ {t('clear', { defaultValue: 'Clear' })}</Text>
                                 </TouchableOpacity>
                             </View>
 
@@ -716,16 +718,16 @@ export default function OrganizationScreen() {
                                     <View style={{ width: 24, height: 24, borderRadius: 6, borderWidth: 2, borderColor: leader ? '#EC4899' : '#E5E7EB', alignItems: 'center', justifyContent: 'center', backgroundColor: leader ? '#EC4899' : '#fff' }}>
                                         {leader ? <Text style={{ color: '#fff', fontSize: 14, fontWeight: '700' }}>✓</Text> : null}
                                     </View>
-                                    <Text style={{ marginLeft: 10, color: '#374151', fontWeight: '600', fontSize: 15 }}>Leader / Ketua</Text>
+                                    <Text style={{ marginLeft: 10, color: '#374151', fontWeight: '600', fontSize: 15 }}>{t('leader_toggle_label', { defaultValue: 'Leader / Ketua' })}</Text>
                                 </TouchableOpacity>
                             </View>
 
                             <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 16 }}>
                                 <TouchableOpacity onPress={() => !operationLoading && setModalVisible(false)} disabled={operationLoading} style={{ padding: 10, opacity: operationLoading ? 0.6 : 1 }}>
-                                    <Text style={{ color: '#6B7280' }}>Cancel</Text>
+                                    <Text style={{ color: '#6B7280' }}>{t('cancel', { defaultValue: 'Cancel' })}</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity disabled={operationLoading} onPress={save} style={{ padding: 10 }}>
-                                    {operationLoading ? <ActivityIndicator size="small" color="#4fc3f7" /> : <Text style={{ color: '#4fc3f7', fontWeight: '700' }}>{editingId ? 'Save' : 'Create'}</Text>}
+                                    {operationLoading ? <ActivityIndicator size="small" color="#4fc3f7" /> : <Text style={{ color: '#4fc3f7', fontWeight: '700' }}>{editingId ? t('save', { defaultValue: 'Save' }) : t('create', { defaultValue: 'Create' })}</Text>}
                                 </TouchableOpacity>
                             </View>
 
@@ -736,8 +738,8 @@ export default function OrganizationScreen() {
 
             <ConfirmDialog
                 visible={deleteConfirmVisible}
-                title="Delete Member"
-                message="Are you sure you want to delete this member? This action cannot be undone."
+                title={t('delete_member_title', { defaultValue: 'Delete Member' })}
+                message={t('delete_member_message', { defaultValue: 'Are you sure you want to delete this member? This action cannot be undone.' })}
                 onConfirm={removeConfirmed}
                 onCancel={() => { setDeleteConfirmVisible(false); setItemToDelete(null); }}
             />

@@ -2,6 +2,7 @@ import { Stack } from 'expo-router';
 import { StatusBar, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ToastProvider } from '../src/contexts/ToastContext';
+import '../src/i18n';
 
 export default function RootLayout() {
     return (

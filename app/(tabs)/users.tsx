@@ -3,6 +3,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from 'expo-router';
 import { collection, deleteDoc, doc, getDoc, getDocs, setDoc, updateDoc } from 'firebase/firestore';
 import React, { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
     ActivityIndicator,
     FlatList,
@@ -47,6 +48,7 @@ export default function UsersScreen() {
     const insets = useSafeAreaInsets();
     const bottomInset = insets.bottom || 0;
     const { showToast } = useToast();
+    const { t } = useTranslation();
     const [users, setUsers] = useState<User[]>([]);
     const [modalVisible, setModalVisible] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
@@ -253,7 +255,7 @@ export default function UsersScreen() {
             setUsers(usersList);
         } catch (error) {
             console.error('Failed to load users:', error);
-            showToast('Failed to load users from Firestore', 'error');
+            showToast(t('failed_load_users', { defaultValue: 'Failed to load users from Firestore' }), 'error');
         } finally {
             setLoading(false);
         }
@@ -262,13 +264,13 @@ export default function UsersScreen() {
     function openEdit(u: User) {
         // Only admin can edit users
         if (!canManageUsers) {
-            showToast('Permission Denied: Only admin can edit users', 'error');
+            showToast(t('permission_denied_edit_user', { defaultValue: 'Permission Denied: Only admin can edit users' }), 'error');
             return;
         }
 
         // NEW: Protect master admin account
         if (u.email === 'suryadi.hhb@gmail.com') {
-            showToast('This account cannot be edited', 'error');
+            showToast(t('cannot_edit_master', { defaultValue: 'This account cannot be edited' }), 'error');
             return;
         }
 
@@ -308,7 +310,7 @@ export default function UsersScreen() {
     // NEW: function to open add user modal
     function openAdd() {
         if (!canManageUsers) {
-            showToast('Permission Denied: Only admin can add users', 'error');
+            showToast(t('permission_denied_add_user', { defaultValue: 'Permission Denied: Only admin can add users' }), 'error');
             return;
         }
 
@@ -372,23 +374,23 @@ export default function UsersScreen() {
 
     async function save() {
         if (!canManageUsers) {
-            showToast('Permission Denied: Only admin can modify users', 'error');
+            showToast(t('permission_denied_modify_user', { defaultValue: 'Permission Denied: Only admin can modify users' }), 'error');
             return;
         }
 
         if (!name.trim() || !email.trim()) {
-            showToast('Name and email are required', 'error');
+            showToast(t('name_email_required', { defaultValue: 'Name and email are required' }), 'error');
             return;
         }
 
         // NEW: validation for creating user
         if (!editingId && !password.trim()) {
-            showToast('Password is required for new users', 'error');
+            showToast(t('password_required_new', { defaultValue: 'Password is required for new users' }), 'error');
             return;
         }
 
         if (!editingId && password.trim().length < 6) {
-            showToast('Password must be at least 6 characters', 'error');
+            showToast(t('password_min_length_user', { defaultValue: 'Password must be at least 6 characters' }), 'error');
             return;
         }
 
@@ -421,7 +423,7 @@ export default function UsersScreen() {
                     throw new Error(`Role update failed! Expected: ${role}, Got: ${verifyData?.role}`);
                 }
 
-                showToast('User updated successfully!', 'success');
+                showToast(t('user_updated_success', { defaultValue: 'User updated successfully!' }), 'success');
             } else {
                 // NEW: CREATE new user with complete data
                 console.log('=== CREATING NEW USER ===');
@@ -475,7 +477,7 @@ export default function UsersScreen() {
                     await deleteApp(secondaryApp);
 
                     console.log('User created successfully, secondary auth cleaned up');
-                    showToast(`User ${name} created successfully!`, 'success');
+                    showToast(t('user_created_success', { name, defaultValue: `User ${name} created successfully!` }), 'success');
                 } catch (innerError: any) {
                     console.error('Inner error during user creation:', innerError);
 
@@ -497,14 +499,14 @@ export default function UsersScreen() {
         } catch (error: any) {
             console.error('Save error:', error);
 
-            // User-friendly error messages
-            let errorMessage = 'Failed to save user';
+            // User-friendly error messages (localized)
+            let errorMessage = t('failed_to_save_user', { defaultValue: 'Failed to save user' });
             if (error.code === 'auth/email-already-in-use') {
-                errorMessage = 'Email already in use. Please use a different email.';
+                errorMessage = t('email_in_use', { defaultValue: 'Email already in use. Please use a different email.' });
             } else if (error.code === 'auth/invalid-email') {
-                errorMessage = 'Invalid email format.';
+                errorMessage = t('invalid_email', { defaultValue: 'Invalid email format.' });
             } else if (error.code === 'auth/weak-password') {
-                errorMessage = 'Password is too weak. Use at least 6 characters.';
+                errorMessage = t('weak_password', { defaultValue: 'Password is too weak. Use at least 6 characters.' });
             } else if (error.message) {
                 errorMessage = error.message;
             }
@@ -517,14 +519,14 @@ export default function UsersScreen() {
 
     function remove(id: string) {
         if (!canManageUsers) {
-            showToast('Permission Denied: Only admin can delete users', 'error');
+            showToast(t('permission_denied_delete_user', { defaultValue: 'Permission Denied: Only admin can delete users' }), 'error');
             return;
         }
 
         // NEW: Protect master admin account
         const userToDelete = users.find(u => u.id === id);
         if (userToDelete && userToDelete.email === 'suryadi.hhb@gmail.com') {
-            showToast('This account cannot be deleted', 'error');
+            showToast(t('cannot_delete_master', { defaultValue: 'This account cannot be deleted' }), 'error');
             return;
         }
 
@@ -536,11 +538,11 @@ export default function UsersScreen() {
         if (!itemToDelete) return;
         try {
             await deleteDoc(doc(db, 'users', itemToDelete));
-            showToast('User deleted successfully', 'success');
+            showToast(t('user_deleted_success', { defaultValue: 'User deleted successfully' }), 'success');
             await loadUsers();
         } catch (error: any) {
             console.error('Failed to delete user:', error);
-            showToast('Failed to delete user: ' + (error.message || 'Unknown error'), 'error');
+            showToast(t('failed_delete_user', { error: (error.message || 'Unknown error'), defaultValue: 'Failed to delete user: ' + (error.message || 'Unknown error') }), 'error');
         } finally {
             setDeleteConfirmVisible(false);
             setItemToDelete(null);
@@ -550,7 +552,7 @@ export default function UsersScreen() {
     // NEW: Toggle user activation status
     async function toggleUserActivation(userId: string, currentStatus: boolean | undefined) {
         if (!canManageUsers) {
-            showToast('Permission Denied: Only admin can activate users', 'error');
+            showToast(t('permission_denied_activate_user', { defaultValue: 'Permission Denied: Only admin can activate users' }), 'error');
             return;
         }
 
@@ -560,7 +562,7 @@ export default function UsersScreen() {
             if (targetDoc.exists()) {
                 const targetEmail = targetDoc.data().email;
                 if (targetEmail === 'suryadi.hhb@gmail.com') {
-                    showToast('This account cannot be toggled', 'error');
+                    showToast(t('cannot_toggle_master', { defaultValue: 'This account cannot be toggled' }), 'error');
                     return;
                 }
             }
@@ -574,10 +576,10 @@ export default function UsersScreen() {
             try {
                 if (newStatus === true) {
                     await updateDoc(doc(db, 'users', userId), { isActive: true, approved: true });
-                    showToast('User successfully activated', 'success');
+                    showToast(t('user_activated', { defaultValue: 'User successfully activated' }), 'success');
                 } else {
                     await updateDoc(doc(db, 'users', userId), { isActive: false });
-                    showToast('User successfully deactivated', 'success');
+                    showToast(t('user_deactivated', { defaultValue: 'User successfully deactivated' }), 'success');
                 }
                 await loadUsers(); // Reload to reflect changes
             } finally {
@@ -585,14 +587,14 @@ export default function UsersScreen() {
             }
         } catch (error) {
             console.error('Failed to toggle user activation:', error);
-            showToast('Failed to update user status', 'error');
+            showToast(t('failed_update_user_status', { defaultValue: 'Failed to update user status' }), 'error');
         }
     }
 
     // Reject a user (mark as rejected)
     async function rejectUser(userId: string) {
         if (!canManageUsers) {
-            showToast('Permission Denied: Only admin can reject users', 'error');
+            showToast(t('permission_denied_reject_user', { defaultValue: 'Permission Denied: Only admin can reject users' }), 'error');
             return;
         }
 
@@ -602,7 +604,7 @@ export default function UsersScreen() {
             if (targetDoc.exists()) {
                 const targetEmail = targetDoc.data().email;
                 if (targetEmail === 'suryadi.hhb@gmail.com') {
-                    showToast('This account cannot be rejected', 'error');
+                    showToast(t('cannot_reject_master', { defaultValue: 'This account cannot be rejected' }), 'error');
                     return;
                 }
             }
@@ -614,21 +616,21 @@ export default function UsersScreen() {
             try {
                 // Mark user as rejected and set rejectedAt timestamp. Do not delete immediately.
                 await updateDoc(doc(db, 'users', userId), { isActive: false, rejected: true, rejectedAt: new Date() });
-                showToast('User successfully rejected', 'success');
+                showToast(t('user_rejected', { defaultValue: 'User successfully rejected' }), 'success');
                 await loadUsers();
             } finally {
                 stopProcessing(userId);
             }
         } catch (err) {
             console.error('Failed to reject user:', err);
-            showToast('Failed to reject user', 'error');
+            showToast(t('failed_reject_user', { defaultValue: 'Failed to reject user' }), 'error');
         }
     }
 
     // Restore a rejected user so they appear in the 'All' list (not pending)
     async function restoreUser(userId: string) {
         if (!canManageUsers) {
-            showToast('Permission Denied: Only admin can restore users', 'error');
+            showToast(t('permission_denied_restore_user', { defaultValue: 'Permission Denied: Only admin can restore users' }), 'error');
             return;
         }
 
@@ -637,7 +639,7 @@ export default function UsersScreen() {
             if (targetDoc.exists()) {
                 const targetEmail = targetDoc.data().email;
                 if (targetEmail === 'suryadi.hhb@gmail.com') {
-                    showToast('This account cannot be restored', 'error');
+                    showToast(t('cannot_restore_master', { defaultValue: 'This account cannot be restored' }), 'error');
                     return;
                 }
             }
@@ -656,7 +658,7 @@ export default function UsersScreen() {
                     isActive: false,
                     createdAt: now,
                 });
-                showToast('User successfully restored', 'success');
+                showToast(t('user_restored', { defaultValue: 'User successfully restored' }), 'success');
                 await loadUsers();
                 // ensure the UI shows the All list where pending users are visible
                 setActiveFilter('all');
@@ -665,7 +667,7 @@ export default function UsersScreen() {
             }
         } catch (err) {
             console.error('Failed to restore user:', err);
-            showToast('Failed to restore user', 'error');
+            showToast(t('failed_restore_user', { defaultValue: 'Failed to restore user' }), 'error');
         }
     }
 
@@ -851,7 +853,7 @@ export default function UsersScreen() {
                                                 value={item.isActive === true}
                                                 onValueChange={() => {
                                                     if (isProtected) {
-                                                        showToast('This account cannot be toggled', 'error');
+                                                        showToast(t('cannot_toggle_master', { defaultValue: 'This account cannot be toggled' }), 'error');
                                                         return;
                                                     }
                                                     toggleUserActivation(item.id, item.isActive);
@@ -1034,9 +1036,9 @@ export default function UsersScreen() {
 
                     {/* Text on right */}
                     <View style={{ flex: 1 }}>
-                        <Text style={{ color: '#FFFFFF', fontSize: 22, fontWeight: '800', letterSpacing: 0.3 }}>User Management</Text>
+                        <Text style={{ color: '#FFFFFF', fontSize: 22, fontWeight: '800', letterSpacing: 0.3 }}>{t('user_management_title', { defaultValue: 'User Management' })}</Text>
                         <Text style={{ color: 'rgba(255, 255, 255, 0.85)', marginTop: 4, fontSize: 13, lineHeight: 18 }}>
-                            Manage user accounts, roles, and permissions
+                            {t('user_management_subtitle', { defaultValue: 'Manage user accounts, roles, and permissions' })}
                         </Text>
                     </View>
                 </View>
@@ -1287,10 +1289,10 @@ export default function UsersScreen() {
                         {/* Left: search (60%) */}
                         <View style={{ flex: 1.5 }}>
                             <FloatingLabelInput
-                                label="Search"
+                                label={t('search')}
                                 value={searchQuery}
                                 onChangeText={setSearchQuery}
-                                placeholder="Search..."
+                                placeholder={t('search_placeholder', { defaultValue: 'Search...' })}
                                 containerStyle={{ marginBottom: 0 }}
                             />
                         </View>
@@ -1315,7 +1317,7 @@ export default function UsersScreen() {
                                         elevation: 4,
                                     }}
                                 >
-                                    <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>+ User</Text>
+                                    <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>{t('add_user_button', { defaultValue: '+ User' })}</Text>
                                 </LinearGradient>
                             </TouchableOpacity>
                         </View>
@@ -1366,9 +1368,9 @@ export default function UsersScreen() {
                         ListEmptyComponent={() => (
                             <View style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: 60 }}>
                                 <Text style={{ fontSize: 48, marginBottom: 12 }}>👤</Text>
-                                <Text style={{ color: '#6B7280', fontSize: 16, fontWeight: '600' }}>No users found</Text>
+                                <Text style={{ color: '#6B7280', fontSize: 16, fontWeight: '600' }}>{t('no_users_found', { defaultValue: 'No users found' })}</Text>
                                 <Text style={{ color: '#9CA3AF', fontSize: 13, marginTop: 4, textAlign: 'center' }}>
-                                    No users match your filters
+                                    {t('no_users_match_filters', { defaultValue: 'No users match your filters' })}
                                 </Text>
                             </View>
                         )}
@@ -1381,71 +1383,71 @@ export default function UsersScreen() {
                 <View className="flex-1 justify-end bg-black/30">
                     <View className="bg-white rounded-t-3xl p-6" style={{ maxHeight: '90%' }}>
                         <ScrollView showsVerticalScrollIndicator={false}>
-                            <Text className="text-xl font-semibold mb-4">{editingId ? 'Edit User' : 'Create New User'}</Text>
+                            <Text className="text-xl font-semibold mb-4">{editingId ? t('edit_user', { defaultValue: 'Edit User' }) : t('create_user', { defaultValue: 'Create New User' })}</Text>
 
                             {/* Basic Info */}
                             <FloatingLabelInput
-                                label="Name *"
+                                label={`${t('full_name')} *`}
                                 value={name}
                                 onChangeText={setName}
-                                placeholder="Full name"
+                                placeholder={t('full_name', { defaultValue: 'Full name' })}
                             />
 
                             <FloatingLabelInput
-                                label="Email *"
+                                label={`${t('email')} *`}
                                 value={email}
                                 onChangeText={setEmail}
                                 keyboardType="email-address"
                                 // editable when creating new user, or when admin and not editing protected master
                                 editable={!editingId || (canManageUsers && email !== 'suryadi.hhb@gmail.com')}
                                 inputStyle={(!editingId || (canManageUsers && email !== 'suryadi.hhb@gmail.com')) ? undefined : { backgroundColor: '#F9FAFB' }}
-                                placeholder="email@example.com"
+                                placeholder={t('email_example', { defaultValue: 'email@example.com' })}
                             />
 
                             {!editingId && (
                                 <FloatingLabelInput
-                                    label="Password *"
+                                    label={`${t('password')} *`}
                                     value={password}
                                     onChangeText={setPassword}
                                     secureTextEntry
-                                    placeholder="Min. 6 characters"
+                                    placeholder={t('password_min_length', { defaultValue: 'Min. 6 characters' })}
                                 />
                             )}
 
                             <FloatingLabelInput
-                                label="Phone"
+                                label={t('phone')}
                                 value={phone}
                                 onChangeText={setPhone}
                                 keyboardType={Platform.OS === 'ios' ? 'number-pad' : 'phone-pad'}
-                                placeholder="08xxxxxxxxxx"
+                                placeholder={t('phone_placeholder', { defaultValue: '08xxxxxxxxxx' })}
                             />
 
                             <SelectInput
-                                label="Role *"
+                                label={`${t('role')} *`}
                                 value={role}
-                                options={ROLES}
+                                options={ROLES.map(r => ({ label: t(`role_${r.toLowerCase()}`), value: r }))}
                                 onValueChange={(v) => setRole(v)}
-                                placeholder="Select role"
+                                placeholder={t('select_role', { defaultValue: 'Select role' })}
                                 onFocus={() => setFocusedField('role')}
                                 onBlur={() => setFocusedField(null)}
                             />
 
                             <SelectInput
-                                label="Gender"
+                                label={t('gender')}
                                 value={gender}
-                                options={GENDER_OPTIONS}
+                                options={GENDER_OPTIONS.map(g => ({ label: t(`gender_${g.toLowerCase()}`), value: g }))}
                                 onValueChange={(v) => setGender(v)}
-                                placeholder="Select gender"
+                                placeholder={t('select_gender', { defaultValue: 'Select gender' })}
                                 onFocus={() => setFocusedField('gender')}
                                 onBlur={() => setFocusedField(null)}
                             />
 
                             {/* Birthday */}
                             <FloatingLabelInput
-                                label="Birthday"
+                                label={t('birthday')}
                                 value={formatDateDisplay(birthday)}
                                 onChangeText={setBirthday}
-                                placeholder="dd-mm-yyyy"
+                                placeholder={t('date_format_dmy', { defaultValue: 'dd-mm-yyyy' })}
                                 editable={Platform.OS === 'web'}
                                 onPress={() => {
                                     if (Platform.OS !== 'web') {
@@ -1456,30 +1458,30 @@ export default function UsersScreen() {
                             />
 
                             <SelectInput
-                                label="Religion"
+                                label={t('religion')}
                                 value={religion}
-                                options={RELIGION_OPTIONS}
+                                options={RELIGION_OPTIONS.map(r => ({ label: t(`religion_${r.toLowerCase()}`), value: r }))}
                                 onValueChange={(v) => setReligion(v)}
-                                placeholder="Select religion"
+                                placeholder={t('select_religion', { defaultValue: 'Select religion' })}
                                 onFocus={() => setFocusedField('religion')}
                                 onBlur={() => setFocusedField(null)}
                             />
 
                             {/* Address */}
                             <FloatingLabelInput
-                                label="Address"
+                                label={t('address')}
                                 value={address}
                                 onChangeText={setAddress}
                                 multiline
-                                placeholder="Full address"
+                                placeholder={t('full_address', { defaultValue: 'Full address' })}
                             />
 
                             <SelectInput
-                                label="Marital Status"
+                                label={t('marital_status')}
                                 value={maritalStatus}
-                                options={MARITAL_STATUS_OPTIONS.map(o => ({ label: o.label, value: o.value }))}
+                                options={MARITAL_STATUS_OPTIONS.map(o => ({ label: t(`marital_${o.value}`), value: o.value }))}
                                 onValueChange={(v) => setMaritalStatus(v)}
-                                placeholder="Select marital status"
+                                placeholder={t('select_marital_status', { defaultValue: 'Select marital status' })}
                                 onFocus={() => setFocusedField('maritalStatus')}
                                 onBlur={() => setFocusedField(null)}
                             />
@@ -1488,10 +1490,10 @@ export default function UsersScreen() {
                             {maritalStatus === 'married' && (
                                 <View style={{ marginBottom: 12 }}>
                                     <FloatingLabelInput
-                                        label="Spouse Name"
+                                        label={t('spouse_name')}
                                         value={spouseName}
                                         onChangeText={setSpouseName}
-                                        placeholder="Spouse full name"
+                                        placeholder={t('spouse_name_placeholder', { defaultValue: 'Spouse full name' })}
                                     />
                                 </View>
                             )}
@@ -1500,29 +1502,29 @@ export default function UsersScreen() {
                             {(maritalStatus === 'married' || maritalStatus === 'divorced' || maritalStatus === 'widowed') && (
                                 <View style={{ marginBottom: 12 }}>
                                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                                        <Text className="text-sm text-gray-600">Children ({children.length})</Text>
+                                        <Text className="text-sm text-gray-600">{t('children')} ({children.length})</Text>
                                         <TouchableOpacity onPress={addChild}>
-                                            <Text style={{ color: '#06B6D4', fontWeight: '600' }}>+ Add child</Text>
+                                            <Text style={{ color: '#06B6D4', fontWeight: '600' }}>{t('add_child', { defaultValue: '+ Add child' })}</Text>
                                         </TouchableOpacity>
                                     </View>
                                     {children.map((ch, idx) => (
                                         <View key={idx} style={{ marginBottom: 8, borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 8 }}>
                                             {/* Child Name (label moved into FloatingLabelInput) */}
                                             <FloatingLabelInput
-                                                label="Child Name"
+                                                label={t('child_name')}
                                                 value={ch.name}
                                                 onChangeText={(v) => updateChild(idx, 'name', v)}
                                                 inputStyle={{ borderRadius: 6, padding: 8, marginTop: 4 }}
-                                                placeholder="Child name"
+                                                placeholder={t('child_name_placeholder', { defaultValue: 'Child name' })}
                                             />
 
                                             {/* Birth Date (label moved into FloatingLabelInput) */}
                                             <FloatingLabelInput
-                                                label="Birth Date"
+                                                label={t('child_birth_date')}
                                                 value={formatDateDisplay(ch.birthDate)}
                                                 onChangeText={(v) => updateChild(idx, 'birthDate', v)}
                                                 inputStyle={{ borderRadius: 6, padding: 8, marginTop: 4 }}
-                                                placeholder="dd-mm-yyyy"
+                                                placeholder={t('date_format_dmy', { defaultValue: 'dd-mm-yyyy' })}
                                                 editable={Platform.OS === 'web'}
                                                 onPress={() => {
                                                     if (Platform.OS !== 'web') {
@@ -1534,16 +1536,16 @@ export default function UsersScreen() {
 
                                             {/* Place of Birth (label moved into FloatingLabelInput) */}
                                             <FloatingLabelInput
-                                                label="Place of Birth"
+                                                label={t('place_of_birth')}
                                                 value={ch.placeOfBirth}
                                                 onChangeText={(v) => updateChild(idx, 'placeOfBirth', v)}
                                                 inputStyle={{ borderRadius: 6, padding: 8, marginTop: 4 }}
-                                                placeholder="City / Hospital"
+                                                placeholder={t('place_of_birth_placeholder', { defaultValue: 'City / Hospital' })}
                                             />
 
                                             <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 8 }}>
                                                 <TouchableOpacity onPress={() => removeChild(idx)} style={{ padding: 6 }}>
-                                                    <Text style={{ color: '#EF4444', fontWeight: '600' }}>Remove</Text>
+                                                    <Text style={{ color: '#EF4444', fontWeight: '600' }}>{t('remove')}</Text>
                                                 </TouchableOpacity>
                                             </View>
                                         </View>
@@ -1553,13 +1555,13 @@ export default function UsersScreen() {
 
                             <View className="flex-row justify-between mt-4">
                                 <TouchableOpacity onPress={() => !saving && setModalVisible(false)} disabled={saving} style={{ padding: 10, opacity: saving ? 0.6 : 1 }}>
-                                    <Text style={{ color: '#6B7280' }}>Cancel</Text>
+                                    <Text style={{ color: '#6B7280' }}>{t('cancel')}</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity disabled={saving} onPress={save} style={{ padding: 10, minWidth: 100, alignItems: 'center', justifyContent: 'center' }}>
                                     {saving ? (
                                         <ActivityIndicator size="small" color="#4fc3f7" />
                                     ) : (
-                                        <Text style={{ color: '#4fc3f7', fontWeight: '700' }}>{editingId ? 'Save' : 'Create'}</Text>
+                                        <Text style={{ color: '#4fc3f7', fontWeight: '700' }}>{editingId ? t('save', { defaultValue: 'Save' }) : t('create', { defaultValue: 'Create' })}</Text>
                                     )}
                                 </TouchableOpacity>
                             </View>
@@ -1591,19 +1593,19 @@ export default function UsersScreen() {
             {/* Confirm dialogs */}
             <ConfirmDialog
                 visible={deleteConfirmVisible}
-                title="Delete user"
-                message="Delete this user? This action cannot be undone."
+                title={t('delete_user_title', { defaultValue: 'Delete user' })}
+                message={t('delete_user_message', { defaultValue: 'Delete this user? This action cannot be undone.' })}
                 onConfirm={removeConfirmed}
                 onCancel={() => { setDeleteConfirmVisible(false); setItemToDelete(null); }}
-                confirmText="Delete"
-                cancelText="Cancel"
+                confirmText={t('delete_confirm', { defaultValue: 'Delete' })}
+                cancelText={t('cancel')}
             />
 
             {/* Confirm dialog for rejecting users (deletes their firestore doc) */}
             <ConfirmDialog
                 visible={rejectConfirmVisible}
-                title="Reject user"
-                message="Reject this user? This action will move the user to Rejected list and remove after 30 days."
+                title={t('reject_user_title', { defaultValue: 'Reject user' })}
+                message={t('reject_user_message', { defaultValue: 'Reject this user? This action will move the user to Rejected list and remove after 30 days.' })}
                 onConfirm={async () => {
                     try {
                         setRejectConfirmVisible(false);
@@ -1615,15 +1617,15 @@ export default function UsersScreen() {
                     }
                 }}
                 onCancel={() => { setRejectConfirmVisible(false); setItemToReject(null); }}
-                confirmText="Reject"
-                cancelText="Cancel"
+                confirmText={t('reject_confirm', { defaultValue: 'Reject' })}
+                cancelText={t('cancel')}
             />
 
             {/* Confirm dialog for restoring users from Rejected list */}
             <ConfirmDialog
                 visible={restoreConfirmVisible}
-                title="Restore user"
-                message="Restore this user to pending review? The user will appear in the All list and admin can Approve or Reject."
+                title={t('restore_user_title', { defaultValue: 'Restore user' })}
+                message={t('restore_user_message', { defaultValue: 'Restore this user to pending review? The user will appear in the All list and admin can Approve or Reject.' })}
                 onConfirm={async () => {
                     try {
                         setRestoreConfirmVisible(false);
@@ -1635,8 +1637,8 @@ export default function UsersScreen() {
                     }
                 }}
                 onCancel={() => { setRestoreConfirmVisible(false); setItemToRestore(null); }}
-                confirmText="Restore"
-                cancelText="Cancel"
+                confirmText={t('restore_confirm', { defaultValue: 'Restore' })}
+                cancelText={t('cancel')}
             />
         </SafeAreaView>
     );

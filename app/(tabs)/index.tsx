@@ -5,7 +5,9 @@ import * as Location from 'expo-location';
 import { useRouter } from 'expo-router';
 import { collection, doc, getDoc, onSnapshot, query } from 'firebase/firestore';
 import React, { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
+    ActivityIndicator,
     Image,
     Pressable,
     ScrollView,
@@ -14,7 +16,7 @@ import {
     TextInput,
     TouchableOpacity,
     useWindowDimensions,
-    View
+    View,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import ConfirmDialog from '../../src/components/ConfirmDialog';
@@ -56,19 +58,19 @@ try {
 }
 
 const MENU_ITEMS = [
-    { id: 'dashboard', label: 'Dashboard', icon: '🗂️' },
-    { id: 'users', label: 'Users', icon: '👥' },
-    { id: 'cash_reports', label: 'Cash Reports', icon: '💰' },
-    { id: 'announcements', label: 'Announcements', icon: '📢' },
-    { id: 'activities', label: 'Activities', icon: '🗓️' },
-    { id: 'scheduler', label: 'Scheduler', icon: '📅' },
-    { id: 'documentation', label: 'Documentation', icon: '📸' },
-    { id: 'organization', label: 'Organization', icon: '🏛️' },
-    { id: 'settings', label: 'Settings', icon: '⚙️' },
-    { id: 'prayer', label: 'Prayer', icon: '🕋' },
-    { id: 'feedback', label: 'Feedback', icon: '💬' },
-    { id: 'feedback_list', label: 'Feedback List', icon: '📋', adminOnly: true },
-    { id: 'developer', label: 'Developer', icon: '🧑‍💻' },
+    { id: 'dashboard', labelKey: 'menu_dashboard', icon: '🗂️' },
+    { id: 'users', labelKey: 'menu_users', icon: '👥' },
+    { id: 'cash_reports', labelKey: 'menu_cash_reports', icon: '💰' },
+    { id: 'announcements', labelKey: 'menu_announcements', icon: '📢' },
+    { id: 'activities', labelKey: 'menu_activities', icon: '🗓️' },
+    { id: 'scheduler', labelKey: 'menu_scheduler', icon: '📅' },
+    { id: 'documentation', labelKey: 'menu_documentation', icon: '📸' },
+    { id: 'organization', labelKey: 'menu_organization', icon: '🏛️' },
+    { id: 'settings', labelKey: 'menu_settings', icon: '⚙️' },
+    { id: 'prayer', labelKey: 'menu_prayer', icon: '🕋' },
+    { id: 'feedback', labelKey: 'menu_feedback', icon: '💬' },
+    { id: 'feedback_list', labelKey: 'menu_feedback_list', icon: '📋', adminOnly: true },
+    { id: 'developer', labelKey: 'menu_developer', icon: '🧑‍💻' },
 ];
 
 export default function TabsIndex() {
@@ -76,8 +78,10 @@ export default function TabsIndex() {
     const { width } = useWindowDimensions();
     const { showToast } = useToast();
     const insets = useSafeAreaInsets();
+    const { t } = useTranslation();
 
     const [selected, setSelected] = useState('cash_reports');
+    const [menuLoading, setMenuLoading] = useState(true);
     const [logoutConfirmVisible, setLogoutConfirmVisible] = useState(false);
     const [appName, setAppName] = useState('Community App');
     const [appImage, setAppImage] = useState<string | undefined>(undefined);
@@ -161,6 +165,12 @@ export default function TabsIndex() {
         };
     }, []);
 
+    // show a short loading indicator for the menu list (not full-page)
+    useEffect(() => {
+        const t = setTimeout(() => setMenuLoading(false), 700);
+        return () => clearTimeout(t);
+    }, []);
+
     // unread notifications badge (per-user logic should be implemented elsewhere)
     useEffect(() => {
         let unsub: (() => void) | null = null;
@@ -241,7 +251,7 @@ export default function TabsIndex() {
         }
         const q = search.trim().toLowerCase();
         if (!q) return items;
-        return items.filter(m => m.label.toLowerCase().includes(q) || m.id.toLowerCase().includes(q));
+        return items.filter(m => t((m as any).labelKey || (m as any).label || '').toLowerCase().includes(q) || m.id.toLowerCase().includes(q));
     }, [search, isAdmin]);
 
     // responsive columns
@@ -348,12 +358,14 @@ export default function TabsIndex() {
                         numberOfLines={1}
                         ellipsizeMode="tail"
                     >
-                        {item.label}
+                        {t((item as any).labelKey || item.label)}
                     </Text>
                 </View>
             </Pressable>
         );
     };
+
+    // Note: menu-level loading handled below — do not short-circuit full render here
 
     return (
         // disable automatic top safe-area so gradient can extend under status bar
@@ -454,7 +466,7 @@ export default function TabsIndex() {
                             <Ionicons name="search" size={18} color="#6B7280" />
                         </View>
                         <TextInput
-                            placeholder="Search menu..."
+                            placeholder={t('search_menu_placeholder', { defaultValue: 'Search menu...' })}
                             placeholderTextColor="#9CA3AF"
                             value={search}
                             onChangeText={setSearch}
@@ -472,20 +484,27 @@ export default function TabsIndex() {
 
             {/* Scrollable Grid */}
             <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 12, paddingBottom: 80 }}>
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -6 }}>
-                    {filteredMenu.map(item => (
-                        <React.Fragment key={item.id}>
-                            {renderTile({ item } as any)}
-                        </React.Fragment>
-                    ))}
-                </View>
+                {menuLoading ? (
+                    <View style={{ minHeight: 180, alignItems: 'center', justifyContent: 'center', paddingTop: 24 }}>
+                        <ActivityIndicator size="small" color="#6366f1" />
+                        <Text style={{ marginTop: 10, color: '#6B7280', fontWeight: '600' }}>{t('loading', { defaultValue: 'Loading..' })}</Text>
+                    </View>
+                ) : (
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -6 }}>
+                        {filteredMenu.map(item => (
+                            <React.Fragment key={item.id}>
+                                {renderTile({ item } as any)}
+                            </React.Fragment>
+                        ))}
+                    </View>
+                )}
             </ScrollView>
 
             {/* logout confirm dialog */}
             <ConfirmDialog
                 visible={logoutConfirmVisible}
-                title="Logout"
-                message="Are you sure you want to logout?"
+                title={t('logout_confirm_title')}
+                message={t('logout_confirm_message')}
                 onConfirm={async () => {
                     setLogoutConfirmVisible(false);
                     try {
@@ -498,8 +517,8 @@ export default function TabsIndex() {
                     }
                 }}
                 onCancel={() => setLogoutConfirmVisible(false)}
-                confirmText="Logout"
-                cancelText="Cancel"
+                confirmText={t('logout')}
+                cancelText={t('cancel')}
             />
         </SafeAreaView>
     );

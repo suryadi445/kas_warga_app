@@ -1,6 +1,7 @@
 import { Slot, usePathname, useRouter } from 'expo-router';
 import { collection, onSnapshot, query } from 'firebase/firestore';
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Platform, StatusBar, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { db } from '../../src/firebaseConfig';
@@ -15,6 +16,7 @@ export default function TabsLayout({ children }: { children: React.ReactNode }) 
     // NEW: state for unread notifications count
     const [unreadCount, setUnreadCount] = useState(0);
     const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+    const { t } = useTranslation();
 
     // Get current user
     useEffect(() => {
@@ -55,7 +57,7 @@ export default function TabsLayout({ children }: { children: React.ReactNode }) 
     }, [currentUserId]); // Re-run when user ID changes
 
     const tabs = [
-        { id: 'dashboard', label: 'Dashboard', icon: '🗂️', route: '/(tabs)/dashboard' },
+        { id: 'dashboard', label: t('menu_dashboard'), icon: '🗂️', route: '/(tabs)/dashboard' },
         { id: 'home', label: 'Home', icon: '🏠', route: '/(tabs)' },
         { id: 'notifications', label: 'Notifikasi', icon: '🔔', route: '/(tabs)/notifications', badge: unreadCount },
         { id: 'profile', label: 'Akun', icon: '👤', route: '/(tabs)/profile' },

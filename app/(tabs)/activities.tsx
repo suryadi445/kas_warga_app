@@ -1,6 +1,7 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { addDoc, collection, deleteDoc, doc, getDoc, onSnapshot, orderBy, query, serverTimestamp, updateDoc } from 'firebase/firestore';
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
     ActivityIndicator,
     FlatList,
@@ -35,6 +36,7 @@ type Activity = {
 
 export default function ActivitiesScreen() {
     const { showToast } = useToast();
+    const { t } = useTranslation();
     // data comes from Firestore
     const [items, setItems] = useState<Activity[]>([]);
     const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
@@ -131,7 +133,7 @@ export default function ActivitiesScreen() {
 
     function openAdd() {
         if (currentUserRole !== 'Admin') {
-            showToast('Permission Denied: Only admin can add activities', 'error');
+            showToast(t('permission_denied_admin_add', { defaultValue: 'Permission Denied: Only admin can add activities' }), 'error');
             return;
         }
         setEditingId(null);
@@ -146,7 +148,7 @@ export default function ActivitiesScreen() {
 
     function openEdit(a: Activity) {
         if (currentUserRole !== 'Admin') {
-            showToast('Permission Denied: Only admin can edit activities', 'error');
+            showToast(t('permission_denied_admin_edit', { defaultValue: 'Permission Denied: Only admin can edit activities' }), 'error');
             return;
         }
         setEditingId(a.id);
@@ -161,7 +163,7 @@ export default function ActivitiesScreen() {
 
     async function save() {
         if (!title.trim()) {
-            showToast('Title is required', 'error');
+            showToast(t('activity_title_required', { defaultValue: 'Title is required' }), 'error');
             return;
         }
         setOperationLoading(true);
@@ -169,15 +171,15 @@ export default function ActivitiesScreen() {
             if (editingId) {
                 const ref = doc(db, 'activities', editingId);
                 await updateDoc(ref, { title, location, date, time, description, updatedAt: serverTimestamp() });
-                showToast('Activity updated successfully', 'success');
+                showToast(t('activity_updated', { defaultValue: 'Activity updated successfully' }), 'success');
             } else {
                 await addDoc(collection(db, 'activities'), { title, location, date, time, description, createdAt: serverTimestamp() });
-                showToast('Activity added successfully', 'success');
+                showToast(t('activity_added', { defaultValue: 'Activity added successfully' }), 'success');
             }
             setModalVisible(false);
         } catch (e) {
             console.error('activity save error', e);
-            showToast('Failed to save activity', 'error');
+            showToast(t('failed_to_save_activity', { defaultValue: 'Failed to save activity' }), 'error');
         } finally {
             setOperationLoading(false);
         }
@@ -185,7 +187,7 @@ export default function ActivitiesScreen() {
 
     function confirmRemove(id: string) {
         if (currentUserRole !== 'Admin') {
-            showToast('Permission Denied: Only admin can delete activities', 'error');
+            showToast(t('permission_denied_admin_delete', { defaultValue: 'Permission Denied: Only admin can delete activities' }), 'error');
             return;
         }
         setItemToDelete(id);
@@ -200,10 +202,10 @@ export default function ActivitiesScreen() {
 
         try {
             await deleteDoc(doc(db, 'activities', itemToDelete));
-            showToast('Activity deleted successfully', 'success');
+            showToast(t('activity_deleted', { defaultValue: 'Activity deleted successfully' }), 'success');
         } catch (e) {
             console.error('delete activity error', e);
-            showToast('Failed to delete activity', 'error');
+            showToast(t('failed_to_delete_activity', { defaultValue: 'Failed to delete activity' }), 'error');
         } finally {
             setOperationLoading(false);
             setItemToDelete(null);
@@ -337,7 +339,7 @@ export default function ActivitiesScreen() {
                                 opacity: operationLoading ? 0.5 : 1
                             }}
                         >
-                            <Text style={{ color: '#0369A1', fontWeight: '600', fontSize: 12 }}>Edit</Text>
+                            <Text style={{ color: '#0369A1', fontWeight: '600', fontSize: 12 }}>{t('edit', { defaultValue: 'Edit' })}</Text>
                         </TouchableOpacity>
                         <TouchableOpacity
                             onPress={() => confirmRemove(item.id)}
@@ -350,7 +352,7 @@ export default function ActivitiesScreen() {
                                 opacity: operationLoading ? 0.5 : 1
                             }}
                         >
-                            <Text style={{ color: '#991B1B', fontWeight: '600', fontSize: 12 }}>Delete</Text>
+                            <Text style={{ color: '#991B1B', fontWeight: '600', fontSize: 12 }}>{t('delete', { defaultValue: 'Delete' })}</Text>
                         </TouchableOpacity>
                     </View>
 
@@ -441,9 +443,9 @@ export default function ActivitiesScreen() {
 
                     {/* Text on right */}
                     <View style={{ flex: 1 }}>
-                        <Text style={{ color: '#FFFFFF', fontSize: 22, fontWeight: '800', letterSpacing: 0.3 }}>Activities</Text>
+                        <Text style={{ color: '#FFFFFF', fontSize: 22, fontWeight: '800', letterSpacing: 0.3 }}>{t('activities_title', { defaultValue: 'Activities' })}</Text>
                         <Text style={{ color: 'rgba(255, 255, 255, 0.85)', marginTop: 4, fontSize: 13, lineHeight: 18 }}>
-                            Manage community activities and events
+                            {t('activities_subtitle', { defaultValue: 'Manage community activities and events' })}
                         </Text>
                     </View>
                 </View>
@@ -478,7 +480,7 @@ export default function ActivitiesScreen() {
                             color: filterStatus === 'all' ? '#7C3AED' : 'rgba(255, 255, 255, 0.9)',
                             fontWeight: '700',
                             fontSize: 11
-                        }}>📢 All</Text>
+                        }}>{t('activities_tab_all', { defaultValue: '📢 All' })}</Text>
                         <Text style={{
                             color: filterStatus === 'all' ? '#7C3AED' : 'rgba(255, 255, 255, 0.9)',
                             fontWeight: '800',
@@ -506,7 +508,7 @@ export default function ActivitiesScreen() {
                             color: filterStatus === 'active' ? '#059669' : 'rgba(255, 255, 255, 0.9)',
                             fontWeight: '700',
                             fontSize: 11
-                        }}>🟢 Active</Text>
+                        }}>{t('activities_tab_active', { defaultValue: '🟢 Active' })}</Text>
                         <Text style={{
                             color: filterStatus === 'active' ? '#059669' : 'rgba(255, 255, 255, 0.9)',
                             fontWeight: '800',
@@ -534,7 +536,7 @@ export default function ActivitiesScreen() {
                             color: filterStatus === 'upcoming' ? '#D97706' : 'rgba(255, 255, 255, 0.9)',
                             fontWeight: '700',
                             fontSize: 11
-                        }}>🟡 Upcoming</Text>
+                        }}>{t('activities_tab_upcoming', { defaultValue: '🟡 Upcoming' })}</Text>
                         <Text style={{
                             color: filterStatus === 'upcoming' ? '#D97706' : 'rgba(255, 255, 255, 0.9)',
                             fontWeight: '800',
@@ -562,7 +564,7 @@ export default function ActivitiesScreen() {
                             color: filterStatus === 'expired' ? '#DC2626' : 'rgba(255, 255, 255, 0.9)',
                             fontWeight: '700',
                             fontSize: 11
-                        }}>🔴 Expired</Text>
+                        }}>{t('activities_tab_expired', { defaultValue: '🔴 Expired' })}</Text>
                         <Text style={{
                             color: filterStatus === 'expired' ? '#DC2626' : 'rgba(255, 255, 255, 0.9)',
                             fontWeight: '800',
@@ -593,10 +595,10 @@ export default function ActivitiesScreen() {
                     {/* Left: Search Input */}
                     <View style={{ flex: 1.5 }}>
                         <FloatingLabelInput
-                            label="Search"
+                            label={t('search', { defaultValue: 'Search' })}
                             value={searchQuery}
                             onChangeText={setSearchQuery}
-                            placeholder="Search..."
+                            placeholder={t('search_placeholder', { defaultValue: 'Search...' })}
                             containerStyle={{ marginBottom: 0 }}
                         />
                     </View>
@@ -622,7 +624,7 @@ export default function ActivitiesScreen() {
                                         justifyContent: 'center'
                                     }}
                                 >
-                                    <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>+ Activity</Text>
+                                    <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>{t('add_activity_button', { defaultValue: '+ Activity' })}</Text>
                                 </LinearGradient>
                             </TouchableOpacity>
                         </View>
@@ -649,7 +651,7 @@ export default function ActivitiesScreen() {
                         onPress={() => setFilterStatusOpen(prev => !prev)}
                         style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}
                     >
-                        <Text style={{ fontSize: 14, fontWeight: '800', color: '#111827' }}>🔍 Filters</Text>
+                        <Text style={{ fontSize: 14, fontWeight: '800', color: '#111827' }}>{t('filters', { defaultValue: '🔍 Filters' })}</Text>
                         <Text style={{ fontSize: 16, color: '#7C3AED' }}>{filterStatusOpen ? '▾' : '▴'}</Text>
                     </TouchableOpacity>
 
@@ -659,25 +661,25 @@ export default function ActivitiesScreen() {
                             <View style={{ flexDirection: 'row', gap: 10 }}>
                                 <View style={{ flex: 1 }}>
                                     <SelectInput
-                                        label="Status"
+                                        label={t('status_label', { defaultValue: 'Status' })}
                                         value={filterStatus}
                                         options={[
-                                            { label: 'All Status', value: 'all' },
-                                            { label: 'Upcoming', value: 'upcoming' },
-                                            { label: 'Active', value: 'active' },
-                                            { label: 'Expired', value: 'expired' }
+                                            { label: t('activities_tab_all', { defaultValue: '📢 All' }), value: 'all' },
+                                            { label: t('activities_tab_upcoming', { defaultValue: '🟡 Upcoming' }), value: 'upcoming' },
+                                            { label: t('activities_tab_active', { defaultValue: '🟢 Active' }), value: 'active' },
+                                            { label: t('activities_tab_expired', { defaultValue: '🔴 Expired' }), value: 'expired' }
                                         ]}
                                         onValueChange={(v: string) => setFilterStatus(v as 'all' | 'upcoming' | 'active' | 'expired')}
-                                        placeholder="Select status"
+                                        placeholder={t('select_status', { defaultValue: 'Select status' })}
                                         containerStyle={{ marginBottom: 0 }}
                                     />
                                 </View>
                                 <View style={{ flex: 1 }}>
                                     <FloatingLabelInput
-                                        label="Activity Date"
+                                        label={t('activity_date_label', { defaultValue: 'Activity Date' })}
                                         value={filterDate ? formatDateOnly(filterDate) : ''}
                                         onChangeText={() => { }}
-                                        placeholder="All dates"
+                                        placeholder={t('all_dates', { defaultValue: 'All dates' })}
                                         editable={false}
                                         onPress={() => setFilterDatePickerVisible(true)}
                                         containerStyle={{ marginBottom: 0 }}
@@ -735,9 +737,9 @@ export default function ActivitiesScreen() {
                             ListEmptyComponent={() => (
                                 <View style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: 60 }}>
                                     <Text style={{ fontSize: 48, marginBottom: 12 }}>📭</Text>
-                                    <Text style={{ color: '#6B7280', fontSize: 16, fontWeight: '600' }}>No activities found</Text>
+                                    <Text style={{ color: '#6B7280', fontSize: 16, fontWeight: '600' }}>{t('no_activities_found', { defaultValue: 'No activities found' })}</Text>
                                     <Text style={{ color: '#9CA3AF', fontSize: 13, marginTop: 4, textAlign: 'center' }}>
-                                        No activities match your filters
+                                        {t('no_activities_match_filters', { defaultValue: 'No activities match your filters' })}
                                     </Text>
                                 </View>
                             )}
@@ -780,7 +782,7 @@ export default function ActivitiesScreen() {
                                                             opacity: operationLoading ? 0.5 : 1
                                                         }}
                                                     >
-                                                        <Text style={{ color: '#0369A1', fontWeight: '600', fontSize: 12 }}>Edit</Text>
+                                                        <Text style={{ color: '#0369A1', fontWeight: '600', fontSize: 12 }}>{t('edit', { defaultValue: 'Edit' })}</Text>
                                                     </TouchableOpacity>
                                                     <TouchableOpacity
                                                         onPress={() => confirmRemove(item.id)}
@@ -793,7 +795,7 @@ export default function ActivitiesScreen() {
                                                             opacity: operationLoading ? 0.5 : 1
                                                         }}
                                                     >
-                                                        <Text style={{ color: '#991B1B', fontWeight: '600', fontSize: 12 }}>Delete</Text>
+                                                        <Text style={{ color: '#991B1B', fontWeight: '600', fontSize: 12 }}>{t('delete', { defaultValue: 'Delete' })}</Text>
                                                     </TouchableOpacity>
                                                 </View>
                                             )}
@@ -857,27 +859,27 @@ export default function ActivitiesScreen() {
                 <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.3)' }}>
                     <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 16, maxHeight: '90%', flex: 1 }}>
                         <ScrollView showsVerticalScrollIndicator={false}>
-                            <Text style={{ fontSize: 18, fontWeight: '700', marginBottom: 16 }}>{editingId ? 'Edit Activity' : 'Add Activity'}</Text>
+                            <Text style={{ fontSize: 18, fontWeight: '700', marginBottom: 16 }}>{editingId ? t('edit_activity', { defaultValue: 'Edit Activity' }) : t('add_activity', { defaultValue: 'Add Activity' })}</Text>
 
                             <FloatingLabelInput
-                                label="Activity Name"
+                                label={t('activity_name_label', { defaultValue: 'Activity Name' })}
                                 value={title}
                                 onChangeText={setTitle}
-                                placeholder="Enter activity title"
+                                placeholder={t('activity_name_placeholder', { defaultValue: 'Enter activity title' })}
                             />
 
                             <FloatingLabelInput
-                                label="Location"
+                                label={t('location_label', { defaultValue: 'Location' })}
                                 value={location}
                                 onChangeText={setLocation}
-                                placeholder="Enter location"
+                                placeholder={t('location_placeholder', { defaultValue: 'Enter location' })}
                             />
 
                             <FloatingLabelInput
-                                label="Date"
+                                label={t('date_label', { defaultValue: 'Date' })}
                                 value={date ? formatDateOnly(date) : ''}
                                 onChangeText={() => { }}
-                                placeholder="Select date"
+                                placeholder={t('select_date', { defaultValue: 'Select date' })}
                                 editable={Platform.OS === 'web'}
                                 onPress={Platform.OS === 'web' ? undefined : () => setShowDatePicker(true)}
                             />
@@ -894,10 +896,10 @@ export default function ActivitiesScreen() {
                             />
 
                             <FloatingLabelInput
-                                label="Time"
+                                label={t('time_label', { defaultValue: 'Time' })}
                                 value={time}
                                 onChangeText={() => { }}
-                                placeholder="Select time"
+                                placeholder={t('select_time', { defaultValue: 'Select time' })}
                                 editable={Platform.OS === 'web'}
                                 onPress={Platform.OS === 'web' ? undefined : () => setShowTimePicker(true)}
                             />
@@ -914,20 +916,20 @@ export default function ActivitiesScreen() {
                             />
 
                             <FloatingLabelInput
-                                label="Description"
+                                label={t('description_label', { defaultValue: 'Description' })}
                                 value={description}
                                 onChangeText={setDescription}
-                                placeholder="Enter description (optional)"
+                                placeholder={t('description_optional_placeholder', { defaultValue: 'Enter description (optional)' })}
                                 multiline
                                 inputStyle={{ minHeight: 120, paddingTop: 18 }}
                             />
 
                             <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 16 }}>
                                 <TouchableOpacity onPress={() => !operationLoading && setModalVisible(false)} disabled={operationLoading} style={{ padding: 10, opacity: operationLoading ? 0.6 : 1 }}>
-                                    <Text style={{ color: '#6B7280' }}>Cancel</Text>
+                                    <Text style={{ color: '#6B7280' }}>{t('cancel', { defaultValue: 'Cancel' })}</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity onPress={save} disabled={operationLoading} style={{ padding: 10 }}>
-                                    {operationLoading ? <ActivityIndicator size="small" color="#4fc3f7" /> : <Text style={{ color: '#4fc3f7', fontWeight: '700' }}>{editingId ? 'Save' : 'Create'}</Text>}
+                                    {operationLoading ? <ActivityIndicator size="small" color="#4fc3f7" /> : <Text style={{ color: '#4fc3f7', fontWeight: '700' }}>{editingId ? t('save', { defaultValue: 'Save' }) : t('create', { defaultValue: 'Create' })}</Text>}
                                 </TouchableOpacity>
                             </View>
                         </ScrollView>
@@ -937,8 +939,8 @@ export default function ActivitiesScreen() {
 
             <ConfirmDialog
                 visible={deleteConfirmVisible}
-                title="Delete Activity"
-                message="Are you sure you want to delete this activity? This action cannot be undone."
+                title={t('delete_activity_title', { defaultValue: 'Delete Activity' })}
+                message={t('delete_activity_message', { defaultValue: 'Are you sure you want to delete this activity? This action cannot be undone.' })}
                 onConfirm={remove}
                 onCancel={() => {
                     setDeleteConfirmVisible(false);

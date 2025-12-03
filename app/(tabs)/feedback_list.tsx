@@ -3,6 +3,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { collection, doc, onSnapshot, orderBy, query, writeBatch } from 'firebase/firestore';
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
     ActivityIndicator,
     FlatList,
@@ -25,6 +26,7 @@ type Feedback = {
 
 export default function FeedbackListScreen() {
     const router = useRouter();
+    const { t } = useTranslation();
     const [feedbacks, setFeedbacks] = useState<Feedback[]>([]);
     const [loading, setLoading] = useState(true);
     const [filterType, setFilterType] = useState<'all' | 'criticism' | 'suggestion'>('all');
@@ -98,7 +100,7 @@ export default function FeedbackListScreen() {
                 <View style={styles.cardHeader}>
                     <View style={[styles.badge, { backgroundColor: badgeColor, borderColor: badgeBorder }]}>
                         <Text style={[styles.badgeText, { color: badgeText }]}>
-                            {item.type ? item.type.toUpperCase() : 'UNKNOWN'}
+                            {item.type ? t(item.type, { defaultValue: item.type.toUpperCase() }) : t('unknown', { defaultValue: 'UNKNOWN' })}
                         </Text>
                     </View>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -138,9 +140,9 @@ export default function FeedbackListScreen() {
                     </View>
 
                     <View style={styles.headerTitleContainer}>
-                        <Text style={styles.headerTitle}>Feedback List</Text>
+                        <Text style={styles.headerTitle}>{t('feedback_list_title', { defaultValue: 'Feedback List' })}</Text>
                         <Text style={styles.headerSubtitle}>
-                            View user feedback and suggestions to understand what people think about the us and what improvements they hope to see.
+                            {t('feedback_list_subtitle', { defaultValue: 'View user feedback and suggestions to understand what people think about us and what improvements they hope to see.' })}
                         </Text>
                     </View>
                 </View>
@@ -153,19 +155,19 @@ export default function FeedbackListScreen() {
                         onPress={() => setFilterType('all')}
                         style={[styles.filterTab, filterType === 'all' && styles.filterTabActive]}
                     >
-                        <Text style={[styles.filterTabText, filterType === 'all' && styles.filterTabTextActive]}>All Types</Text>
+                        <Text style={[styles.filterTabText, filterType === 'all' && styles.filterTabTextActive]}>{t('all_types', { defaultValue: 'All Types' })}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                         onPress={() => setFilterType('criticism')}
                         style={[styles.filterTab, filterType === 'criticism' && styles.filterTabActive]}
                     >
-                        <Text style={[styles.filterTabText, filterType === 'criticism' && styles.filterTabTextActive]}>Criticism</Text>
+                        <Text style={[styles.filterTabText, filterType === 'criticism' && styles.filterTabTextActive]}>{t('criticism', { defaultValue: 'Criticism' })}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                         onPress={() => setFilterType('suggestion')}
                         style={[styles.filterTab, filterType === 'suggestion' && styles.filterTabActive]}
                     >
-                        <Text style={[styles.filterTabText, filterType === 'suggestion' && styles.filterTabTextActive]}>Suggestion</Text>
+                        <Text style={[styles.filterTabText, filterType === 'suggestion' && styles.filterTabTextActive]}>{t('suggestion', { defaultValue: 'Suggestion' })}</Text>
                     </TouchableOpacity>
                 </View>
             </View>
@@ -192,7 +194,7 @@ export default function FeedbackListScreen() {
                                 color: filterStatus === 'all' ? '#FFFFFF' : '#1F2937' // putih di ungu, gelap di putih
                             }}
                         >
-                            All
+                            🔵 {t('filter_status_all', { defaultValue: 'All' })}
                         </Text>
                     </TouchableOpacity>
 
@@ -214,7 +216,7 @@ export default function FeedbackListScreen() {
                                 color: filterStatus === 'unread' ? '#FFFFFF' : '#1F2937'
                             }}
                         >
-                            Unread
+                            🔴 {t('filter_status_unread', { defaultValue: 'Unread' })}
                         </Text>
                     </TouchableOpacity>
 
@@ -236,7 +238,7 @@ export default function FeedbackListScreen() {
                                 color: filterStatus === 'read' ? '#FFFFFF' : '#1F2937'
                             }}
                         >
-                            Read
+                            🟢 {t('filter_status_read', { defaultValue: 'Read' })}
                         </Text>
                     </TouchableOpacity>
                 </View>
@@ -273,17 +275,17 @@ export default function FeedbackListScreen() {
                             ListEmptyComponent={
                                 <View style={styles.emptyContainer}>
                                     <Text style={{ fontSize: 48, marginBottom: 12 }}>📭</Text>
-                                    <Text style={{ color: '#6B7280', fontSize: 16, fontWeight: '600' }}>No feedback found</Text>
+                                    <Text style={{ color: '#6B7280', fontSize: 16, fontWeight: '600' }}>{t('no_feedback_found', { defaultValue: 'No feedback found' })}</Text>
                                     <Text style={{ color: '#9CA3AF', fontSize: 13, marginTop: 4, textAlign: 'center' }}>
                                         {filterStatus === 'unread'
-                                            ? 'No unread feedback'
+                                            ? t('no_unread_feedback', { defaultValue: 'No unread feedback' })
                                             : filterStatus === 'read'
-                                                ? 'No read feedback yet'
+                                                ? t('no_read_feedback', { defaultValue: 'No read feedback yet' })
                                                 : filterType === 'criticism'
-                                                    ? 'No criticism feedback'
+                                                    ? t('no_criticism_feedback', { defaultValue: 'No criticism feedback' })
                                                     : filterType === 'suggestion'
-                                                        ? 'No suggestions yet'
-                                                        : 'No feedback has been submitted yet'}
+                                                        ? t('no_suggestions_yet', { defaultValue: 'No suggestions yet' })
+                                                        : t('no_feedback_submitted_yet', { defaultValue: 'No feedback has been submitted yet' })}
                                     </Text>
                                 </View>
                             }

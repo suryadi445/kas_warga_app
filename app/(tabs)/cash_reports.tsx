@@ -2,6 +2,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { LinearGradient } from 'expo-linear-gradient';
 import { addDoc, collection, doc, getDoc, getDocs, orderBy, query, updateDoc } from 'firebase/firestore';
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ActivityIndicator, Dimensions, FlatList, Modal, PermissionsAndroid, Platform, RefreshControl, ScrollView, StatusBar, Text, TouchableOpacity, View, } from 'react-native';
 import DateTimePickerModal from 'react-native-modal-datetime-picker';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -32,6 +33,7 @@ const sampleData: Report[] = [
 
 export default function CashReportsScreen() {
     const { showToast } = useToast();
+    const { t } = useTranslation();
     const [reports, setReports] = useState<Report[]>([]);
     const [loadingReports, setLoadingReports] = useState(false);
     const [operationLoading, setOperationLoading] = useState(false); // for save/delete ops
@@ -91,7 +93,7 @@ export default function CashReportsScreen() {
             setReports(rows);
         } catch (err) {
             console.error('Failed to load reports:', err);
-            showToast('Failed to load cash reports', 'error');
+            showToast(t('failed_to_load_cash_reports', { defaultValue: 'Failed to load cash reports' }), 'error');
         } finally {
             setLoadingReports(false);
         }
@@ -147,6 +149,11 @@ export default function CashReportsScreen() {
     const [focusedField, setFocusedField] = useState<string | null>(null);
 
     const CATEGORIES = ['Zakat', 'Infaq', 'Shadaqah', 'Waqf', 'Qurban', 'Fidyah', 'In-Kind Donation', 'Other'];
+
+    // sanitize category string into a stable key used for translation lookup
+    const sanitizeCategoryKey = (s: string) => {
+        return s.replace(/[^a-z0-9]+/gi, '_').toLowerCase();
+    };
 
     // helper: ubah digits menjadi format "Rp X.xxx"
     function formatCurrency(input: string) {
@@ -236,7 +243,7 @@ export default function CashReportsScreen() {
 
     function openAdd() {
         if (currentUserRole !== 'Admin') {
-            showToast('Permission Denied: Only admin can add reports', 'error');
+            showToast(t('permission_denied_admin_add', { defaultValue: 'Permission Denied: Only admin can add reports' }), 'error');
             return;
         }
         setEditingId(null);
@@ -250,7 +257,7 @@ export default function CashReportsScreen() {
 
     function openEdit(r: Report) {
         if (currentUserRole !== 'Admin') {
-            showToast('Permission Denied: Only admin can edit reports', 'error');
+            showToast(t('permission_denied_admin_edit', { defaultValue: 'Permission Denied: Only admin can edit reports' }), 'error');
             return;
         }
         setEditingId(r.id);
@@ -264,7 +271,7 @@ export default function CashReportsScreen() {
 
     function save() {
         if (!date.trim() || !amount.trim()) {
-            showToast('Date and amount are required', 'error');
+            showToast(t('date_amount_required', { defaultValue: 'Date and amount are required' }), 'error');
             return;
         }
         const amt = parseCurrency(amount);
@@ -274,11 +281,11 @@ export default function CashReportsScreen() {
                 if (editingId) {
                     const ref = doc(db, 'cash_reports', editingId);
                     await updateDoc(ref, { type, date, amount: amt, category, description });
-                    showToast('Report updated', 'success');
+                    showToast(t('report_updated', { defaultValue: 'Report updated' }), 'success');
                 } else {
                     // create with deleted flag = false
                     await addDoc(collection(db, 'cash_reports'), { type, date, amount: amt, category, description, createdAt: new Date(), deleted: false });
-                    showToast('Report added', 'success');
+                    showToast(t('report_added', { defaultValue: 'Report added' }), 'success');
                 }
                 // reload via shared loader
                 await loadReports();
@@ -304,7 +311,7 @@ export default function CashReportsScreen() {
                 setModalVisible(false);
             } catch (err) {
                 console.error('Save error:', err);
-                showToast('Failed to save report', 'error');
+                showToast(t('failed_to_save_report', { defaultValue: 'Failed to save report' }), 'error');
             } finally {
                 setOperationLoading(false);
             }
@@ -316,7 +323,7 @@ export default function CashReportsScreen() {
 
     function confirmRemove(id: string) {
         if (currentUserRole !== 'Admin') {
-            showToast('Permission Denied: Only admin can delete reports', 'error');
+            showToast(t('permission_denied_admin_delete', { defaultValue: 'Permission Denied: Only admin can delete reports' }), 'error');
             return;
         }
         setItemToDelete(id);
@@ -331,10 +338,10 @@ export default function CashReportsScreen() {
             const ref = doc(db, 'cash_reports', itemToDelete);
             await updateDoc(ref, { deleted: true, deletedAt: new Date() });
             await loadReports();
-            showToast('Report deleted', 'success');
+            showToast(t('report_deleted', { defaultValue: 'Report deleted' }), 'success');
         } catch (err) {
             console.error('Soft-delete error:', err);
-            showToast('Failed to delete report', 'error');
+            showToast(t('failed_to_delete_report', { defaultValue: 'Failed to delete report' }), 'error');
         } finally {
             setOperationLoading(false);
             setItemToDelete(null);
@@ -415,7 +422,7 @@ export default function CashReportsScreen() {
                 a.click();
                 a.remove();
                 URL.revokeObjectURL(url);
-                showToast('CSV file downloaded', 'success');
+                showToast(t('csv_file_downloaded', { defaultValue: 'CSV file downloaded' }), 'success');
             } else {
                 // Native: reuse existing logic (try Downloads, SAF fallback, then app storage)
                 if (Platform.OS === 'android') {
@@ -423,55 +430,55 @@ export default function CashReportsScreen() {
                         const granted = await PermissionsAndroid.request(
                             PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
                             {
-                                title: 'Storage Permission',
-                                message: 'App needs access to save files to your Downloads folder',
-                                buttonPositive: 'OK',
-                                buttonNegative: 'Cancel',
+                                title: t('storage_permission_title', { defaultValue: 'Storage Permission' }),
+                                message: t('storage_permission_message', { defaultValue: 'App needs access to save files to your Downloads folder' }),
+                                buttonPositive: t('ok', { defaultValue: 'OK' }),
+                                buttonNegative: t('cancel', { defaultValue: 'Cancel' }),
                             }
                         );
                         const fileNameWithPath = '/storage/emulated/0/Download/' + filename;
                         if (granted === PermissionsAndroid.RESULTS.GRANTED) {
                             try {
                                 await FileSystem.writeAsStringAsync(fileNameWithPath, csv);
-                                showToast(`Saved to Downloads`, 'success');
+                                showToast(t('saved_to_downloads', { defaultValue: 'Saved to Downloads' }), 'success');
                             } catch (errWrite) {
                                 console.warn('Direct write to Downloads failed, falling back to SAF:', errWrite);
                                 const saved = await saveUsingSAF(csv, filename);
-                                if (saved) showToast('Saved via picker', 'success');
+                                if (saved) showToast(t('saved_via_picker', { defaultValue: 'Saved via picker' }), 'success');
                                 else {
                                     const fileUri = FileSystem.documentDirectory + filename;
                                     await FileSystem.writeAsStringAsync(fileUri, csv);
-                                    showToast('Saved to app storage', 'success');
+                                    showToast(t('saved_to_app_storage', { defaultValue: 'Saved to app storage' }), 'success');
                                 }
                             }
                         } else {
                             const saved = await saveUsingSAF(csv, filename);
-                            if (saved) showToast('Saved via picker', 'success');
+                            if (saved) showToast(t('saved_via_picker', { defaultValue: 'Saved via picker' }), 'success');
                             else {
                                 const fileUri = FileSystem.documentDirectory + filename;
                                 await FileSystem.writeAsStringAsync(fileUri, csv);
-                                showToast('Saved to app storage', 'success');
+                                showToast(t('saved_to_app_storage', { defaultValue: 'Saved to app storage' }), 'success');
                             }
                         }
                     } catch (err) {
                         console.warn('Android export unexpected error:', err);
                         const saved = await saveUsingSAF(csv, filename);
-                        if (saved) showToast('Saved via picker', 'success');
+                        if (saved) showToast(t('saved_via_picker', { defaultValue: 'Saved via picker' }), 'success');
                         else {
                             const fileUri = FileSystem.documentDirectory + filename;
                             try { await FileSystem.writeAsStringAsync(fileUri, csv); } catch { }
-                            showToast('Saved to app storage', 'success');
+                            showToast(t('saved_to_app_storage', { defaultValue: 'Saved to app storage' }), 'success');
                         }
                     }
                 } else {
                     const fileUri = FileSystem.documentDirectory + filename;
                     await FileSystem.writeAsStringAsync(fileUri, csv);
-                    showToast('Saved to app storage', 'success');
+                    showToast(t('saved_to_app_storage', { defaultValue: 'Saved to app storage' }), 'success');
                 }
             }
         } catch (err) {
             console.error('Export error:', err);
-            showToast('Failed to export CSV', 'error');
+            showToast(t('failed_to_export_csv', { defaultValue: 'Failed to export CSV' }), 'error');
         } finally {
             setExporting(false);
         }
@@ -525,16 +532,16 @@ export default function CashReportsScreen() {
 
             const savedUri = await saveUsingSAF(csv, filename);
             if (savedUri) {
-                showToast('File successfully saved!', 'success');
+                showToast(t('file_saved_successfully', { defaultValue: 'File successfully saved!' }), 'success');
                 return;
             }
             // fallback to app storage
             const fileUri = FileSystem.documentDirectory + filename;
             await FileSystem.writeAsStringAsync(fileUri, csv);
-            showToast('Unable to save via picker. File saved to app storage', 'success');
+            showToast(t('unable_save_picker_fallback', { defaultValue: 'Unable to save via picker. File saved to app storage' }), 'success');
         } catch (err) {
             console.error('SAF save error:', err);
-            showToast('Failed to save via picker', 'error');
+            showToast(t('failed_save_via_picker', { defaultValue: 'Failed to save via picker' }), 'error');
         } finally {
             setSavingSAF(false);
         }
@@ -575,7 +582,7 @@ export default function CashReportsScreen() {
             <SafeAreaView edges={['bottom']} style={{ flex: 1, backgroundColor: '#fff' }}>
                 <StatusBar barStyle="dark-content" translucent backgroundColor="transparent" />
                 <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-                    <Text style={{ color: '#6B7280' }}>Loading reports...</Text>
+                    <Text style={{ color: '#6B7280' }}>{t('loading_reports', { defaultValue: 'Loading reports...' })}</Text>
                 </View>
             </SafeAreaView>
         );
@@ -586,14 +593,14 @@ export default function CashReportsScreen() {
 
         const actions = currentUserRole === 'Admin' ? [
             {
-                label: 'Edit',
+                label: t('edit', { defaultValue: 'Edit' }),
                 onPress: () => openEdit(item),
                 bg: '#E0F2FE',
                 textColor: '#0369A1',
                 disabled: operationLoading,
             },
             {
-                label: 'Delete',
+                label: t('delete', { defaultValue: 'Delete' }),
                 onPress: () => confirmRemove(item.id),
                 bg: '#FEE2E2',
                 textColor: '#991B1B',
@@ -604,7 +611,7 @@ export default function CashReportsScreen() {
         return (
             <CardItem
                 icon={isIncome ? '↑' : '↓'}
-                badge={isIncome ? 'INCOME' : 'EXPENSE'}
+                badge={isIncome ? t('income', { defaultValue: 'Income' }).toUpperCase() : t('expense', { defaultValue: 'Expense' }).toUpperCase()}
                 badgeBg={isIncome ? '#D1FAE5' : '#FEE2E2'}
                 badgeTextColor={isIncome ? '#065F46' : '#991B1B'}
                 badgeBorderColor={isIncome ? '#10B981' : '#EF4444'}
@@ -664,9 +671,9 @@ export default function CashReportsScreen() {
 
                     {/* Text on right */}
                     <View style={{ flex: 1 }}>
-                        <Text style={{ color: '#FFFFFF', fontSize: 22, fontWeight: '800', letterSpacing: 0.3 }}>Cash Report</Text>
+                        <Text style={{ color: '#FFFFFF', fontSize: 22, fontWeight: '800', letterSpacing: 0.3 }}>{t('cash_report_title', { defaultValue: 'Cash Report' })}</Text>
                         <Text style={{ color: 'rgba(255, 255, 255, 0.85)', marginTop: 4, fontSize: 13, lineHeight: 18 }}>
-                            Manage income, expenses, and cash balance
+                            {t('cash_report_subtitle', { defaultValue: 'Manage income, expenses, and cash balance' })}
                         </Text>
                     </View>
                 </View>
@@ -689,7 +696,7 @@ export default function CashReportsScreen() {
                 }}>
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                         <View>
-                            <Text style={{ color: '#6B7280', fontSize: 13, fontWeight: '600', marginBottom: 2 }}>Current Balance</Text>
+                            <Text style={{ color: '#6B7280', fontSize: 13, fontWeight: '600', marginBottom: 2 }}>{t('current_balance', { defaultValue: 'Current Balance' })}</Text>
                             <Text style={{ fontSize: 24, fontWeight: '800', color: totalFilteredSaldo >= 0 ? '#10B981' : '#DC2626' }}>
                                 {formatAmount(totalFilteredSaldo)}
                             </Text>
@@ -706,7 +713,7 @@ export default function CashReportsScreen() {
                                 color: totalFilteredSaldo >= 0 ? '#065F46' : '#991B1B',
                                 fontWeight: '700',
                                 fontSize: 12
-                            }}>{filteredReports.length} Transactions</Text>
+                            }}>{filteredReports.length} {t('transactions', { defaultValue: 'Transactions' })}</Text>
                         </View>
                     </View>
                 </View>
@@ -751,7 +758,7 @@ export default function CashReportsScreen() {
                             {savingSAF ? (
                                 <ActivityIndicator size="small" color="#10B981" />
                             ) : (
-                                <Text style={{ color: '#10B981', fontWeight: '700', fontSize: 13 }}>💾 Save</Text>
+                                <Text style={{ color: '#10B981', fontWeight: '700', fontSize: 13 }}>💾 {t('save', { defaultValue: 'Save' })}</Text>
                             )}
                         </TouchableOpacity>
                     </View>
@@ -776,7 +783,7 @@ export default function CashReportsScreen() {
                                         elevation: 2,
                                     }}
                                 >
-                                    <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>+ Report</Text>
+                                    <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>+ {t('report', { defaultValue: 'Report' })}</Text>
                                 </LinearGradient>
                             </TouchableOpacity>
                         </View>
@@ -803,7 +810,7 @@ export default function CashReportsScreen() {
                         onPress={() => setFiltersOpen(prev => !prev)}
                         style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}
                     >
-                        <Text style={{ fontSize: 14, fontWeight: '800', color: '#111827' }}>🔍 Filters</Text>
+                        <Text style={{ fontSize: 14, fontWeight: '800', color: '#111827' }}>🔍 {t('filters', { defaultValue: 'Filters' })}</Text>
                         <Text style={{ fontSize: 16, color: '#7C3AED' }}>{filtersOpen ? '▾' : '▴'}</Text>
                     </TouchableOpacity>
 
@@ -813,28 +820,28 @@ export default function CashReportsScreen() {
                             <View style={{ flexDirection: 'row', gap: 10, marginBottom: 8 }}>
                                 <View style={{ flex: 1 }}>
                                     <SelectInput
-                                        label="Type"
+                                        label={t('type', { defaultValue: 'Type' })}
                                         value={filterType}
                                         options={[
-                                            { label: 'All Type', value: 'all' },
-                                            { label: 'In', value: 'in' },
-                                            { label: 'Out', value: 'out' }
+                                            { label: t('all_type', { defaultValue: 'All Type' }), value: 'all' },
+                                            { label: t('in', { defaultValue: 'In' }), value: 'in' },
+                                            { label: t('out', { defaultValue: 'Out' }), value: 'out' }
                                         ]}
                                         onValueChange={(v: string) => setFilterType(v as 'all' | 'in' | 'out')}
-                                        placeholder="Select type"
+                                        placeholder={t('select_type', { defaultValue: 'Select type' })}
                                         containerStyle={{ marginBottom: 0 }}
                                     />
                                 </View>
                                 <View style={{ flex: 1 }}>
                                     <SelectInput
-                                        label="Category"
+                                        label={t('category', { defaultValue: 'Category' })}
                                         value={filterCategory}
                                         options={[
-                                            { label: 'All Categories', value: 'All' },
-                                            ...CATEGORIES.map(cat => ({ label: cat, value: cat }))
+                                            { label: t('all_categories', { defaultValue: 'All Categories' }), value: 'All' },
+                                            ...CATEGORIES.map(cat => ({ label: t(`category_${sanitizeCategoryKey(cat)}`, { defaultValue: cat }), value: cat }))
                                         ]}
                                         onValueChange={(v: string) => setFilterCategory(v || '')}
-                                        placeholder="Select category"
+                                        placeholder={t('select_category', { defaultValue: 'Select category' })}
                                         containerStyle={{ marginBottom: 0 }}
                                     />
                                 </View>
@@ -844,27 +851,27 @@ export default function CashReportsScreen() {
                             <View style={{ flexDirection: 'row', gap: 10 }}>
                                 <View style={{ flex: 1 }}>
                                     <SelectInput
-                                        label="Month"
+                                        label={t('month', { defaultValue: 'Month' })}
                                         value={filterMonth}
                                         options={[
-                                            { label: 'All Months', value: 'all' },
-                                            ...MONTHS.slice(1).map((m, idx) => ({ label: m, value: String(idx + 1) }))
+                                            { label: t('all_months', { defaultValue: 'All Months' }), value: 'all' },
+                                            ...MONTHS.slice(1).map((m, idx) => ({ label: t(`month_${m.toLowerCase()}`, { defaultValue: m }), value: String(idx + 1) }))
                                         ]}
                                         onValueChange={(v: string) => setFilterMonth(v ? v : 'all')}
-                                        placeholder="All Months"
+                                        placeholder={t('all_months', { defaultValue: 'All Months' })}
                                         containerStyle={{ marginBottom: 0 }}
                                     />
                                 </View>
                                 <View style={{ flex: 1 }}>
                                     <SelectInput
-                                        label="Year"
+                                        label={t('year', { defaultValue: 'Year' })}
                                         value={filterYear}
                                         options={[
-                                            { label: 'All Years', value: 'all' },
+                                            { label: t('all_years', { defaultValue: 'All Years' }), value: 'all' },
                                             ...YEARS.map(y => ({ label: String(y), value: String(y) }))
                                         ]}
                                         onValueChange={(v: string) => setFilterYear(v ? v : 'all')}
-                                        placeholder="All Years"
+                                        placeholder={t('all_years', { defaultValue: 'All Years' })}
                                         containerStyle={{ marginBottom: 0 }}
                                     />
                                 </View>
@@ -914,7 +921,7 @@ export default function CashReportsScreen() {
                                 return (
                                     <View style={{ paddingVertical: 20, alignItems: 'center' }}>
                                         <ActivityIndicator size="small" color="#7c3aed" />
-                                        <Text style={{ color: '#6B7280', fontSize: 13, marginTop: 8 }}>Loading more...</Text>
+                                        <Text style={{ color: '#6B7280', fontSize: 13, marginTop: 8 }}>{t('loading_more', { defaultValue: 'Loading more...' })}</Text>
                                     </View>
                                 );
                             }
@@ -923,9 +930,9 @@ export default function CashReportsScreen() {
                         ListEmptyComponent={() => (
                             <View style={{ paddingVertical: 60, alignItems: 'center' }}>
                                 <Text style={{ fontSize: 48, marginBottom: 12 }}>📭</Text>
-                                <Text style={{ color: '#6B7280', fontSize: 16, fontWeight: '600' }}>No data available</Text>
+                                <Text style={{ color: '#6B7280', fontSize: 16, fontWeight: '600' }}>{t('no_data_available', { defaultValue: 'No data available' })}</Text>
                                 <Text style={{ color: '#9CA3AF', fontSize: 13, marginTop: 4, textAlign: 'center' }}>
-                                    No cash transactions{(filterMonth !== 'all' || filterYear !== 'all' || filterType !== 'all' || filterCategory !== '') ? ' for selected filters' : ''}
+                                    {t('no_cash_transactions', { defaultValue: 'No cash transactions' })}{(filterMonth !== 'all' || filterYear !== 'all' || filterType !== 'all' || filterCategory !== '') ? ` ${t('for_selected_filters', { defaultValue: 'for selected filters' })}` : ''}
                                 </Text>
                             </View>
                         )}
@@ -938,23 +945,23 @@ export default function CashReportsScreen() {
                 <View className="flex-1 justify-end bg-black/30">
                     <View className="bg-white rounded-t-3xl p-6" style={{ flex: 1 }}>
                         <ScrollView scrollEnabled={!focusedField} showsVerticalScrollIndicator={false}>
-                            <Text className="text-xl font-semibold mb-4">{editingId ? 'Edit Report' : 'Add Report'}</Text>
+                            <Text className="text-xl font-semibold mb-4">{editingId ? t('edit_report', { defaultValue: 'Edit Report' }) : t('add_report', { defaultValue: 'Add Report' })}</Text>
 
                             <SelectInput
-                                label="Type"
+                                label={t('type', { defaultValue: 'Type' })}
                                 value={type}
-                                options={[{ label: 'In', value: 'in' }, { label: 'Out', value: 'out' }]}
+                                options={[{ label: t('in', { defaultValue: 'In' }), value: 'in' }, { label: t('out', { defaultValue: 'Out' }), value: 'out' }]}
                                 onValueChange={(v: string) => setType(v as 'in' | 'out')}
-                                placeholder="Select type"
+                                placeholder={t('select_type', { defaultValue: 'Select type' })}
                                 onFocus={() => setFocusedField('type')}
                                 onBlur={() => setFocusedField(null)}
                             />
 
                             <FloatingLabelInput
-                                label="Date"
+                                label={t('date', { defaultValue: 'Date' })}
                                 value={formatDateDisplay(date)}
                                 onChangeText={setDate}
-                                placeholder="11-Nov-2025"
+                                placeholder={t('date_placeholder', { defaultValue: '11-Nov-2025' })}
                                 editable={Platform.OS === 'web'}
                                 onPress={() => {
                                     if (Platform.OS !== 'web') {
@@ -965,41 +972,41 @@ export default function CashReportsScreen() {
                             />
 
                             <FloatingLabelInput
-                                label="Nominal"
+                                label={t('nominal', { defaultValue: 'Nominal' })}
                                 value={amount}
                                 onChangeText={(v) => setAmount(formatCurrency(v))}
-                                placeholder="Rp 0"
+                                placeholder={t('rp_0', { defaultValue: 'Rp 0' })}
                                 keyboardType={Platform.OS === 'ios' ? 'number-pad' : 'numeric'}
                             />
 
                             <SelectInput
-                                label="Category"
+                                label={t('category', { defaultValue: 'Category' })}
                                 value={category}
-                                options={[...CATEGORIES]}
+                                options={CATEGORIES.map(cat => ({ label: t(`category_${sanitizeCategoryKey(cat)}`, { defaultValue: cat }), value: cat }))}
                                 onValueChange={(v: string) => setCategory(v)}
-                                placeholder="Select category"
+                                placeholder={t('select_category', { defaultValue: 'Select category' })}
                                 onFocus={() => setFocusedField('category')}
                                 onBlur={() => setFocusedField(null)}
                             />
 
                             <FloatingLabelInput
-                                label="Description"
+                                label={t('description', { defaultValue: 'Description' })}
                                 value={description}
                                 onChangeText={setDescription}
-                                placeholder="Description (optional)"
+                                placeholder={t('description_optional', { defaultValue: 'Description (optional)' })}
                                 multiline
                                 inputStyle={{ marginBottom: 12, minHeight: 100, paddingTop: 18 }}
                             />
 
                             <View className="flex-row justify-between mt-2" style={{ alignItems: 'center' }}>
                                 <TouchableOpacity onPress={() => !operationLoading && setModalVisible(false)} disabled={operationLoading} style={{ padding: 10, opacity: operationLoading ? 0.6 : 1 }}>
-                                    <Text style={{ color: '#6B7280' }}>Cancel</Text>
+                                    <Text style={{ color: '#6B7280' }}>{t('cancel', { defaultValue: 'Cancel' })}</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity disabled={operationLoading} onPress={save} style={{ padding: 10 }}>
                                     {operationLoading ? (
                                         <ActivityIndicator size="small" color="#4fc3f7" />
                                     ) : (
-                                        <Text style={{ color: '#4fc3f7', fontWeight: '700' }}>{editingId ? 'Save' : 'Create'}</Text>
+                                        <Text style={{ color: '#4fc3f7', fontWeight: '700' }}>{editingId ? t('save', { defaultValue: 'Save' }) : t('create', { defaultValue: 'Create' })}</Text>
                                     )}
                                 </TouchableOpacity>
                             </View>
@@ -1024,12 +1031,12 @@ export default function CashReportsScreen() {
 
             <ConfirmDialog
                 visible={deleteConfirmVisible}
-                title="Delete Report"
-                message="Delete this cash report? This will mark it as deleted. Continue?"
+                title={t('delete_report', { defaultValue: 'Delete Report' })}
+                message={t('delete_report_message', { defaultValue: 'Delete this cash report? This will mark it as deleted. Continue?' })}
                 onConfirm={removeConfirmed}
                 onCancel={() => { setDeleteConfirmVisible(false); setItemToDelete(null); }}
-                confirmText="Delete"
-                cancelText="Cancel"
+                confirmText={t('delete', { defaultValue: 'Delete' })}
+                cancelText={t('cancel', { defaultValue: 'Cancel' })}
             />
         </SafeAreaView>
     );

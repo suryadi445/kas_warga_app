@@ -1,6 +1,7 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
     ActivityIndicator,
     KeyboardAvoidingView,
@@ -19,6 +20,7 @@ import { signUp } from '../src/services/authService';
 export default function RegisterScreen() {
     const router = useRouter();
     const { showToast } = useToast();
+    const { t } = useTranslation();
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -29,17 +31,17 @@ export default function RegisterScreen() {
 
     async function handleRegister() {
         if (!name.trim() || !email.trim() || !password.trim() || !confirmPassword.trim()) {
-            showToast('Please fill in all fields', 'error');
+            showToast(t('please_fill_all_fields'), 'error');
             return;
         }
 
         if (password !== confirmPassword) {
-            showToast('Passwords do not match', 'error');
+            showToast(t('passwords_do_not_match'), 'error');
             return;
         }
 
         if (password.length < 6) {
-            showToast('Password must be at least 6 characters', 'error');
+            showToast(t('password_too_short'), 'error');
             return;
         }
 
@@ -51,7 +53,7 @@ export default function RegisterScreen() {
             const { signOut } = await import('../src/services/authService');
             await signOut();
 
-            showToast('Account created! Please wait for admin activation before logging in.', 'success');
+            showToast(t('account_created_wait_admin'), 'success');
             router.replace('/login');
         } catch (error: any) {
             showToast(error.message || 'Registration failed', 'error');
@@ -95,10 +97,10 @@ export default function RegisterScreen() {
                                 <Text style={{ fontSize: 35 }}>✨</Text>
                             </View>
                             <Text style={{ color: '#fff', fontSize: 24, fontWeight: '800', marginBottom: 4 }}>
-                                Join Kas Warga
+                                {t('join_title')}
                             </Text>
                             <Text style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13, textAlign: 'center' }}>
-                                Create your account to get started
+                                {t('join_subtitle')}
                             </Text>
                         </View>
 
@@ -115,13 +117,13 @@ export default function RegisterScreen() {
                             shadowRadius: 16,
                         }}>
                             <Text style={{ fontSize: 20, textAlign: 'center', fontWeight: '800', color: '#111827', marginBottom: 16 }}>
-                                Create Account
+                                {t('create_account_title')}
                             </Text>
 
                             {/* Name Input - Compact */}
                             <View style={{ marginBottom: 12 }}>
                                 <Text style={{ color: '#374151', fontSize: 12, fontWeight: '600', marginBottom: 6 }}>
-                                    Full Name
+                                    {t('full_name')}
                                 </Text>
                                 <View style={{
                                     flexDirection: 'row',
@@ -136,7 +138,7 @@ export default function RegisterScreen() {
                                     <TextInput
                                         value={name}
                                         onChangeText={setName}
-                                        placeholder="Your full name"
+                                        placeholder={t('your_full_name_placeholder', { defaultValue: 'Your full name' })}
                                         placeholderTextColor="#9CA3AF"
                                         style={{
                                             flex: 1,
@@ -151,7 +153,7 @@ export default function RegisterScreen() {
                             {/* Email Input - Compact */}
                             <View style={{ marginBottom: 12 }}>
                                 <Text style={{ color: '#374151', fontSize: 12, fontWeight: '600', marginBottom: 6 }}>
-                                    Email Address
+                                    {t('email')}
                                 </Text>
                                 <View style={{
                                     flexDirection: 'row',
@@ -166,7 +168,7 @@ export default function RegisterScreen() {
                                     <TextInput
                                         value={email}
                                         onChangeText={setEmail}
-                                        placeholder="your.email@example.com"
+                                        placeholder={t('email_placeholder', { defaultValue: 'your.email@example.com' })}
                                         placeholderTextColor="#9CA3AF"
                                         keyboardType="email-address"
                                         autoCapitalize="none"
@@ -183,7 +185,7 @@ export default function RegisterScreen() {
                             {/* Password Input - Compact */}
                             <View style={{ marginBottom: 12 }}>
                                 <Text style={{ color: '#374151', fontSize: 12, fontWeight: '600', marginBottom: 6 }}>
-                                    Password
+                                    {t('password')}
                                 </Text>
                                 <View style={{
                                     flexDirection: 'row',
@@ -198,7 +200,7 @@ export default function RegisterScreen() {
                                     <TextInput
                                         value={password}
                                         onChangeText={setPassword}
-                                        placeholder="Min. 6 characters"
+                                        placeholder={t('password_min_length', { defaultValue: 'Min. 6 characters' })}
                                         placeholderTextColor="#9CA3AF"
                                         secureTextEntry={!showPassword}
                                         style={{
@@ -220,7 +222,7 @@ export default function RegisterScreen() {
                             {/* Confirm Password Input - Compact */}
                             <View style={{ marginBottom: 16 }}>
                                 <Text style={{ color: '#374151', fontSize: 12, fontWeight: '600', marginBottom: 6 }}>
-                                    Confirm Password
+                                    {t('confirm_password', { defaultValue: 'Confirm Password' })}
                                 </Text>
                                 <View style={{
                                     flexDirection: 'row',
@@ -235,7 +237,7 @@ export default function RegisterScreen() {
                                     <TextInput
                                         value={confirmPassword}
                                         onChangeText={setConfirmPassword}
-                                        placeholder="Re-enter your password"
+                                        placeholder={t('confirm_password_placeholder', { defaultValue: 'Re-enter your password' })}
                                         placeholderTextColor="#9CA3AF"
                                         secureTextEntry={!showConfirmPassword}
                                         style={{
@@ -280,7 +282,7 @@ export default function RegisterScreen() {
                                         <ActivityIndicator color="#fff" size="small" />
                                     ) : (
                                         <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>
-                                            Create Account
+                                            {t('create_account_button')}
                                         </Text>
                                     )}
                                 </LinearGradient>
@@ -289,16 +291,16 @@ export default function RegisterScreen() {
                             {/* Divider - Compact */}
                             <View style={{ flexDirection: 'row', alignItems: 'center', marginVertical: 8 }}>
                                 <View style={{ flex: 1, height: 1, backgroundColor: '#E5E7EB' }} />
-                                <Text style={{ marginHorizontal: 10, color: '#9CA3AF', fontSize: 12 }}>OR</Text>
+                                <Text style={{ marginHorizontal: 10, color: '#9CA3AF', fontSize: 12 }}>{t('or')}</Text>
                                 <View style={{ flex: 1, height: 1, backgroundColor: '#E5E7EB' }} />
                             </View>
 
                             {/* Login Link - Compact */}
                             <View style={{ flexDirection: 'row', justifyContent: 'center' }}>
-                                <Text style={{ color: '#6B7280', fontSize: 13 }}>Already have an account? </Text>
+                                <Text style={{ color: '#6B7280', fontSize: 13 }}>{t('already_have_account')} </Text>
                                 <TouchableOpacity onPress={() => router.push('/login')}>
                                     <Text style={{ color: '#6366f1', fontWeight: '700', fontSize: 13 }}>
-                                        Sign In
+                                        {t('sign_in')}
                                     </Text>
                                 </TouchableOpacity>
                             </View>

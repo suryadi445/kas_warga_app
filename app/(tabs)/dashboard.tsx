@@ -1,6 +1,7 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { collection, onSnapshot, orderBy, query } from 'firebase/firestore';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Dimensions, FlatList, RefreshControl, StatusBar, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import ListCardWrapper from '../../src/components/ListCardWrapper';
@@ -35,6 +36,7 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CARD_WIDTH = SCREEN_WIDTH - 40; // 20px padding each side
 
 export default function DashboardPage() {
+    const { t } = useTranslation();
     const [activeTab, setActiveTab] = useState<TabKey>('cash');
     // NEW: filter for cash list: 'all' | 'in' | 'out'
     const [cashFilter, setCashFilter] = useState<'all' | 'in' | 'out'>('all');
@@ -372,9 +374,9 @@ export default function DashboardPage() {
                         ListEmptyComponent={() => (
                             <View style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: 60 }}>
                                 <Text style={{ fontSize: 48, marginBottom: 12 }}>📭</Text>
-                                <Text style={{ color: '#6B7280', fontSize: 16, fontWeight: '600' }}>No data available</Text>
+                                <Text style={{ color: '#6B7280', fontSize: 16, fontWeight: '600' }}>{t('no_data_available')}</Text>
                                 <Text style={{ color: '#9CA3AF', fontSize: 13, marginTop: 4, textAlign: 'center' }}>
-                                    No cash transactions for today
+                                    {t('no_cash_transactions_today')}
                                 </Text>
                             </View>
                         )}
@@ -407,7 +409,7 @@ export default function DashboardPage() {
                                                     fontWeight: '700',
                                                     fontSize: 11
                                                 }}>
-                                                    {item.type === 'in' ? '↑ IN' : '↓ OUT'}
+                                                    {item.type === 'in' ? t('in_label') : t('out_label')}
                                                 </Text>
                                             </View>
                                             <Text style={{ color: '#9CA3AF', fontSize: 11, fontWeight: '500' }}>📅 {item.date}</Text>
@@ -485,9 +487,9 @@ export default function DashboardPage() {
                         ListEmptyComponent={() => (
                             <View style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: 60 }}>
                                 <Text style={{ fontSize: 48, marginBottom: 12 }}>📭</Text>
-                                <Text style={{ color: '#6B7280', fontSize: 16, fontWeight: '600' }}>No data available</Text>
+                                <Text style={{ color: '#6B7280', fontSize: 16, fontWeight: '600' }}>{t('no_data_available')}</Text>
                                 <Text style={{ color: '#9CA3AF', fontSize: 13, marginTop: 4, textAlign: 'center' }}>
-                                    No active announcements today
+                                    {t('no_active_announcements_today')}
                                 </Text>
                             </View>
                         )}
@@ -534,7 +536,7 @@ export default function DashboardPage() {
                                             borderColor: borderColor
                                         }}>
                                             <Text style={{ color: textColor, fontWeight: '700', fontSize: 10 }}>
-                                                {status === 'active' ? '● ACTIVE' : status === 'upcoming' ? '◐ UPCOMING' : '○ EXPIRED'}
+                                                {status === 'active' ? t('announcement_status_active', { defaultValue: '● ACTIVE' }) : status === 'upcoming' ? t('announcement_status_upcoming', { defaultValue: '◐ UPCOMING' }) : t('announcement_status_expired', { defaultValue: '○ EXPIRED' })}
                                             </Text>
                                         </View>
                                     </View>
@@ -548,12 +550,12 @@ export default function DashboardPage() {
                                     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
                                         {!!item.startDate && (
                                             <View style={{ backgroundColor: '#EFF6FF', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, marginRight: 6 }}>
-                                                <Text style={{ color: '#1E3A8A', fontSize: 11 }}>Start: {item.startDate}</Text>
+                                                <Text style={{ color: '#1E3A8A', fontSize: 11 }}>{t('start_date_label', { defaultValue: 'Start Date' })}: {item.startDate}</Text>
                                             </View>
                                         )}
                                         {!!item.endDate && (
                                             <View style={{ backgroundColor: '#FEF3C7', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, marginRight: 6 }}>
-                                                <Text style={{ color: '#92400E', fontSize: 11 }}>End: {item.endDate}</Text>
+                                                <Text style={{ color: '#92400E', fontSize: 11 }}>{t('end_date_label', { defaultValue: 'End Date' })}: {item.endDate}</Text>
                                             </View>
                                         )}
                                     </View>
@@ -603,9 +605,9 @@ export default function DashboardPage() {
                         ListEmptyComponent={() => (
                             <View style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: 60 }}>
                                 <Text style={{ fontSize: 48, marginBottom: 12 }}>📭</Text>
-                                <Text style={{ color: '#6B7280', fontSize: 16, fontWeight: '600' }}>No data available</Text>
+                                <Text style={{ color: '#6B7280', fontSize: 16, fontWeight: '600' }}>{t('no_data_available')}</Text>
                                 <Text style={{ color: '#9CA3AF', fontSize: 13, marginTop: 4, textAlign: 'center' }}>
-                                    No schedules for today
+                                    {t('no_schedules_found')}
                                 </Text>
                             </View>
                         )}
@@ -730,9 +732,9 @@ export default function DashboardPage() {
                         ListEmptyComponent={() => (
                             <View style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: 60 }}>
                                 <Text style={{ fontSize: 48, marginBottom: 12 }}>📭</Text>
-                                <Text style={{ color: '#6B7280', fontSize: 16, fontWeight: '600' }}>No data available</Text>
+                                <Text style={{ color: '#6B7280', fontSize: 16, fontWeight: '600' }}>{t('no_data_available')}</Text>
                                 <Text style={{ color: '#9CA3AF', fontSize: 13, marginTop: 4, textAlign: 'center' }}>
-                                    No activities scheduled for today
+                                    {t('no_activities_found')}
                                 </Text>
                             </View>
                         )}
@@ -839,8 +841,8 @@ export default function DashboardPage() {
                         <Text style={{ color: '#fff', fontSize: 20 }}>👤</Text>
                     </View>
                     <View>
-                        <Text style={{ color: '#64748b', fontSize: 13 }}>Dashboard</Text>
-                        <Text style={{ color: '#1e293b', fontSize: 16, fontWeight: '700' }}>Kas Warga</Text>
+                        <Text style={{ color: '#64748b', fontSize: 13 }}>{t('menu_dashboard')}</Text>
+                        <Text style={{ color: '#1e293b', fontSize: 16, fontWeight: '700' }}>{t('app_name')}</Text>
                     </View>
                 </View>
                 <View style={{ backgroundColor: '#fff', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 }}>
@@ -866,7 +868,7 @@ export default function DashboardPage() {
                     style={{ alignItems: 'center', marginBottom: 24 }}
                 >
                     <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 14, fontWeight: '500', marginBottom: 8 }}>
-                        Total Balance
+                        {t('total_balance', { defaultValue: 'Total Balance' })}
                     </Text>
                     <Text style={{ color: '#fff', fontSize: 36, fontWeight: '800', letterSpacing: -1 }}>
                         Rp. {cashTotals.balance.toLocaleString()}
@@ -892,7 +894,7 @@ export default function DashboardPage() {
                         }}
                     >
                         <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>
-                            {cashFilter === 'in' ? '✓ ' : ''}In
+                            {cashFilter === 'in' ? '✓ ' : ''}{t('in', { defaultValue: 'In' })}
                         </Text>
                     </TouchableOpacity>
 
@@ -913,7 +915,7 @@ export default function DashboardPage() {
                         }}
                     >
                         <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>
-                            {cashFilter === 'out' ? '✓ ' : ''}Out
+                            {cashFilter === 'out' ? '✓ ' : ''}{t('out', { defaultValue: 'Out' })}
                         </Text>
                     </TouchableOpacity>
                 </View>
@@ -926,9 +928,9 @@ export default function DashboardPage() {
                     horizontal
                     showsHorizontalScrollIndicator={false}
                     data={[
-                        { id: 'announcements', icon: '📢', count: announcementCounts.active, label: 'Announcements', onPress: () => setActiveTab('announcements'), active: activeTab === 'announcements' },
-                        { id: 'schedules', icon: '📅', count: scheduleCounts.total, label: 'Schedule', onPress: () => setActiveTab('schedules'), active: activeTab === 'schedules' },
-                        { id: 'activities', icon: '🎯', count: activityCounts.active, label: 'Activity', onPress: () => setActiveTab('activities'), active: activeTab === 'activities' },
+                        { id: 'announcements', icon: '📢', count: announcementCounts.active, label: t('menu_announcements'), onPress: () => setActiveTab('announcements'), active: activeTab === 'announcements' },
+                        { id: 'schedules', icon: '📅', count: scheduleCounts.total, label: t('menu_scheduler'), onPress: () => setActiveTab('schedules'), active: activeTab === 'schedules' },
+                        { id: 'activities', icon: '🎯', count: activityCounts.active, label: t('menu_activities'), onPress: () => setActiveTab('activities'), active: activeTab === 'activities' },
                     ]}
                     keyExtractor={(item) => item.id}
                     onScrollToIndexFailed={(info) => {

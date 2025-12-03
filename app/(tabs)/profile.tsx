@@ -5,6 +5,7 @@ import * as LinearGradientModule from 'expo-linear-gradient';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import React, { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
     ActivityIndicator,
     Image, // ADD: Import Image component
@@ -24,6 +25,7 @@ import ListCardWrapper from '../../src/components/ListCardWrapper';
 import { useToast } from '../../src/contexts/ToastContext';
 import { db } from '../../src/firebaseConfig';
 import { useRefresh } from '../../src/hooks/useRefresh';
+import { setAppLanguage } from '../../src/i18n';
 import { getCurrentUser, signOut } from '../../src/services/authService';
 
 // safe LinearGradient reference
@@ -31,6 +33,8 @@ const LinearGradient = (LinearGradientModule as any)?.LinearGradient ?? (LinearG
 
 export default function ProfilePage() {
     const router = useRouter();
+    const { t } = useTranslation();
+    const [appLang, setAppLang] = useState<string>('en');
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const { showToast } = useToast();
@@ -75,15 +79,21 @@ export default function ProfilePage() {
     const [imageClearVisible, setImageClearVisible] = useState(false);
 
     const MARITAL_STATUS_OPTIONS = [
-        { value: 'single', label: 'Single' },
-        { value: 'married', label: 'Married' },
-        { value: 'divorced', label: 'Divorced' },
-        { value: 'widowed', label: 'Widowed' },
+        { value: 'single', labelKey: 'marital_single' },
+        { value: 'married', labelKey: 'marital_married' },
+        { value: 'divorced', labelKey: 'marital_divorced' },
+        { value: 'widowed', labelKey: 'marital_widowed' },
     ];
 
     // Load profile on mount
     useEffect(() => {
         loadUserProfile();
+        (async () => {
+            try {
+                const lang = await AsyncStorage.getItem('appLang');
+                if (lang) setAppLang(lang);
+            } catch (e) { }
+        })();
     }, []);
 
     // Reload profile setiap kali tab difocus
@@ -143,7 +153,9 @@ export default function ProfilePage() {
                         setGender(data.gender || '');
                         setBirthday(data.birthday || '');
                         setReligion(data.religion || '');
-                        setMaritalStatus(data.maritalStatus || 'single');
+                        const msRaw = data.maritalStatus ?? 'single';
+                        const msNorm = typeof msRaw === 'string' ? msRaw.trim().toLowerCase() : String(msRaw).toLowerCase();
+                        setMaritalStatus(msNorm);
                         setSpouseName(data.spouseName || '');
                         setChildren(data.children || []);
                         setAddress(data.address || '');
@@ -312,9 +324,25 @@ export default function ProfilePage() {
         setLogoutConfirmVisible(true);
     }
 
-    const GENDER_OPTIONS = ['Male', 'Female', 'Other'];
-    const RELIGION_OPTIONS = ['Islam', 'Christianity', 'Catholicism', 'Hinduism', 'Buddhism', 'Confucianism', 'Other'];
-    const ROLE_OPTIONS = ['Member', 'Admin', 'Staff'];
+    const GENDER_OPTIONS = [
+        { value: 'Male', labelKey: 'gender_male' },
+        { value: 'Female', labelKey: 'gender_female' },
+        { value: 'Other', labelKey: 'gender_other' },
+    ];
+    const RELIGION_OPTIONS = [
+        { value: 'Islam', labelKey: 'religion_islam' },
+        { value: 'Christianity', labelKey: 'religion_christianity' },
+        { value: 'Catholicism', labelKey: 'religion_catholicism' },
+        { value: 'Hinduism', labelKey: 'religion_hinduism' },
+        { value: 'Buddhism', labelKey: 'religion_buddhism' },
+        { value: 'Confucianism', labelKey: 'religion_confucianism' },
+        { value: 'Other', labelKey: 'religion_other' },
+    ];
+    const ROLE_OPTIONS = [
+        { value: 'Member', labelKey: 'role_member' },
+        { value: 'Admin', labelKey: 'role_admin' },
+        { value: 'Staff', labelKey: 'role_staff' },
+    ];
 
     // Temporary debug function
     async function forceUpdateRole() {
@@ -337,7 +365,7 @@ export default function ProfilePage() {
             <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
                 <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
                     <ActivityIndicator size="large" color="#6366f1" />
-                    <Text style={{ marginTop: 12, color: '#6B7280' }}>Loading profile...</Text>
+                    <Text style={{ marginTop: 12, color: '#6B7280' }}>{t('loading_profile')}</Text>
                 </View>
             </SafeAreaView>
         );
@@ -370,7 +398,34 @@ export default function ProfilePage() {
                         }}
                     >
                         <Ionicons name="log-out-outline" size={18} color="#fff" style={{ marginRight: 4 }} />
-                        <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>Logout</Text>
+                        <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>{t('logout')}</Text>
+                    </TouchableOpacity>
+                </View>
+
+                {/* Language switch */}
+                <View style={{ position: 'absolute', top: 64, right: 20, zIndex: 10, flexDirection: 'row', gap: 8 }}>
+                    <TouchableOpacity
+                        onPress={async () => { await setAppLanguage('id'); setAppLang('id'); }}
+                        style={{
+                            backgroundColor: appLang === 'id' ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.18)',
+                            paddingHorizontal: 10,
+                            paddingVertical: 6,
+                            borderRadius: 8,
+                            marginRight: 6,
+                        }}
+                    >
+                        <Text style={{ color: appLang === 'id' ? '#111' : '#fff', fontWeight: '700' }}>ID</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        onPress={async () => { await setAppLanguage('en'); setAppLang('en'); }}
+                        style={{
+                            backgroundColor: appLang === 'en' ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.18)',
+                            paddingHorizontal: 10,
+                            paddingVertical: 6,
+                            borderRadius: 8,
+                        }}
+                    >
+                        <Text style={{ color: appLang === 'en' ? '#111' : '#fff', fontWeight: '700' }}>EN</Text>
                     </TouchableOpacity>
                 </View>
 
@@ -443,7 +498,7 @@ export default function ProfilePage() {
                         }}
                     >
                         <Text style={{ fontSize: 16, marginBottom: 2 }}>📷</Text>
-                        <Text style={{ color: '#4338CA', fontWeight: '700', fontSize: 11 }}>Change Photo</Text>
+                        <Text style={{ color: '#4338CA', fontWeight: '700', fontSize: 11 }}>{t('change_photo')}</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
@@ -459,7 +514,7 @@ export default function ProfilePage() {
                         }}
                     >
                         <Text style={{ fontSize: 16, marginBottom: 2 }}>🗑️</Text>
-                        <Text style={{ color: '#DC2626', fontWeight: '700', fontSize: 11 }}>Clear Photo</Text>
+                        <Text style={{ color: '#DC2626', fontWeight: '700', fontSize: 11 }}>{t('clear_photo')}</Text>
                     </TouchableOpacity>
                 </View>
             </View>
@@ -478,14 +533,14 @@ export default function ProfilePage() {
                         {/* Personal Information Section */}
                         <View style={{ marginBottom: 16 }}>
                             <Text style={{ color: '#9CA3AF', fontSize: 11, fontWeight: '700', letterSpacing: 1, marginBottom: 12 }}>
-                                PERSONAL INFORMATION
+                                {t('personal_information')}
                             </Text>
 
-                            <Text style={{ color: '#374151', fontSize: 13, fontWeight: '600', marginBottom: 6 }}>Full Name</Text>
+                            <Text style={{ color: '#374151', fontSize: 13, fontWeight: '600', marginBottom: 6 }}>{t('full_name')}</Text>
                             <TextInput
                                 value={name}
                                 onChangeText={setName}
-                                placeholder="Enter your full name"
+                                placeholder={t('full_name_placeholder', { defaultValue: 'Enter your full name' })}
                                 style={{
                                     borderWidth: 1,
                                     borderColor: '#E5E7EB',
@@ -497,7 +552,7 @@ export default function ProfilePage() {
                                 }}
                             />
 
-                            <Text style={{ color: '#374151', fontSize: 13, fontWeight: '600', marginBottom: 6 }}>Role</Text>
+                            <Text style={{ color: '#374151', fontSize: 13, fontWeight: '600', marginBottom: 6 }}>{t('role')}</Text>
                             {/* Role field: only editable by super admin (suryadi.hhb@gmail.com) */}
                             {canEditRole ? (
                                 <>
@@ -515,18 +570,18 @@ export default function ProfilePage() {
                                             backgroundColor: '#F9FAFB'
                                         }}
                                     >
-                                        <Text style={{ color: role ? '#111827' : '#9CA3AF', fontSize: 14 }}>{role || 'Select role'}</Text>
+                                        <Text style={{ color: role ? '#111827' : '#9CA3AF', fontSize: 14 }}>{t(ROLE_OPTIONS.find(o => o.value === role)?.labelKey || 'select_role')}</Text>
                                         <Text style={{ color: '#6B7280' }}>▾</Text>
                                     </TouchableOpacity>
                                     {roleOpen && (
                                         <View style={{ backgroundColor: '#F9FAFB', borderRadius: 10, marginTop: -6, marginBottom: 12, borderWidth: 1, borderColor: '#E5E7EB' }}>
                                             {ROLE_OPTIONS.map((r) => (
                                                 <TouchableOpacity
-                                                    key={r}
-                                                    onPress={() => { setRole(r); setRoleOpen(false); }}
-                                                    style={{ paddingVertical: 12, paddingHorizontal: 16, borderBottomWidth: r === ROLE_OPTIONS[ROLE_OPTIONS.length - 1] ? 0 : 1, borderBottomColor: '#E5E7EB' }}
+                                                    key={r.value}
+                                                    onPress={() => { setRole(r.value); setRoleOpen(false); }}
+                                                    style={{ paddingVertical: 12, paddingHorizontal: 16, borderBottomWidth: r.value === ROLE_OPTIONS[ROLE_OPTIONS.length - 1].value ? 0 : 1, borderBottomColor: '#E5E7EB' }}
                                                 >
-                                                    <Text style={{ color: '#111827', fontSize: 14 }}>{r}</Text>
+                                                    <Text style={{ color: '#111827', fontSize: 14 }}>{t(r.labelKey)}</Text>
                                                 </TouchableOpacity>
                                             ))}
                                         </View>
@@ -546,7 +601,7 @@ export default function ProfilePage() {
                                 </>
                             )}
 
-                            <Text style={{ color: '#374151', fontSize: 13, fontWeight: '600', marginBottom: 6 }}>Gender</Text>
+                            <Text style={{ color: '#374151', fontSize: 13, fontWeight: '600', marginBottom: 6 }}>{t('gender')}</Text>
                             <TouchableOpacity
                                 onPress={() => setGenderOpen((v) => !v)}
                                 style={{
@@ -561,36 +616,36 @@ export default function ProfilePage() {
                                     backgroundColor: '#F9FAFB'
                                 }}
                             >
-                                <Text style={{ color: gender ? '#111827' : '#9CA3AF', fontSize: 14 }}>{gender || 'Select gender'}</Text>
+                                <Text style={{ color: gender ? '#111827' : '#9CA3AF', fontSize: 14 }}>{t(GENDER_OPTIONS.find(o => o.value === gender)?.labelKey || 'select_gender')}</Text>
                                 <Text style={{ color: '#6B7280' }}>▾</Text>
                             </TouchableOpacity>
                             {genderOpen && (
                                 <View style={{ backgroundColor: '#F9FAFB', borderRadius: 10, marginTop: -6, marginBottom: 12, borderWidth: 1, borderColor: '#E5E7EB' }}>
                                     {GENDER_OPTIONS.map((g) => (
                                         <TouchableOpacity
-                                            key={g}
-                                            onPress={() => { setGender(g); setGenderOpen(false); }}
-                                            style={{ paddingVertical: 12, paddingHorizontal: 16, borderBottomWidth: g === GENDER_OPTIONS[GENDER_OPTIONS.length - 1] ? 0 : 1, borderBottomColor: '#E5E7EB' }}
+                                            key={g.value}
+                                            onPress={() => { setGender(g.value); setGenderOpen(false); }}
+                                            style={{ paddingVertical: 12, paddingHorizontal: 16, borderBottomWidth: g.value === GENDER_OPTIONS[GENDER_OPTIONS.length - 1].value ? 0 : 1, borderBottomColor: '#E5E7EB' }}
                                         >
-                                            <Text style={{ color: '#111827', fontSize: 14 }}>{g}</Text>
+                                            <Text style={{ color: '#111827', fontSize: 14 }}>{t(g.labelKey)}</Text>
                                         </TouchableOpacity>
                                     ))}
                                 </View>
                             )}
 
-                            <Text style={{ color: '#374151', fontSize: 13, fontWeight: '600', marginBottom: 6 }}>Birthday</Text>
+                            <Text style={{ color: '#374151', fontSize: 13, fontWeight: '600', marginBottom: 6 }}>{t('birthday')}</Text>
                             {Platform.OS === 'web' ? (
-                                <TextInput value={birthday} onChangeText={setBirthday} placeholder="YYYY-MM-DD" style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 10, padding: 12, marginBottom: 12, fontSize: 14, backgroundColor: '#F9FAFB' }} />
+                                <TextInput value={birthday} onChangeText={setBirthday} placeholder={t('date_format_iso', { defaultValue: 'YYYY-MM-DD' })} style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 10, padding: 12, marginBottom: 12, fontSize: 14, backgroundColor: '#F9FAFB' }} />
                             ) : (
                                 <TouchableOpacity onPress={openDatePickerForBirthday} style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 10, padding: 12, marginBottom: 12, backgroundColor: '#F9FAFB' }}>
-                                    <Text style={{ color: birthday ? '#111827' : '#9CA3AF', fontSize: 14 }}>{birthday || 'Select birthday'}</Text>
+                                    <Text style={{ color: birthday ? '#111827' : '#9CA3AF', fontSize: 14 }}>{birthday || t('select_birthday', { defaultValue: 'Select birthday' })}</Text>
                                 </TouchableOpacity>
                             )}
 
-                            <Text style={{ color: '#374151', fontSize: 13, fontWeight: '600', marginBottom: 6 }}>Email</Text>
-                            <TextInput value={email} editable={false} placeholder="email@example.com" style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 10, padding: 12, marginBottom: 12, fontSize: 14, backgroundColor: '#F3F4F6', color: '#6B7280' }} />
+                            <Text style={{ color: '#374151', fontSize: 13, fontWeight: '600', marginBottom: 6 }}>{t('email')}</Text>
+                            <TextInput value={email} editable={false} placeholder={t('email_example', { defaultValue: 'email@example.com' })} style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 10, padding: 12, marginBottom: 12, fontSize: 14, backgroundColor: '#F3F4F6', color: '#6B7280' }} />
 
-                            <Text style={{ color: '#374151', fontSize: 13, fontWeight: '600', marginBottom: 6 }}>Religion</Text>
+                            <Text style={{ color: '#374151', fontSize: 13, fontWeight: '600', marginBottom: 6 }}>{t('religion')}</Text>
                             <TouchableOpacity
                                 onPress={() => setReligionOpen((v) => !v)}
                                 style={{
@@ -605,31 +660,31 @@ export default function ProfilePage() {
                                     backgroundColor: '#F9FAFB'
                                 }}
                             >
-                                <Text style={{ color: religion ? '#111827' : '#9CA3AF', fontSize: 14 }}>{religion || 'Select religion'}</Text>
+                                <Text style={{ color: religion ? '#111827' : '#9CA3AF', fontSize: 14 }}>{t(RELIGION_OPTIONS.find(o => o.value === religion)?.labelKey || 'select_religion')}</Text>
                                 <Text style={{ color: '#6B7280' }}>▾</Text>
                             </TouchableOpacity>
                             {religionOpen && (
                                 <View style={{ backgroundColor: '#F9FAFB', borderRadius: 10, marginTop: -6, marginBottom: 12, borderWidth: 1, borderColor: '#E5E7EB' }}>
                                     {RELIGION_OPTIONS.map((r) => (
                                         <TouchableOpacity
-                                            key={r}
-                                            onPress={() => { setReligion(r); setReligionOpen(false); }}
-                                            style={{ paddingVertical: 12, paddingHorizontal: 16, borderBottomWidth: r === RELIGION_OPTIONS[RELIGION_OPTIONS.length - 1] ? 0 : 1, borderBottomColor: '#E5E7EB' }}
+                                            key={r.value}
+                                            onPress={() => { setReligion(r.value); setReligionOpen(false); }}
+                                            style={{ paddingVertical: 12, paddingHorizontal: 16, borderBottomWidth: r.value === RELIGION_OPTIONS[RELIGION_OPTIONS.length - 1].value ? 0 : 1, borderBottomColor: '#E5E7EB' }}
                                         >
-                                            <Text style={{ color: '#111827', fontSize: 14 }}>{r}</Text>
+                                            <Text style={{ color: '#111827', fontSize: 14 }}>{t(r.labelKey)}</Text>
                                         </TouchableOpacity>
                                     ))}
                                 </View>
                             )}
 
-                            <Text style={{ color: '#374151', fontSize: 13, fontWeight: '600', marginBottom: 6 }}>Phone</Text>
-                            <TextInput value={phone} onChangeText={setPhone} placeholder="08xxxx" keyboardType="phone-pad" style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 10, padding: 12, marginBottom: 12, fontSize: 14, backgroundColor: '#F9FAFB' }} />
+                            <Text style={{ color: '#374151', fontSize: 13, fontWeight: '600', marginBottom: 6 }}>{t('phone')}</Text>
+                            <TextInput value={phone} onChangeText={setPhone} placeholder={t('phone_placeholder', { defaultValue: '08xxxx' })} keyboardType="phone-pad" style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 10, padding: 12, marginBottom: 12, fontSize: 14, backgroundColor: '#F9FAFB' }} />
 
-                            <Text style={{ color: '#374151', fontSize: 13, fontWeight: '600', marginBottom: 6 }}>Address</Text>
+                            <Text style={{ color: '#374151', fontSize: 13, fontWeight: '600', marginBottom: 6 }}>{t('address')}</Text>
                             <TextInput
                                 value={address}
                                 onChangeText={setAddress}
-                                placeholder="Full address"
+                                placeholder={t('full_address', { defaultValue: 'Full address' })}
                                 multiline
                                 numberOfLines={3}
                                 style={{
@@ -649,10 +704,10 @@ export default function ProfilePage() {
                         {/* Family Information Section */}
                         <View style={{ marginBottom: 16 }}>
                             <Text style={{ color: '#9CA3AF', fontSize: 11, fontWeight: '700', letterSpacing: 1, marginBottom: 12 }}>
-                                FAMILY INFORMATION
+                                {t('family_information')}
                             </Text>
 
-                            <Text style={{ color: '#374151', fontSize: 13, fontWeight: '600', marginBottom: 6 }}>Marital Status</Text>
+                            <Text style={{ color: '#374151', fontSize: 13, fontWeight: '600', marginBottom: 6 }}>{t('marital_status')}</Text>
                             <TouchableOpacity
                                 onPress={() => setMaritalStatusOpen((v) => !v)}
                                 style={{
@@ -668,7 +723,7 @@ export default function ProfilePage() {
                                 }}
                             >
                                 <Text style={{ color: maritalStatus ? '#111827' : '#9CA3AF', fontSize: 14 }}>
-                                    {MARITAL_STATUS_OPTIONS.find(o => o.value === maritalStatus)?.label || 'Select marital status'}
+                                    {t(MARITAL_STATUS_OPTIONS.find(o => o.value === maritalStatus)?.labelKey || 'select_marital_status')}
                                 </Text>
                                 <Text style={{ color: '#6B7280' }}>▾</Text>
                             </TouchableOpacity>
@@ -684,7 +739,7 @@ export default function ProfilePage() {
                                             }}
                                             style={{ paddingVertical: 12, paddingHorizontal: 16, borderBottomWidth: opt.value === MARITAL_STATUS_OPTIONS[MARITAL_STATUS_OPTIONS.length - 1].value ? 0 : 1, borderBottomColor: '#E5E7EB' }}
                                         >
-                                            <Text style={{ color: '#111827', fontSize: 14 }}>{opt.label}</Text>
+                                            <Text style={{ color: '#111827', fontSize: 14 }}>{t(opt.labelKey)}</Text>
                                         </TouchableOpacity>
                                     ))}
                                 </View>
@@ -693,8 +748,8 @@ export default function ProfilePage() {
                             {/* spouse name when married */}
                             {maritalStatus === 'married' && (
                                 <>
-                                    <Text style={{ color: '#374151', fontSize: 13, fontWeight: '600', marginBottom: 6 }}>Spouse Name</Text>
-                                    <TextInput value={spouseName} onChangeText={setSpouseName} placeholder="Spouse full name" style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 10, padding: 12, marginBottom: 12, fontSize: 14, backgroundColor: '#F9FAFB' }} />
+                                    <Text style={{ color: '#374151', fontSize: 13, fontWeight: '600', marginBottom: 6 }}>{t('spouse_name')}</Text>
+                                    <TextInput value={spouseName} onChangeText={setSpouseName} placeholder={t('spouse_name_placeholder')} style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 10, padding: 12, marginBottom: 12, fontSize: 14, backgroundColor: '#F9FAFB' }} />
                                 </>
                             )}
 
@@ -702,30 +757,30 @@ export default function ProfilePage() {
                             {(maritalStatus === 'married' || maritalStatus === 'divorced' || maritalStatus === 'widowed') && (
                                 <>
                                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                                        <Text style={{ color: '#374151', fontWeight: '700', fontSize: 14 }}>Children ({children.length})</Text>
+                                        <Text style={{ color: '#374151', fontWeight: '700', fontSize: 14 }}>{t('children')} ({children.length})</Text>
                                         <TouchableOpacity onPress={addChild} style={{ backgroundColor: '#DBEAFE', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 }}>
-                                            <Text style={{ color: '#0369A1', fontWeight: '700', fontSize: 13 }}>+ Add</Text>
+                                            <Text style={{ color: '#0369A1', fontWeight: '700', fontSize: 13 }}>{t('add')}</Text>
                                         </TouchableOpacity>
                                     </View>
                                     {children.map((ch, idx) => (
                                         <View key={idx} style={{ marginBottom: 12, borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 12, padding: 12, backgroundColor: '#F9FAFB' }}>
-                                            <Text style={{ color: '#374151', fontSize: 12, fontWeight: '600', marginBottom: 6 }}>Name</Text>
-                                            <TextInput value={ch.name} onChangeText={(v) => updateChild(idx, 'name', v)} placeholder="Child name" style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 10, marginBottom: 8, fontSize: 13, backgroundColor: '#fff' }} />
+                                            <Text style={{ color: '#374151', fontSize: 12, fontWeight: '600', marginBottom: 6 }}>{t('child_name')}</Text>
+                                            <TextInput value={ch.name} onChangeText={(v) => updateChild(idx, 'name', v)} placeholder={t('child_name_placeholder')} style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 10, marginBottom: 8, fontSize: 13, backgroundColor: '#fff' }} />
 
-                                            <Text style={{ color: '#374151', fontSize: 12, fontWeight: '600', marginBottom: 6 }}>Birth Date</Text>
+                                            <Text style={{ color: '#374151', fontSize: 12, fontWeight: '600', marginBottom: 6 }}>{t('child_birth_date')}</Text>
                                             {Platform.OS === 'web' ? (
-                                                <TextInput value={ch.birthDate} onChangeText={(v) => updateChild(idx, 'birthDate', v)} placeholder="YYYY-MM-DD" style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 10, marginBottom: 8, fontSize: 13, backgroundColor: '#fff' }} />
+                                                <TextInput value={ch.birthDate} onChangeText={(v) => updateChild(idx, 'birthDate', v)} placeholder={t('date_format_iso', { defaultValue: 'YYYY-MM-DD' })} style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 10, marginBottom: 8, fontSize: 13, backgroundColor: '#fff' }} />
                                             ) : (
                                                 <TouchableOpacity onPress={() => openDatePickerForChild(idx)} style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 10, marginBottom: 8, backgroundColor: '#fff' }}>
-                                                    <Text style={{ color: ch.birthDate ? '#111827' : '#9CA3AF', fontSize: 13 }}>{ch.birthDate || 'Select date'}</Text>
+                                                    <Text style={{ color: ch.birthDate ? '#111827' : '#9CA3AF', fontSize: 13 }}>{ch.birthDate || t('select_date')}</Text>
                                                 </TouchableOpacity>
                                             )}
 
-                                            <Text style={{ color: '#374151', fontSize: 12, fontWeight: '600', marginBottom: 6 }}>Place of Birth</Text>
-                                            <TextInput value={ch.placeOfBirth} onChangeText={(v) => updateChild(idx, 'placeOfBirth', v)} placeholder="City / Hospital" style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 10, marginBottom: 8, fontSize: 13, backgroundColor: '#fff' }} />
+                                            <Text style={{ color: '#374151', fontSize: 12, fontWeight: '600', marginBottom: 6 }}>{t('place_of_birth')}</Text>
+                                            <TextInput value={ch.placeOfBirth} onChangeText={(v) => updateChild(idx, 'placeOfBirth', v)} placeholder={t('place_of_birth_placeholder')} style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 10, marginBottom: 8, fontSize: 13, backgroundColor: '#fff' }} />
 
                                             <TouchableOpacity onPress={() => requestRemoveChild(idx)} style={{ backgroundColor: '#FEE2E2', paddingVertical: 8, borderRadius: 8, alignItems: 'center' }}>
-                                                <Text style={{ color: '#DC2626', fontWeight: '700', fontSize: 13 }}>Remove Child</Text>
+                                                <Text style={{ color: '#DC2626', fontWeight: '700', fontSize: 13 }}>{t('remove_child')}</Text>
                                             </TouchableOpacity>
                                         </View>
                                     ))}
@@ -758,7 +813,7 @@ export default function ProfilePage() {
                                 ) : (
                                     <>
                                         <Ionicons name="save-outline" size={20} color="#fff" style={{ marginRight: 8 }} />
-                                        <Text style={{ color: '#fff', fontWeight: '700', fontSize: 16 }}>Save Profile</Text>
+                                        <Text style={{ color: '#fff', fontWeight: '700', fontSize: 16 }}>{t('save_profile')}</Text>
                                     </>
                                 )}
                             </TouchableOpacity>
@@ -777,8 +832,8 @@ export default function ProfilePage() {
             {/* ConfirmDialog components (logout and load error) */}
             <ConfirmDialog
                 visible={logoutConfirmVisible}
-                title="Logout"
-                message="Are you sure you want to logout?"
+                title={t('logout_confirm_title')}
+                message={t('logout_confirm_message')}
                 onConfirm={async () => {
                     setLogoutConfirmVisible(false);
                     try {
@@ -790,8 +845,8 @@ export default function ProfilePage() {
                     }
                 }}
                 onCancel={() => setLogoutConfirmVisible(false)}
-                confirmText="Logout"
-                cancelText="Cancel"
+                confirmText={t('logout')}
+                cancelText={t('cancel')}
             />
 
             <ConfirmDialog
@@ -803,24 +858,24 @@ export default function ProfilePage() {
                     loadUserProfile();
                 }}
                 onCancel={() => setLoadErrorVisible(false)}
-                confirmText="Retry"
-                cancelText="Close"
+                confirmText={t('retry')}
+                cancelText={t('cancel')}
             />
 
             <ConfirmDialog
                 visible={childDeleteVisible}
-                title="Remove child"
+                title={t('remove_child')}
                 message="Are you sure you want to remove this child?"
                 onConfirm={removeChildConfirmed}
                 onCancel={() => { setChildDeleteVisible(false); setChildToDeleteIndex(null); }}
-                confirmText="Remove"
-                cancelText="Cancel"
+                confirmText={t('remove')}
+                cancelText={t('cancel')}
             />
 
             <ConfirmDialog
                 visible={imageClearVisible}
-                title="Clear profile image"
-                message="Clear profile image? This action cannot be undone."
+                title={t('clear_profile_image_title')}
+                message={t('clear_profile_image_message')}
                 onConfirm={() => {
                     setImageClearVisible(false);
                     revokePreviousImage();
@@ -828,8 +883,8 @@ export default function ProfilePage() {
                     showToast('Profile image cleared', 'success');
                 }}
                 onCancel={() => setImageClearVisible(false)}
-                confirmText="Clear"
-                cancelText="Cancel"
+                confirmText={t('remove')}
+                cancelText={t('cancel')}
             />
         </SafeAreaView>
     );

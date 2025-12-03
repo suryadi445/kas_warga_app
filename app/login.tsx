@@ -1,6 +1,7 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
     ActivityIndicator,
     KeyboardAvoidingView,
@@ -19,6 +20,7 @@ import { signIn } from '../src/services/authService';
 export default function LoginScreen() {
     const router = useRouter();
     const { showToast } = useToast();
+    const { t } = useTranslation();
     const [email, setEmail] = useState('suryadi.hhb@gmail.com');
     const [password, setPassword] = useState('11111111');
     const [loading, setLoading] = useState(false);
@@ -84,10 +86,10 @@ export default function LoginScreen() {
                                 <Text style={{ fontSize: 40 }}>💰</Text>
                             </View>
                             <Text style={{ color: '#fff', fontSize: 28, fontWeight: '800', marginBottom: 6 }}>
-                                Kas Warga
+                                {t('app_name', { defaultValue: 'Kas Warga' })}
                             </Text>
                             <Text style={{ color: 'rgba(255,255,255,0.9)', fontSize: 14, textAlign: 'center' }}>
-                                Manage your community finances
+                                {t('manage_community_finances', { defaultValue: 'Manage your community finances' })}
                             </Text>
                         </View>
 
@@ -103,13 +105,13 @@ export default function LoginScreen() {
                             shadowRadius: 16,
                         }}>
                             <Text style={{ fontSize: 22, textAlign: 'center', fontWeight: '800', color: '#111827', marginBottom: 26 }}>
-                                Welcome Back
+                                {t('welcome_back', { defaultValue: 'Welcome Back' })}
                             </Text>
 
                             {/* Email Input - Compact */}
                             <View style={{ marginBottom: 14 }}>
                                 <Text style={{ color: '#374151', fontSize: 12, fontWeight: '600', marginBottom: 6 }}>
-                                    Email Address
+                                    {t('email')}
                                 </Text>
                                 <View style={{
                                     flexDirection: 'row',
@@ -124,7 +126,7 @@ export default function LoginScreen() {
                                     <TextInput
                                         value={email}
                                         onChangeText={setEmail}
-                                        placeholder="your.email@example.com"
+                                        placeholder={t('email_placeholder', { defaultValue: 'your.email@example.com' })}
                                         placeholderTextColor="#9CA3AF"
                                         keyboardType="email-address"
                                         autoCapitalize="none"
@@ -141,7 +143,7 @@ export default function LoginScreen() {
                             {/* Password Input - Compact */}
                             <View style={{ marginBottom: 18 }}>
                                 <Text style={{ color: '#374151', fontSize: 12, fontWeight: '600', marginBottom: 6 }}>
-                                    Password
+                                    {t('password')}
                                 </Text>
                                 <View style={{
                                     flexDirection: 'row',
@@ -156,7 +158,7 @@ export default function LoginScreen() {
                                     <TextInput
                                         value={password}
                                         onChangeText={setPassword}
-                                        placeholder="Enter your password"
+                                        placeholder={t('enter_your_password', { defaultValue: 'Enter your password' })}
                                         placeholderTextColor="#9CA3AF"
                                         secureTextEntry={!showPassword}
                                         style={{
@@ -201,7 +203,7 @@ export default function LoginScreen() {
                                         <ActivityIndicator color="#fff" size="small" />
                                     ) : (
                                         <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>
-                                            Sign In
+                                            {t('sign_in')}
                                         </Text>
                                     )}
                                 </LinearGradient>
@@ -210,16 +212,16 @@ export default function LoginScreen() {
                             {/* Divider - Compact */}
                             <View style={{ flexDirection: 'row', alignItems: 'center', marginVertical: 14 }}>
                                 <View style={{ flex: 1, height: 1, backgroundColor: '#E5E7EB' }} />
-                                <Text style={{ marginHorizontal: 10, color: '#9CA3AF', fontSize: 12 }}>OR</Text>
+                                <Text style={{ marginHorizontal: 10, color: '#9CA3AF', fontSize: 12 }}>{t('or')}</Text>
                                 <View style={{ flex: 1, height: 1, backgroundColor: '#E5E7EB' }} />
                             </View>
 
                             {/* Register Link - Compact */}
                             <View style={{ flexDirection: 'row', justifyContent: 'center' }}>
-                                <Text style={{ color: '#6B7280', fontSize: 13 }}>Don't have an account? </Text>
+                                <Text style={{ color: '#6B7280', fontSize: 13 }}>{t('dont_have_account', { defaultValue: "Don't have an account?" })} </Text>
                                 <TouchableOpacity onPress={() => router.push('/register')}>
                                     <Text style={{ color: '#6366f1', fontWeight: '700', fontSize: 13 }}>
-                                        Sign Up
+                                        {t('sign_up', { defaultValue: 'Sign Up' })}
                                     </Text>
                                 </TouchableOpacity>
                             </View>

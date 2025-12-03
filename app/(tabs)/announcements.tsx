@@ -1,6 +1,7 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { addDoc, collection, deleteDoc, doc, getDoc, onSnapshot, orderBy, query, serverTimestamp, updateDoc } from 'firebase/firestore';
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
     ActivityIndicator,
     FlatList,
@@ -40,6 +41,7 @@ const ROLES = ['All', 'Admin', 'Staff', 'User'];
 
 export default function AnnouncementsScreen() {
     const { showToast } = useToast();
+    const { t } = useTranslation();
     const [items, setItems] = useState<Announcement[]>([]);
     const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
     const [modalVisible, setModalVisible] = useState(false);
@@ -153,7 +155,7 @@ export default function AnnouncementsScreen() {
 
     function openAdd() {
         if (currentUserRole !== 'Admin') {
-            showToast('Permission Denied: Only admin can add announcements', 'error');
+            showToast(t('permission_denied_admin_add'), 'error');
             return;
         }
         setEditingId(null);
@@ -171,7 +173,7 @@ export default function AnnouncementsScreen() {
 
     function openEdit(a: Announcement) {
         if (currentUserRole !== 'Admin') {
-            showToast('Permission Denied: Only admin can edit announcements', 'error');
+            showToast(t('permission_denied_admin_edit'), 'error');
             return;
         }
         setEditingId(a.id);
@@ -188,7 +190,7 @@ export default function AnnouncementsScreen() {
 
     async function save() {
         if (!category.trim() || !role.trim() || !title.trim() || !content.trim() || !startDate || !startTime || !endDate || !endTime) {
-            showToast('Please fill all fields', 'error');
+            showToast(t('please_fill_all_fields'), 'error');
             return;
         }
         setOperationLoading(true);
@@ -196,7 +198,7 @@ export default function AnnouncementsScreen() {
             if (editingId) {
                 const ref = doc(db, 'announcements', editingId);
                 await updateDoc(ref, { category, role, title, content, startDate, startTime, endDate, endTime, date: new Date().toISOString().split('T')[0] });
-                showToast('Announcement updated successfully', 'success');
+                showToast(t('announcement_updated'), 'success');
             } else {
                 await addDoc(collection(db, 'announcements'), {
                     category,
@@ -210,12 +212,12 @@ export default function AnnouncementsScreen() {
                     date: new Date().toISOString().split('T')[0],
                     createdAt: serverTimestamp(),
                 });
-                showToast('Announcement added successfully', 'success');
+                showToast(t('announcement_added'), 'success');
             }
             setModalVisible(false);
         } catch (e) {
             console.error('announcement save error', e);
-            showToast('Failed to save announcement', 'error');
+            showToast(t('failed_to_save_announcement'), 'error');
         } finally {
             setOperationLoading(false);
         }
@@ -223,7 +225,7 @@ export default function AnnouncementsScreen() {
 
     function confirmRemove(id: string) {
         if (currentUserRole !== 'Admin') {
-            showToast('Permission Denied: Only admin can delete announcements', 'error');
+            showToast(t('permission_denied_admin_delete'), 'error');
             return;
         }
         setItemToDelete(id);
@@ -238,10 +240,10 @@ export default function AnnouncementsScreen() {
 
         try {
             await deleteDoc(doc(db, 'announcements', itemToDelete));
-            showToast('Announcement deleted successfully', 'success');
+            showToast(t('announcement_deleted'), 'success');
         } catch (e) {
             console.error('delete announcement error', e);
-            showToast('Failed to delete announcement', 'error');
+            showToast(t('failed_to_delete_announcement'), 'error');
         } finally {
             setOperationLoading(false);
             setItemToDelete(null);
@@ -376,9 +378,9 @@ export default function AnnouncementsScreen() {
 
                     {/* Text on right */}
                     <View style={{ flex: 1 }}>
-                        <Text style={{ color: '#FFFFFF', fontSize: 22, fontWeight: '800', letterSpacing: 0.3 }}>Announcements</Text>
+                        <Text style={{ color: '#FFFFFF', fontSize: 22, fontWeight: '800', letterSpacing: 0.3 }}>{t('announcements_title', { defaultValue: 'Announcements' })}</Text>
                         <Text style={{ color: 'rgba(255, 255, 255, 0.85)', marginTop: 4, fontSize: 13, lineHeight: 18 }}>
-                            Create and manage community announcements
+                            {t('announcements_subtitle', { defaultValue: 'Create and manage community announcements' })}
                         </Text>
                     </View>
                 </View>
@@ -413,7 +415,7 @@ export default function AnnouncementsScreen() {
                             color: filterStatus === 'all' ? '#7C3AED' : 'rgba(255, 255, 255, 0.9)',
                             fontWeight: '700',
                             fontSize: 11
-                        }}>📢 All</Text>
+                        }}>{t('announcements_tab_all', { defaultValue: '📢 All' })}</Text>
                         <Text style={{
                             color: filterStatus === 'all' ? '#7C3AED' : 'rgba(255, 255, 255, 0.9)',
                             fontWeight: '800',
@@ -441,7 +443,7 @@ export default function AnnouncementsScreen() {
                             color: filterStatus === 'active' ? '#059669' : 'rgba(255, 255, 255, 0.9)',
                             fontWeight: '700',
                             fontSize: 11
-                        }}>🟢 Active</Text>
+                        }}>{t('announcements_tab_active', { defaultValue: '🟢 Active' })}</Text>
                         <Text style={{
                             color: filterStatus === 'active' ? '#059669' : 'rgba(255, 255, 255, 0.9)',
                             fontWeight: '800',
@@ -469,7 +471,7 @@ export default function AnnouncementsScreen() {
                             color: filterStatus === 'upcoming' ? '#D97706' : 'rgba(255, 255, 255, 0.9)',
                             fontWeight: '700',
                             fontSize: 11
-                        }}>🟡 Upcoming</Text>
+                        }}>{t('announcements_tab_upcoming', { defaultValue: '🟡 Upcoming' })}</Text>
                         <Text style={{
                             color: filterStatus === 'upcoming' ? '#D97706' : 'rgba(255, 255, 255, 0.9)',
                             fontWeight: '800',
@@ -497,7 +499,7 @@ export default function AnnouncementsScreen() {
                             color: filterStatus === 'expired' ? '#DC2626' : 'rgba(255, 255, 255, 0.9)',
                             fontWeight: '700',
                             fontSize: 11
-                        }}>🔴 Expired</Text>
+                        }}>{t('announcements_tab_expired', { defaultValue: '🔴 Expired' })}</Text>
                         <Text style={{
                             color: filterStatus === 'expired' ? '#DC2626' : 'rgba(255, 255, 255, 0.9)',
                             fontWeight: '800',
@@ -528,10 +530,10 @@ export default function AnnouncementsScreen() {
                     {/* Left: Search Input */}
                     <View style={{ flex: 1.5 }}>
                         <FloatingLabelInput
-                            label="Search"
+                            label={t('search', { defaultValue: 'Search' })}
                             value={searchQuery}
                             onChangeText={setSearchQuery}
-                            placeholder="Search..."
+                            placeholder={t('search_placeholder', { defaultValue: 'Search...' })}
                             containerStyle={{ marginBottom: 0 }}
                         />
                     </View>
@@ -557,7 +559,7 @@ export default function AnnouncementsScreen() {
                                         justifyContent: 'center'
                                     }}
                                 >
-                                    <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>+ Announcement</Text>
+                                    <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>{t('add_announcement_button', { defaultValue: '+ Announcement' })}</Text>
                                 </LinearGradient>
                             </TouchableOpacity>
                         </View>
@@ -584,7 +586,7 @@ export default function AnnouncementsScreen() {
                         onPress={() => setFiltersOpen(prev => !prev)}
                         style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}
                     >
-                        <Text style={{ fontSize: 14, fontWeight: '800', color: '#111827' }}>🔍 Filters</Text>
+                        <Text style={{ fontSize: 14, fontWeight: '800', color: '#111827' }}>{t('filters', { defaultValue: '🔍 Filters' })}</Text>
                         <Text style={{ fontSize: 16, color: '#7C3AED' }}>{filtersOpen ? '▾' : '▴'}</Text>
                     </TouchableOpacity>
 
@@ -594,25 +596,25 @@ export default function AnnouncementsScreen() {
                             <View style={{ flexDirection: 'row', gap: 10 }}>
                                 <View style={{ flex: 1 }}>
                                     <SelectInput
-                                        label="Status"
+                                        label={t('status_label', { defaultValue: 'Status' })}
                                         value={filterStatus}
                                         options={[
-                                            { label: 'All Status', value: 'all' },
-                                            { label: 'Upcoming', value: 'upcoming' },
-                                            { label: 'Active', value: 'active' },
-                                            { label: 'Expired', value: 'expired' }
+                                            { label: t('announcements_tab_all', { defaultValue: '📢 All' }), value: 'all' },
+                                            { label: t('announcements_tab_upcoming', { defaultValue: '🟡 Upcoming' }), value: 'upcoming' },
+                                            { label: t('announcements_tab_active', { defaultValue: '🟢 Active' }), value: 'active' },
+                                            { label: t('announcements_tab_expired', { defaultValue: '🔴 Expired' }), value: 'expired' }
                                         ]}
                                         onValueChange={(v: string) => setFilterStatus(v as 'all' | 'upcoming' | 'active' | 'expired')}
-                                        placeholder="Select status"
+                                        placeholder={t('select_status', { defaultValue: 'Select status' })}
                                         containerStyle={{ marginBottom: 0 }}
                                     />
                                 </View>
                                 <View style={{ flex: 1 }}>
                                     <SelectInput
-                                        label="Role"
+                                        label={t('role_label', { defaultValue: 'Role' })}
                                         value={filterRole}
                                         options={[
-                                            { label: 'All Roles', value: 'All' },
+                                            { label: t('all_roles', { defaultValue: 'All Roles' }), value: 'All' },
                                             ...ROLES.filter(r => r !== 'All').map(r => ({ label: r, value: r }))
                                         ]}
                                         onValueChange={(v: string) => setFilterRole(v)}
@@ -696,7 +698,7 @@ export default function AnnouncementsScreen() {
                                                             opacity: operationLoading ? 0.5 : 1
                                                         }}
                                                     >
-                                                        <Text style={{ color: '#0369A1', fontWeight: '600', fontSize: 12 }}>Edit</Text>
+                                                        <Text style={{ color: '#0369A1', fontWeight: '600', fontSize: 12 }}>{t('edit', { defaultValue: 'Edit' })}</Text>
                                                     </TouchableOpacity>
                                                     <TouchableOpacity
                                                         onPress={() => confirmRemove(item.id)}
@@ -709,7 +711,7 @@ export default function AnnouncementsScreen() {
                                                             opacity: operationLoading ? 0.5 : 1
                                                         }}
                                                     >
-                                                        <Text style={{ color: '#991B1B', fontWeight: '600', fontSize: 12 }}>Delete</Text>
+                                                        <Text style={{ color: '#991B1B', fontWeight: '600', fontSize: 12 }}>{t('delete', { defaultValue: 'Delete' })}</Text>
                                                     </TouchableOpacity>
                                                 </View>
                                             )}
@@ -784,9 +786,9 @@ export default function AnnouncementsScreen() {
                             ListEmptyComponent={() => (
                                 <View style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: 60 }}>
                                     <Text style={{ fontSize: 48, marginBottom: 12 }}>📭</Text>
-                                    <Text style={{ color: '#6B7280', fontSize: 16, fontWeight: '600' }}>No announcements found</Text>
+                                    <Text style={{ color: '#6B7280', fontSize: 16, fontWeight: '600' }}>{t('no_announcements_found', { defaultValue: 'No announcements found' })}</Text>
                                     <Text style={{ color: '#9CA3AF', fontSize: 13, marginTop: 4, textAlign: 'center' }}>
-                                        No announcements match your filters
+                                        {t('no_announcements_match_filters', { defaultValue: 'No announcements match your filters' })}
                                     </Text>
                                 </View>
                             )}
@@ -807,39 +809,39 @@ export default function AnnouncementsScreen() {
                 <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.3)' }}>
                     <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 16, maxHeight: '90%', flex: 1 }}>
                         <ScrollView scrollEnabled={!roleOpen} showsVerticalScrollIndicator={false}>
-                            <Text style={{ fontSize: 18, fontWeight: '700', marginBottom: 16 }}>{editingId ? 'Edit Announcement' : 'Create Announcement'}</Text>
+                            <Text style={{ fontSize: 18, fontWeight: '700', marginBottom: 16 }}>{editingId ? t('edit_announcement', { defaultValue: 'Edit Announcement' }) : t('create_announcement', { defaultValue: 'Create Announcement' })}</Text>
 
                             {/* Role - SelectInput */}
                             <SelectInput
-                                label="Role"
+                                label={t('role_label', { defaultValue: 'Role' })}
                                 value={role}
-                                options={ROLES.filter(r => r !== 'All')}
+                                options={ROLES.filter(r => r !== 'All').map(r => ({ label: t(`role_${r.toLowerCase()}`, { defaultValue: r }), value: r }))}
                                 onValueChange={(v: string) => setRole(v)}
-                                placeholder="Select role"
+                                placeholder={t('select_role', { defaultValue: 'Select role' })}
                             />
 
                             {/* Category - FloatingLabelInput */}
                             <FloatingLabelInput
-                                label="Category"
+                                label={t('category', { defaultValue: 'Category' })}
                                 value={category}
                                 onChangeText={setCategory}
-                                placeholder="Enter category"
+                                placeholder={t('category_placeholder', { defaultValue: 'Enter category' })}
                             />
 
                             {/* Title - FloatingLabelInput */}
                             <FloatingLabelInput
-                                label="Title"
+                                label={t('announcement_title_label', { defaultValue: 'Title' })}
                                 value={title}
                                 onChangeText={setTitle}
-                                placeholder="Enter announcement title"
+                                placeholder={t('announcement_title_placeholder', { defaultValue: 'Enter announcement title' })}
                             />
 
                             {/* Content - FloatingLabelInput multiline */}
                             <FloatingLabelInput
-                                label="Content"
+                                label={t('announcement_content_label', { defaultValue: 'Content' })}
                                 value={content}
                                 onChangeText={setContent}
-                                placeholder="Enter announcement content"
+                                placeholder={t('announcement_content_placeholder', { defaultValue: 'Enter announcement content' })}
                                 multiline
                                 inputStyle={{ minHeight: 100, paddingTop: 18 }}
                             />
@@ -848,20 +850,20 @@ export default function AnnouncementsScreen() {
                             <View style={{ flexDirection: 'row', gap: 12, marginBottom: 12 }}>
                                 <View style={{ flex: 1 }}>
                                     <FloatingLabelInput
-                                        label="Start Date"
+                                        label={t('start_date_label', { defaultValue: 'Start Date' })}
                                         value={startDate ? displayDateYMonD(startDate) : ''}
                                         onChangeText={() => { }}
-                                        placeholder="Select date"
+                                        placeholder={t('select_date', { defaultValue: 'Select date' })}
                                         editable={false}
                                         onPress={() => setStartDatePickerVisible(true)}
                                     />
                                 </View>
                                 <View style={{ flex: 1 }}>
                                     <FloatingLabelInput
-                                        label="Start Time"
+                                        label={t('start_time_label', { defaultValue: 'Start Time' })}
                                         value={startTime}
                                         onChangeText={() => { }}
-                                        placeholder="Select time"
+                                        placeholder={t('select_time', { defaultValue: 'Select time' })}
                                         editable={false}
                                         onPress={() => setStartTimePickerVisible(true)}
                                     />
@@ -872,20 +874,20 @@ export default function AnnouncementsScreen() {
                             <View style={{ flexDirection: 'row', gap: 12, marginBottom: 16 }}>
                                 <View style={{ flex: 1 }}>
                                     <FloatingLabelInput
-                                        label="End Date"
+                                        label={t('end_date_label', { defaultValue: 'End Date' })}
                                         value={endDate ? displayDateYMonD(endDate) : ''}
                                         onChangeText={() => { }}
-                                        placeholder="Select date"
+                                        placeholder={t('select_date', { defaultValue: 'Select date' })}
                                         editable={false}
                                         onPress={() => setEndDatePickerVisible(true)}
                                     />
                                 </View>
                                 <View style={{ flex: 1 }}>
                                     <FloatingLabelInput
-                                        label="End Time"
+                                        label={t('end_time_label', { defaultValue: 'End Time' })}
                                         value={endTime}
                                         onChangeText={() => { }}
-                                        placeholder="Select time"
+                                        placeholder={t('select_time', { defaultValue: 'Select time' })}
                                         editable={false}
                                         onPress={() => setEndTimePickerVisible(true)}
                                     />
@@ -895,10 +897,10 @@ export default function AnnouncementsScreen() {
                             {/* Buttons */}
                             <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 16 }}>
                                 <TouchableOpacity onPress={() => !operationLoading && setModalVisible(false)} disabled={operationLoading} style={{ padding: 10, opacity: operationLoading ? 0.6 : 1 }}>
-                                    <Text style={{ color: '#6B7280', fontWeight: '600' }}>Cancel</Text>
+                                    <Text style={{ color: '#6B7280', fontWeight: '600' }}>{t('cancel', { defaultValue: 'Cancel' })}</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity disabled={operationLoading} onPress={save} style={{ padding: 10 }}>
-                                    {operationLoading ? <ActivityIndicator size="small" color="#4fc3f7" /> : <Text style={{ color: '#4fc3f7', fontWeight: '700' }}>{editingId ? 'Save' : 'Create'}</Text>}
+                                    {operationLoading ? <ActivityIndicator size="small" color="#4fc3f7" /> : <Text style={{ color: '#4fc3f7', fontWeight: '700' }}>{editingId ? t('save', { defaultValue: 'Save' }) : t('create', { defaultValue: 'Create' })}</Text>}
                                 </TouchableOpacity>
                             </View>
                         </ScrollView>
@@ -952,8 +954,8 @@ export default function AnnouncementsScreen() {
 
             <ConfirmDialog
                 visible={deleteConfirmVisible}
-                title="Delete Announcement"
-                message="Are you sure you want to delete this announcement? This action cannot be undone."
+                title={t('delete_announcement_title', { defaultValue: 'Delete Announcement' })}
+                message={t('delete_announcement_message', { defaultValue: 'Are you sure you want to delete this announcement? This action cannot be undone.' })}
                 onConfirm={remove}
                 onCancel={() => {
                     setDeleteConfirmVisible(false);

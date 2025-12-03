@@ -2,6 +2,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { addDoc, collection, deleteDoc, doc, getDoc, onSnapshot, orderBy, query, serverTimestamp, updateDoc } from 'firebase/firestore';
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
     ActivityIndicator,
     FlatList,
@@ -35,6 +36,7 @@ type Documentation = {
 
 export default function DocumentationScreen() {
     const { showToast } = useToast();
+    const { t } = useTranslation();
     const [items, setItems] = useState<Documentation[]>([]);
     const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
     const [modalVisible, setModalVisible] = useState(false);
@@ -135,7 +137,7 @@ export default function DocumentationScreen() {
 
     function openAdd() {
         if (currentUserRole !== 'Admin') {
-            showToast('Permission Denied: Only admin can add documentation', 'error');
+            showToast(t('permission_denied_admin_add'), 'error');
             return;
         }
         setEditingId(null);
@@ -148,7 +150,7 @@ export default function DocumentationScreen() {
 
     function openEdit(doc: Documentation) {
         if (currentUserRole !== 'Admin') {
-            showToast('Permission Denied: Only admin can edit documentation', 'error');
+            showToast(t('permission_denied_admin_edit'), 'error');
             return;
         }
         setEditingId(doc.id);
@@ -162,7 +164,7 @@ export default function DocumentationScreen() {
     async function pickImages() {
         const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
         if (!permission.granted) {
-            showToast('Allow access to photos to upload documentation', 'error');
+            showToast(t('allow_photos_access_to_upload_documentation'), 'error');
             return;
         }
 
@@ -184,11 +186,11 @@ export default function DocumentationScreen() {
 
     async function save() {
         if (!activityId) {
-            showToast('Please select an activity', 'error');
+            showToast(t('please_select_activity'), 'error');
             return;
         }
         if (images.length === 0) {
-            showToast('Please upload at least one image', 'error');
+            showToast(t('please_upload_at_least_one_image'), 'error');
             return;
         }
         setOperationLoading(true);
@@ -203,7 +205,7 @@ export default function DocumentationScreen() {
                     date: new Date().toISOString().split('T')[0],
                     updatedAt: serverTimestamp(),
                 });
-                showToast('Documentation updated', 'success');
+                showToast(t('documentation_updated'), 'success');
             } else {
                 await addDoc(collection(db, 'documentation'), {
                     activityId,
@@ -213,12 +215,12 @@ export default function DocumentationScreen() {
                     date: new Date().toISOString().split('T')[0],
                     createdAt: serverTimestamp(),
                 });
-                showToast('Documentation added', 'success');
+                showToast(t('documentation_added'), 'success');
             }
             setModalVisible(false);
         } catch (e) {
             console.error('documentation save error', e);
-            showToast('Failed to save documentation', 'error');
+            showToast(t('failed_to_save_documentation'), 'error');
         } finally {
             setOperationLoading(false);
         }
@@ -226,7 +228,7 @@ export default function DocumentationScreen() {
 
     function confirmRemove(id: string) {
         if (currentUserRole !== 'Admin') {
-            showToast('Permission Denied: Only admin can delete documentation', 'error');
+            showToast(t('permission_denied_admin_delete'), 'error');
             return;
         }
         setItemToDelete(id);
@@ -239,10 +241,10 @@ export default function DocumentationScreen() {
         setOperationLoading(true);
         try {
             await deleteDoc(doc(db, 'documentation', itemToDelete));
-            showToast('Documentation deleted', 'success');
+            showToast(t('documentation_deleted'), 'success');
         } catch (e) {
             console.error('delete documentation error', e);
-            showToast('Failed to delete documentation', 'error');
+            showToast(t('failed_to_delete_documentation'), 'error');
         } finally {
             setOperationLoading(false);
             setItemToDelete(null);
@@ -315,9 +317,9 @@ export default function DocumentationScreen() {
 
                     {/* Text on right */}
                     <View style={{ flex: 1 }}>
-                        <Text style={{ color: '#FFFFFF', fontSize: 22, fontWeight: '800', letterSpacing: 0.3 }}>Documentation</Text>
+                        <Text style={{ color: '#FFFFFF', fontSize: 22, fontWeight: '800', letterSpacing: 0.3 }}>{t('documentation_title', { defaultValue: 'Documentation' })}</Text>
                         <Text style={{ color: 'rgba(255, 255, 255, 0.85)', marginTop: 4, fontSize: 13, lineHeight: 18 }}>
-                            Upload photos of community activities
+                            {t('documentation_subtitle', { defaultValue: 'Upload photos of community activities' })}
                         </Text>
                     </View>
                 </View>
@@ -345,7 +347,7 @@ export default function DocumentationScreen() {
                         shadowRadius: 4,
                         elevation: 2
                     }}>
-                        <Text style={{ color: '#7C3AED', fontWeight: '700', fontSize: 11 }}>📸 Images</Text>
+                        <Text style={{ color: '#7C3AED', fontWeight: '700', fontSize: 11 }}>{t('images_label', { defaultValue: '📸 Images' })}</Text>
                         <Text style={{ color: '#7C3AED', fontWeight: '800', fontSize: 16, marginTop: 1 }}>{totalImages}</Text>
                     </View>
                     <View style={{
@@ -353,7 +355,7 @@ export default function DocumentationScreen() {
                         paddingVertical: 8,
                         alignItems: 'center',
                     }}>
-                        <Text style={{ color: 'rgba(255, 255, 255, 0.9)', fontWeight: '700', fontSize: 11 }}>📄 Docs</Text>
+                        <Text style={{ color: 'rgba(255, 255, 255, 0.9)', fontWeight: '700', fontSize: 11 }}>{t('docs_label', { defaultValue: '📄 Docs' })}</Text>
                         <Text style={{ color: 'rgba(255, 255, 255, 0.9)', fontWeight: '800', fontSize: 16, marginTop: 1 }}>{totalDocs}</Text>
                     </View>
                     <View style={{
@@ -361,7 +363,7 @@ export default function DocumentationScreen() {
                         paddingVertical: 8,
                         alignItems: 'center',
                     }}>
-                        <Text style={{ color: 'rgba(255, 255, 255, 0.9)', fontWeight: '700', fontSize: 11 }}>👁️ Shown</Text>
+                        <Text style={{ color: 'rgba(255, 255, 255, 0.9)', fontWeight: '700', fontSize: 11 }}>{t('shown_label', { defaultValue: '👁️ Shown' })}</Text>
                         <Text style={{ color: 'rgba(255, 255, 255, 0.9)', fontWeight: '800', fontSize: 16, marginTop: 1 }}>{filteredItems.length}</Text>
                     </View>
                 </View>
@@ -387,14 +389,14 @@ export default function DocumentationScreen() {
                     {/* Left: Activity filter */}
                     <View style={{ flex: 1.5 }}>
                         <SelectInput
-                            label="Activity"
+                            label={t('activity_label', { defaultValue: 'Activity' })}
                             value={filterActivity || ''}
                             options={[
-                                { label: 'All Activities', value: '' },
+                                { label: t('all_activities', { defaultValue: 'All Activities' }), value: '' },
                                 ...activities.map(act => ({ label: act.name, value: act.id }))
                             ]}
                             onValueChange={(v: string) => setFilterActivity(v || null)}
-                            placeholder="Select activity"
+                            placeholder={t('select_activity', { defaultValue: 'Select activity' })}
                             containerStyle={{ marginBottom: 0 }}
                         />
                     </View>
@@ -420,7 +422,7 @@ export default function DocumentationScreen() {
                                         justifyContent: 'center'
                                     }}
                                 >
-                                    <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>+ Documentation</Text>
+                                    <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>{t('add_documentation_button', { defaultValue: '+ Documentation' })}</Text>
                                 </LinearGradient>
                             </TouchableOpacity>
                         </View>
@@ -463,9 +465,9 @@ export default function DocumentationScreen() {
                             ListEmptyComponent={() => (
                                 <View style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: 60 }}>
                                     <Text style={{ fontSize: 48, marginBottom: 12 }}>📭</Text>
-                                    <Text style={{ color: '#6B7280', fontSize: 16, fontWeight: '600' }}>No documentation found</Text>
+                                    <Text style={{ color: '#6B7280', fontSize: 16, fontWeight: '600' }}>{t('no_documentation_found', { defaultValue: 'No documentation found' })}</Text>
                                     <Text style={{ color: '#9CA3AF', fontSize: 13, marginTop: 4, textAlign: 'center' }}>
-                                        No documentation available
+                                        {t('no_documentation_available', { defaultValue: 'No documentation available' })}
                                     </Text>
                                 </View>
                             )}
@@ -498,7 +500,7 @@ export default function DocumentationScreen() {
                                                         opacity: operationLoading ? 0.5 : 1
                                                     }}
                                                 >
-                                                    <Text style={{ color: '#0369A1', fontWeight: '600', fontSize: 12 }}>Edit</Text>
+                                                    <Text style={{ color: '#0369A1', fontWeight: '600', fontSize: 12 }}>{t('edit', { defaultValue: 'Edit' })}</Text>
                                                 </TouchableOpacity>
                                                 <TouchableOpacity
                                                     onPress={() => confirmRemove(item.id)}
@@ -511,7 +513,7 @@ export default function DocumentationScreen() {
                                                         opacity: operationLoading ? 0.5 : 1
                                                     }}
                                                 >
-                                                    <Text style={{ color: '#991B1B', fontWeight: '600', fontSize: 12 }}>Delete</Text>
+                                                    <Text style={{ color: '#991B1B', fontWeight: '600', fontSize: 12 }}>{t('delete', { defaultValue: 'Delete' })}</Text>
                                                 </TouchableOpacity>
                                             </View>
                                         )}
@@ -560,10 +562,10 @@ export default function DocumentationScreen() {
                 <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.3)' }}>
                     <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 16, maxHeight: '90%', flex: 1 }}>
                         <ScrollView scrollEnabled={!activityOpen} showsVerticalScrollIndicator={false}>
-                            <Text style={{ fontSize: 18, fontWeight: '700', marginBottom: 16 }}>{editingId ? 'Edit Documentation' : 'Add Documentation'}</Text>
+                            <Text style={{ fontSize: 18, fontWeight: '700', marginBottom: 16 }}>{editingId ? t('edit_documentation', { defaultValue: 'Edit Documentation' }) : t('add_documentation', { defaultValue: 'Add Documentation' })}</Text>
 
                             <SelectInput
-                                label="Activity"
+                                label={t('activity_label', { defaultValue: 'Activity' })}
                                 value={activityId}
                                 options={activities.map(act => ({ label: act.name, value: act.id }))}
                                 onValueChange={(v: string) => {
@@ -571,14 +573,14 @@ export default function DocumentationScreen() {
                                     const selected = activities.find(a => a.id === v);
                                     setActivityName(selected?.name || '');
                                 }}
-                                placeholder="Select activity"
+                                placeholder={t('select_activity', { defaultValue: 'Select activity' })}
                             />
 
                             <View style={{ marginTop: 4, marginBottom: 8 }}>
-                                <Text style={{ color: '#6B7280', fontSize: 12, marginBottom: 8 }}>Images ({images.length})</Text>
+                                <Text style={{ color: '#6B7280', fontSize: 12, marginBottom: 8 }}>{t('images_label', { defaultValue: 'Images' })} ({images.length})</Text>
                             </View>
                             <TouchableOpacity onPress={pickImages} style={{ borderWidth: 2, borderColor: '#7c3aed', borderRadius: 12, padding: 14, alignItems: 'center', backgroundColor: '#fff', marginBottom: 12 }}>
-                                <Text style={{ color: '#06B6D4', fontWeight: '600' }}>📷 Pick Images</Text>
+                                <Text style={{ color: '#06B6D4', fontWeight: '600' }}>{t('pick_images', { defaultValue: '📷 Pick Images' })}</Text>
                             </TouchableOpacity>
 
                             {images.length > 0 && (
@@ -595,20 +597,20 @@ export default function DocumentationScreen() {
                             )}
 
                             <FloatingLabelInput
-                                label="Description"
+                                label={t('description_label', { defaultValue: 'Description' })}
                                 value={description}
                                 onChangeText={setDescription}
-                                placeholder="Enter description (optional)"
+                                placeholder={t('description_optional', { defaultValue: 'Enter description (optional)' })}
                                 multiline
                                 inputStyle={{ minHeight: 120, paddingTop: 18 }}
                             />
 
                             <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 16 }}>
                                 <TouchableOpacity onPress={() => !operationLoading && setModalVisible(false)} disabled={operationLoading} style={{ padding: 10, opacity: operationLoading ? 0.6 : 1 }}>
-                                    <Text style={{ color: '#6B7280' }}>Cancel</Text>
+                                    <Text style={{ color: '#6B7280' }}>{t('cancel', { defaultValue: 'Cancel' })}</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity disabled={operationLoading} onPress={save} style={{ padding: 10 }}>
-                                    {operationLoading ? <ActivityIndicator size="small" color="#4fc3f7" /> : <Text style={{ color: '#4fc3f7', fontWeight: '700' }}>{editingId ? 'Save' : 'Create'}</Text>}
+                                    {operationLoading ? <ActivityIndicator size="small" color="#4fc3f7" /> : <Text style={{ color: '#4fc3f7', fontWeight: '700' }}>{editingId ? t('save', { defaultValue: 'Save' }) : t('create', { defaultValue: 'Create' })}</Text>}
                                 </TouchableOpacity>
                             </View>
 
@@ -619,8 +621,8 @@ export default function DocumentationScreen() {
 
             <ConfirmDialog
                 visible={deleteConfirmVisible}
-                title="Delete Documentation"
-                message="Are you sure you want to delete this documentation? This action cannot be undone."
+                title={t('delete_documentation_title', { defaultValue: 'Delete Documentation' })}
+                message={t('delete_documentation_message', { defaultValue: 'Are you sure you want to delete this documentation? This action cannot be undone.' })}
                 onConfirm={removeConfirmed}
                 onCancel={() => { setDeleteConfirmVisible(false); setItemToDelete(null); }}
             />
