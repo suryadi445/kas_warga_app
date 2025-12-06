@@ -1,14 +1,15 @@
 import { LinearGradient } from 'expo-linear-gradient';
-import { collection, onSnapshot, orderBy, query } from 'firebase/firestore';
+import { collection, doc, onSnapshot, orderBy, query } from 'firebase/firestore';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Dimensions, FlatList, RefreshControl, StatusBar, Text, TouchableOpacity, View } from 'react-native';
+import { Dimensions, FlatList, Image, RefreshControl, StatusBar, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import ListCardWrapper from '../../src/components/ListCardWrapper';
 // ADDED: LoadMore footer component
 import LoadMore from '../../src/components/LoadMore';
 import { db } from '../../src/firebaseConfig';
 import { useRefresh } from '../../src/hooks/useRefresh';
+import { getCurrentUser } from '../../src/services/authService';
 
 /**
  * Dashboard with tabs:
@@ -73,6 +74,8 @@ export default function DashboardPage() {
     const [activitiesDisplayedCount, setActivitiesDisplayedCount] = useState<number>(ACTIVITIES_PER_PAGE);
     const [activitiesLoadingMore, setActivitiesLoadingMore] = useState<boolean>(false);
     const [refreshTrigger, setRefreshTrigger] = useState(0);
+    // load user's avatar for the header
+    const [userPhoto, setUserPhoto] = useState<string | undefined>(undefined);
 
     // reset displayed count when schedules update
     useEffect(() => {
@@ -295,6 +298,28 @@ export default function DashboardPage() {
             }, err => { console.warn('activities snapshot err', err); });
             subs.push(unsubAct);
         } catch (e) { /* ignore */ }
+
+        // User profile image (listen to users/{uid})
+        try {
+            const currentUser = getCurrentUser();
+            if (currentUser) {
+                const uref = doc(db, 'users', currentUser.uid);
+                const unsubUser = onSnapshot(uref, (snap) => {
+                    if (snap.exists()) {
+                        const data = snap.data() as any;
+                        setUserPhoto(data.profileImage || currentUser.photoURL || undefined);
+                    } else {
+                        setUserPhoto(currentUser.photoURL || undefined);
+                    }
+                }, (err) => {
+                    console.warn('dashboard user snapshot error', err);
+                    setUserPhoto(currentUser.photoURL || undefined);
+                });
+                subs.push(unsubUser);
+            }
+        } catch (err) {
+            console.warn('dashboard user listener setup error', err);
+        }
 
         return () => subs.forEach(u => u());
     }, [refreshTrigger]);
@@ -837,8 +862,12 @@ export default function DashboardPage() {
             {/* Header with avatar and date */}
             <View style={{ paddingHorizontal: 10, paddingTop: 20, paddingBottom: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: '#6366f1', alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
-                        <Text style={{ color: '#fff', fontSize: 20 }}>👤</Text>
+                    <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: '#6366f1', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', marginRight: 12 }}>
+                        {userPhoto ? (
+                            <Image source={{ uri: userPhoto }} style={{ width: 48, height: 48, borderRadius: 24 }} />
+                        ) : (
+                            <Text style={{ color: '#fff', fontSize: 20 }}>👤</Text>
+                        )}
                     </View>
                     <View>
                         <Text style={{ color: '#64748b', fontSize: 13 }}>{t('menu_dashboard')}</Text>

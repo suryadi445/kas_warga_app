@@ -1,6 +1,7 @@
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { addDoc, collection, deleteDoc, doc, getDoc, onSnapshot, orderBy, query, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -21,7 +22,7 @@ import FloatingLabelInput from '../../src/components/FloatingLabelInput';
 import LoadMore from '../../src/components/LoadMore';
 import SelectInput from '../../src/components/SelectInput';
 import { useToast } from '../../src/contexts/ToastContext';
-import { db } from '../../src/firebaseConfig';
+import { db, storage } from '../../src/firebaseConfig';
 import { useRefresh } from '../../src/hooks/useRefresh';
 import { getCurrentUser } from '../../src/services/authService';
 
@@ -168,8 +169,10 @@ export default function DocumentationScreen() {
             return;
         }
 
+        // Use new MediaType constant if available; otherwise omit mediaTypes to avoid deprecation warnings
+        const MEDIA_IMAGES = (ImagePicker as any)?.MediaType?.Images;
         const result = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            ...(MEDIA_IMAGES ? { mediaTypes: MEDIA_IMAGES } : {}),
             allowsMultipleSelection: true,
             quality: 0.8,
         });
@@ -184,6 +187,49 @@ export default function DocumentationScreen() {
         setImages((prev) => prev.filter((i) => i !== uri));
     }
 
+    // State for upload progress
+    const [uploadProgress, setUploadProgress] = useState<string>('');
+
+    // Upload a single image to Firebase Storage and return the download URL
+    async function uploadImageToStorage(uri: string): Promise<string> {
+        // If already a remote URL (http/https), skip upload
+        if (uri.startsWith('http://') || uri.startsWith('https://')) {
+            return uri;
+        }
+
+        try {
+            // Fetch the local file and convert to blob
+            const response = await fetch(uri);
+            const blob = await response.blob();
+
+            // Generate unique filename
+            const filename = `documentation/${Date.now()}_${Math.random().toString(36).substring(7)}.jpg`;
+            const storageRef = ref(storage, filename);
+
+            // Upload to Firebase Storage
+            await uploadBytes(storageRef, blob);
+
+            // Get download URL
+            const downloadURL = await getDownloadURL(storageRef);
+            return downloadURL;
+        } catch (error) {
+            console.error('Error uploading image:', error);
+            throw error;
+        }
+    }
+
+    // Upload multiple images and return array of download URLs
+    async function uploadAllImages(imageUris: string[]): Promise<string[]> {
+        const uploadedUrls: string[] = [];
+        for (let i = 0; i < imageUris.length; i++) {
+            setUploadProgress(t('uploading_image', { defaultValue: `Uploading image ${i + 1} of ${imageUris.length}...`, current: i + 1, total: imageUris.length }));
+            const url = await uploadImageToStorage(imageUris[i]);
+            uploadedUrls.push(url);
+        }
+        setUploadProgress('');
+        return uploadedUrls;
+    }
+
     async function save() {
         if (!activityId) {
             showToast(t('please_select_activity'), 'error');
@@ -195,12 +241,15 @@ export default function DocumentationScreen() {
         }
         setOperationLoading(true);
         try {
+            // Upload all images to Firebase Storage first
+            const uploadedImageUrls = await uploadAllImages(images);
+
             if (editingId) {
-                const ref = doc(db, 'documentation', editingId);
-                await updateDoc(ref, {
+                const docRef = doc(db, 'documentation', editingId);
+                await updateDoc(docRef, {
                     activityId,
                     activityName,
-                    images,
+                    images: uploadedImageUrls,
                     description,
                     date: new Date().toISOString().split('T')[0],
                     updatedAt: serverTimestamp(),
@@ -210,7 +259,7 @@ export default function DocumentationScreen() {
                 await addDoc(collection(db, 'documentation'), {
                     activityId,
                     activityName,
-                    images,
+                    images: uploadedImageUrls,
                     description,
                     date: new Date().toISOString().split('T')[0],
                     createdAt: serverTimestamp(),
@@ -223,6 +272,7 @@ export default function DocumentationScreen() {
             showToast(t('failed_to_save_documentation'), 'error');
         } finally {
             setOperationLoading(false);
+            setUploadProgress('');
         }
     }
 
@@ -605,12 +655,20 @@ export default function DocumentationScreen() {
                                 inputStyle={{ minHeight: 120, paddingTop: 18 }}
                             />
 
-                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 16 }}>
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 16, alignItems: 'center' }}>
                                 <TouchableOpacity onPress={() => !operationLoading && setModalVisible(false)} disabled={operationLoading} style={{ padding: 10, opacity: operationLoading ? 0.6 : 1 }}>
                                     <Text style={{ color: '#6B7280' }}>{t('cancel', { defaultValue: 'Cancel' })}</Text>
                                 </TouchableOpacity>
+
+                                {/* Upload progress indicator */}
+                                {uploadProgress ? (
+                                    <View style={{ flex: 1, alignItems: 'center', marginHorizontal: 8 }}>
+                                        <Text style={{ color: '#7c3aed', fontSize: 12, fontWeight: '600' }}>{uploadProgress}</Text>
+                                    </View>
+                                ) : null}
+
                                 <TouchableOpacity disabled={operationLoading} onPress={save} style={{ padding: 10 }}>
-                                    {operationLoading ? <ActivityIndicator size="small" color="#4fc3f7" /> : <Text style={{ color: '#4fc3f7', fontWeight: '700' }}>{editingId ? t('save', { defaultValue: 'Save' }) : t('create', { defaultValue: 'Create' })}</Text>}
+                                    {operationLoading ? <ActivityIndicator size="small" color="#7c3aed" /> : <Text style={{ color: '#7c3aed', fontWeight: '700' }}>{editingId ? t('save', { defaultValue: 'Save' }) : t('create', { defaultValue: 'Create' })}</Text>}
                                 </TouchableOpacity>
                             </View>
 

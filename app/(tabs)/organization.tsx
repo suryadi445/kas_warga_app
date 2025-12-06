@@ -1,6 +1,7 @@
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { addDoc, collection, deleteDoc, doc, getDoc, onSnapshot, orderBy, query, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -21,7 +22,7 @@ import FloatingLabelInput from '../../src/components/FloatingLabelInput';
 import ListCardWrapper from '../../src/components/ListCardWrapper';
 import LoadMore from '../../src/components/LoadMore';
 import { useToast } from '../../src/contexts/ToastContext';
-import { db } from '../../src/firebaseConfig';
+import { db, storage } from '../../src/firebaseConfig';
 import { useRefresh } from '../../src/hooks/useRefresh';
 import { getCurrentUser } from '../../src/services/authService';
 
@@ -156,6 +157,19 @@ export default function OrganizationScreen() {
         }
         setOperationLoading(true);
         try {
+            // Upload image to Firebase Storage if it's a local file
+            let uploadedImageUrl = image || '';
+            if (image && !image.startsWith('http')) {
+                try {
+                    showToast(t('uploading_image', { defaultValue: 'Uploading image...' }), 'info');
+                    uploadedImageUrl = await uploadImageToStorage(image);
+                } catch (uploadError) {
+                    console.error('Image upload failed:', uploadError);
+                    showToast(t('image_upload_failed', { defaultValue: 'Image upload failed' }), 'error');
+                    uploadedImageUrl = '';
+                }
+            }
+
             const payload: any = {
                 title,
                 name,
@@ -163,13 +177,13 @@ export default function OrganizationScreen() {
                 leader,
             };
             // Only add image field if it has a value
-            if (image) {
-                payload.image = image;
+            if (uploadedImageUrl) {
+                payload.image = uploadedImageUrl;
             }
 
             if (editingId) {
-                const ref = doc(db, 'organization', editingId);
-                await updateDoc(ref, { ...payload, updatedAt: serverTimestamp() });
+                const docRef = doc(db, 'organization', editingId);
+                await updateDoc(docRef, { ...payload, updatedAt: serverTimestamp() });
                 showToast(t('member_updated'), 'success');
             } else {
                 await addDoc(collection(db, 'organization'), { ...payload, createdAt: serverTimestamp() });
@@ -233,6 +247,34 @@ export default function OrganizationScreen() {
             }
         } catch {
             // ignore
+        }
+    }
+
+    // Upload image to Firebase Storage
+    async function uploadImageToStorage(uri: string): Promise<string> {
+        // If already a remote URL (http/https), skip upload
+        if (uri.startsWith('http://') || uri.startsWith('https://')) {
+            return uri;
+        }
+
+        try {
+            // Fetch the local file and convert to blob
+            const response = await fetch(uri);
+            const blob = await response.blob();
+
+            // Generate unique filename
+            const filename = `organization/${Date.now()}_${Math.random().toString(36).substring(7)}.jpg`;
+            const storageRef = ref(storage, filename);
+
+            // Upload to Firebase Storage
+            await uploadBytes(storageRef, blob);
+
+            // Get download URL
+            const downloadURL = await getDownloadURL(storageRef);
+            return downloadURL;
+        } catch (error) {
+            console.error('Error uploading image:', error);
+            throw error;
         }
     }
 

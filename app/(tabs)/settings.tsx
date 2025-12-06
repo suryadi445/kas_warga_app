@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { doc, onSnapshot, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, onSnapshot, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
 import { getDownloadURL, getStorage, ref as storageRef, uploadBytes } from 'firebase/storage';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -8,14 +8,12 @@ import {
     Image,
     Linking,
     Modal,
-    PermissionsAndroid,
-    Platform,
     RefreshControl,
     ScrollView,
     StatusBar,
     Text,
     TouchableOpacity,
-    View,
+    View
 } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -24,6 +22,7 @@ import FloatingLabelInput from '../../src/components/FloatingLabelInput';
 import { useToast } from '../../src/contexts/ToastContext';
 import { db } from '../../src/firebaseConfig';
 import { useRefresh } from '../../src/hooks/useRefresh';
+import { deleteImageFromStorageByUrl } from '../../src/utils/storage';
 
 const MONTHS = [
     'January', 'February', 'March', 'April', 'May', 'June',
@@ -31,6 +30,7 @@ const MONTHS = [
 ];
 
 // import { LinearGradient } from 'expo-linear-gradient';
+import * as ImagePicker from 'expo-image-picker';
 import * as LinearGradientModule from 'expo-linear-gradient';
 
 // safe LinearGradient reference (some environments export default, some named)
@@ -188,29 +188,13 @@ export default function SettingsScreen() {
 
     // Ensure gallery permission on Android/iOS
     async function ensureGalleryPermission() {
-        if (Platform.OS === 'android') {
-            try {
-                const apiLevel = Platform.Version as number;
-                const perm = apiLevel >= 33
-                    ? PermissionsAndroid.PERMISSIONS.READ_MEDIA_IMAGES
-                    : PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE;
-
-                const granted = await PermissionsAndroid.check(perm);
-                if (granted) return true;
-
-                const res = await PermissionsAndroid.request(perm);
-                return res === PermissionsAndroid.RESULTS.GRANTED;
-            } catch (err) {
-                console.warn('Android permission error', err);
-                return false;
-            }
-        } else {
-            // iOS: allow 'granted' or 'limited'
-            const { requestMediaLibraryPermissionsAsync } = await import('expo-image-picker');
-            const r = await requestMediaLibraryPermissionsAsync();
-            if (r.granted) return true;
-            // some iOS versions return status 'limited' in r.status
-            if ((r as any).status === 'limited') return true;
+        try {
+            const r = await ImagePicker.requestMediaLibraryPermissionsAsync();
+            if ((r as any)?.granted) return true;
+            if ((r as any)?.status === 'limited') return true;
+            return false;
+        } catch (err) {
+            console.warn('ensureGalleryPermission error', err);
             return false;
         }
     }
@@ -222,18 +206,74 @@ export default function SettingsScreen() {
             const ok = await ensureGalleryPermission();
             if (!ok) {
                 setPermDialogVisible(true);
+                showToast?.(t('gallery_permission_message', { defaultValue: 'Gallery access is required to pick an app image. Open app settings to grant permission?' }), 'error');
                 return;
             }
 
-            const { launchImageLibraryAsync } = await import('expo-image-picker');
-            const res = await launchImageLibraryAsync({ quality: 0.7, base64: false });
+            const res = await ImagePicker.launchImageLibraryAsync({ quality: 0.7, base64: false });
             const uri = (res as any)?.assets?.[0]?.uri || (res as any)?.uri;
+            if (!uri) {
+                // user cancelled or no uri returned
+                return;
+            }
+
             if (uri) {
                 // upload to Firebase Storage and get download URL
                 const downloadUrl = await uploadImageToStorage(uri);
                 if (downloadUrl) {
+                    const oldUrl = appImage; // keep previous value to delete later
+
                     setAppImage(downloadUrl);
-                    showToast(t('image_uploaded', { defaultValue: 'Image uploaded' }), 'success');
+
+                    // Persist the image URL to Firestore (and AsyncStorage fallback)
+                    try {
+                        const ref = doc(db, 'settings', 'app');
+                        await updateDoc(ref, { appImage: downloadUrl, updatedAt: serverTimestamp() }).catch(async () => {
+                            await setDoc(ref, { appImage: downloadUrl, updatedAt: serverTimestamp() }, { merge: true });
+                        });
+                        // Mirror to AsyncStorage for offline use
+                        try {
+                            const raw = await AsyncStorage.getItem('settings');
+                            const base = raw ? JSON.parse(raw) : {};
+                            base.appImage = downloadUrl;
+                            await AsyncStorage.setItem('settings', JSON.stringify(base));
+                        } catch { /* ignore */ }
+
+                        showToast(t('image_uploaded', { defaultValue: 'Image uploaded' }), 'success');
+                        showToast(t('settings_saved_cloud', { defaultValue: 'Settings saved to cloud' }), 'success');
+
+                        // After successful cloud save, remove previous storage object (cleanup)
+                        if (oldUrl && oldUrl !== downloadUrl) {
+                            try {
+                                const deleted = await deleteImageFromStorageByUrl(oldUrl);
+                                if (!deleted) {
+                                    console.warn('Failed to delete old settings image from storage:', oldUrl);
+                                    showToast?.(t('failed_to_delete_storage_image', { defaultValue: 'Failed to delete previous storage image. Check storage rules.' }), 'error');
+                                } else {
+                                    console.log('Deleted old settings image', oldUrl);
+                                    showToast?.(t('deleted_old_image', { defaultValue: 'Previous image removed from storage' }), 'success');
+                                }
+                            } catch (e) { console.warn('delete old settings image error', e); }
+                        }
+                    } catch (e) {
+                        // If cloud save fails, still persist locally and inform user
+                        try {
+                            const raw = await AsyncStorage.getItem('settings');
+                            const base = raw ? JSON.parse(raw) : {};
+                            base.appImage = downloadUrl;
+                            await AsyncStorage.setItem('settings', JSON.stringify(base));
+                        } catch { /* ignore */ }
+                        showToast(t('image_uploaded', { defaultValue: 'Image uploaded' }), 'success');
+                        showToast(t('settings_saved_locally', { defaultValue: 'Settings saved locally (no network)' }), 'info');
+                        // try delete old file as well even if we persisted locally — best effort
+                        const oldUrlLocal = appImage;
+                        if (oldUrlLocal && oldUrlLocal !== downloadUrl) {
+                            try {
+                                const deleted = await deleteImageFromStorageByUrl(oldUrlLocal);
+                                if (!deleted) { console.warn('Failed to delete old app image (local fallback):', oldUrlLocal); }
+                            } catch (e) { /* ignore */ }
+                        }
+                    }
                 } else {
                     showToast(t('failed_to_upload_image', { defaultValue: 'Failed to upload image' }), 'error');
                 }
@@ -281,11 +321,25 @@ export default function SettingsScreen() {
 
         try {
             const ref = doc(db, 'settings', 'app');
+            // read previously stored app doc to compare saved image
+            const snapPrev = await getDoc(ref);
+            const prevAppImage = snapPrev.exists() ? (snapPrev.data() as any)?.appImage : null;
             // try update (merge)
             await updateDoc(ref, payload).catch(async () => {
                 // if update fails, set doc
                 await setDoc(ref, payload, { merge: true });
             });
+            // cleanup previous image from storage if it was replaced/removed
+            try {
+                const prev = prevAppImage || null;
+                const curr = payload.appImage || '';
+                if (prev && prev !== curr) {
+                    const deleted = await deleteImageFromStorageByUrl(prev);
+                    if (!deleted) {
+                        console.warn('Failed to delete previous app image from storage:', prev);
+                    }
+                }
+            } catch (e) { console.warn('Error while deleting previous app image', e); }
             // also mirror to AsyncStorage for offline
             try {
                 await AsyncStorage.setItem('settings', JSON.stringify(payload));

@@ -4,6 +4,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as LinearGradientModule from 'expo-linear-gradient';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -23,10 +24,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import ConfirmDialog from '../../src/components/ConfirmDialog';
 import ListCardWrapper from '../../src/components/ListCardWrapper';
 import { useToast } from '../../src/contexts/ToastContext';
-import { db } from '../../src/firebaseConfig';
+import { db, storage } from '../../src/firebaseConfig';
 import { useRefresh } from '../../src/hooks/useRefresh';
 import { setAppLanguage } from '../../src/i18n';
 import { getCurrentUser, signOut } from '../../src/services/authService';
+import { deleteImageFromStorageByUrl } from '../../src/utils/storage';
 
 // safe LinearGradient reference
 const LinearGradient = (LinearGradientModule as any)?.LinearGradient ?? (LinearGradientModule as any)?.default ?? View;
@@ -270,6 +272,34 @@ export default function ProfilePage() {
         }
     }
 
+    // Upload profile image to Firebase Storage
+    async function uploadProfileImage(uri: string): Promise<string> {
+        // If already a remote URL (http/https), skip upload
+        if (uri.startsWith('http://') || uri.startsWith('https://')) {
+            return uri;
+        }
+
+        try {
+            // Fetch the local file and convert to blob
+            const response = await fetch(uri);
+            const blob = await response.blob();
+
+            // Generate unique filename using uid
+            const filename = `profile_images/${uid}_${Date.now()}.jpg`;
+            const storageRef = ref(storage, filename);
+
+            // Upload to Firebase Storage
+            await uploadBytes(storageRef, blob);
+
+            // Get download URL
+            const downloadURL = await getDownloadURL(storageRef);
+            return downloadURL;
+        } catch (error) {
+            console.error('Error uploading profile image:', error);
+            throw error;
+        }
+    }
+
     async function handleSave() {
         if (!name.trim()) {
             showToast('Name is required', 'error');
@@ -284,6 +314,19 @@ export default function ProfilePage() {
         try {
             setSaving(true);
 
+            // Upload profile image to Firebase Storage if it's a local file
+            let uploadedImageUrl = profileImage || '';
+            if (profileImage && !profileImage.startsWith('http')) {
+                try {
+                    showToast(t('uploading_image', { defaultValue: 'Uploading image...' }), 'info');
+                    uploadedImageUrl = await uploadProfileImage(profileImage);
+                } catch (uploadError) {
+                    console.error('Image upload failed:', uploadError);
+                    showToast(t('image_upload_failed', { defaultValue: 'Image upload failed, saving without image' }), 'error');
+                    uploadedImageUrl = '';
+                }
+            }
+
             const updateData: any = {
                 uid,
                 email,
@@ -296,7 +339,7 @@ export default function ProfilePage() {
                 spouseName: maritalStatus === 'married' ? spouseName : '',
                 children: (maritalStatus === 'married' || maritalStatus === 'divorced' || maritalStatus === 'widowed') ? children : [],
                 address: address,
-                profileImage: profileImage || '', // use profileImage only
+                profileImage: uploadedImageUrl,
             };
 
             // Only include role if user is super admin (can edit role)
@@ -308,7 +351,24 @@ export default function ProfilePage() {
 
             console.log('Saving profile with data:', updateData);
 
+            // Get previous profile to delete image if replaced
+            const prevSnap = await getDoc(doc(db, 'users', uid));
+            const prevProfileImage = prevSnap.exists() ? (prevSnap.data() as any)?.profileImage : null;
+
             await setDoc(doc(db, 'users', uid), updateData, { merge: true });
+
+            // Delete previous profile image from Storage if it exists and differs from current
+            try {
+                if (prevProfileImage && prevProfileImage !== uploadedImageUrl) {
+                    const deleted = await deleteImageFromStorageByUrl(prevProfileImage);
+                    if (!deleted) {
+                        console.warn('Failed to delete previous profile image from storage:', prevProfileImage);
+                        showToast?.(t('failed_to_delete_storage_image', { defaultValue: 'Failed to delete previous storage image. Check storage rules.' }), 'error');
+                    } else {
+                        showToast?.(t('deleted_old_image', { defaultValue: 'Previous image removed from storage' }), 'success');
+                    }
+                }
+            } catch (err) { console.warn('Error while deleting previous profile image', err); }
 
             showToast('Profile updated successfully', 'success');
             await loadUserProfile();

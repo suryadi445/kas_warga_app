@@ -2,7 +2,7 @@
 import { FirebaseApp, getApps, initializeApp } from "firebase/app";
 import { Auth, getAuth } from "firebase/auth";
 import { Firestore, getFirestore, initializeFirestore } from "firebase/firestore";
-// TODO: Add SDKs for Firebase products that you want to use
+import { FirebaseStorage, getStorage } from "firebase/storage";
 // https://firebase.google.com/docs/web/setup#available-libraries
 
 // Your web app's Firebase configuration
@@ -46,5 +46,15 @@ try {
     }
 }
 
+// Initialize Firebase Storage
+let storage: FirebaseStorage;
+try {
+    storage = getStorage(app);
+    console.log('Storage initialized successfully');
+} catch (e: any) {
+    console.error('Storage initialization error:', e.message);
+    storage = getStorage(app);
+}
+
 // Export initialized instances
-export { app, auth, db };
+export { app, auth, db, storage };

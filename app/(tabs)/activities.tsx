@@ -1,10 +1,15 @@
+import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { addDoc, collection, deleteDoc, doc, getDoc, onSnapshot, orderBy, query, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { deleteObject, getDownloadURL, ref, uploadBytes } from 'firebase/storage';
+import { deleteImageFromStorageByUrl } from '../../src/utils/storage';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
     ActivityIndicator,
+    Dimensions,
     FlatList,
+    Image,
     Modal,
     Platform,
     RefreshControl,
@@ -21,7 +26,7 @@ import FloatingLabelInput from '../../src/components/FloatingLabelInput';
 import LoadMore from '../../src/components/LoadMore';
 import SelectInput from '../../src/components/SelectInput';
 import { useToast } from '../../src/contexts/ToastContext';
-import { db } from '../../src/firebaseConfig';
+import { db, storage } from '../../src/firebaseConfig';
 import { useRefresh } from '../../src/hooks/useRefresh';
 import { getCurrentUser } from '../../src/services/authService';
 
@@ -32,6 +37,7 @@ type Activity = {
     date: string; // YYYY-MM-DD
     time: string; // HH:MM
     description: string;
+    images?: string[];
 };
 
 export default function ActivitiesScreen() {
@@ -47,6 +53,12 @@ export default function ActivitiesScreen() {
     const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false);
     const [itemToDelete, setItemToDelete] = useState<string | null>(null);
     const [refreshTrigger, setRefreshTrigger] = useState(0);
+    const [images, setImages] = useState<string[]>([]);
+    const [imagesLoading, setImagesLoading] = useState(false);
+    const [imageModalVisible, setImageModalVisible] = useState(false);
+    const [imageList, setImageList] = useState<string[]>([]);
+    const [activeImageIndex, setActiveImageIndex] = useState<number>(0);
+    const imageFlatListRef = React.useRef<FlatList>(null);
 
     const [title, setTitle] = useState('');
     const [location, setLocation] = useState('');
@@ -95,6 +107,7 @@ export default function ActivitiesScreen() {
                     date: data.date || '',
                     time: data.time || '',
                     description: data.description || '',
+                    images: Array.isArray(data?.images) ? data.images : [],
                 };
             });
             setItems(rows);
@@ -143,10 +156,11 @@ export default function ActivitiesScreen() {
         setDate('');
         setTime('');
         setDescription('');
+        setImages([]);
         setModalVisible(true);
     }
 
-    function openEdit(a: Activity) {
+    async function openEdit(a: Activity) {
         if (currentUserRole !== 'Admin') {
             showToast(t('permission_denied_admin_edit', { defaultValue: 'Permission Denied: Only admin can edit activities' }), 'error');
             return;
@@ -158,6 +172,8 @@ export default function ActivitiesScreen() {
         // keep existing time or empty if not present (don't force default on edit)
         setTime(a.time || '');
         setDescription(a.description);
+        const urls = await ensureDownloadUrls(a.images || []);
+        setImages(urls);
         setModalVisible(true);
     }
 
@@ -170,10 +186,18 @@ export default function ActivitiesScreen() {
         try {
             if (editingId) {
                 const ref = doc(db, 'activities', editingId);
-                await updateDoc(ref, { title, location, date, time, description, updatedAt: serverTimestamp() });
+                let uploadedUrls: string[] = [];
+                if (images?.length) {
+                    uploadedUrls = await uploadAllImagesAndReturnUrls(images, editingId);
+                }
+                await updateDoc(ref, { title, location, date, time, description, updatedAt: serverTimestamp(), images: uploadedUrls });
                 showToast(t('activity_updated', { defaultValue: 'Activity updated successfully' }), 'success');
             } else {
-                await addDoc(collection(db, 'activities'), { title, location, date, time, description, createdAt: serverTimestamp() });
+                const docRef = await addDoc(collection(db, 'activities'), { title, location, date, time, description, createdAt: serverTimestamp() });
+                if (images?.length) {
+                    const urls = await uploadAllImagesAndReturnUrls(images, docRef.id);
+                    await updateDoc(doc(db, 'activities', docRef.id), { images: urls });
+                }
                 showToast(t('activity_added', { defaultValue: 'Activity added successfully' }), 'success');
             }
             setModalVisible(false);
@@ -201,6 +225,20 @@ export default function ActivitiesScreen() {
         setOperationLoading(true);
 
         try {
+            // attempt to delete associated images first
+            try {
+                const refDoc = doc(db, 'activities', itemToDelete);
+                const snap = await getDoc(refDoc);
+                const data: any = snap.data();
+                const imgs: string[] = Array.isArray(data?.images) ? data.images : [];
+                if (imgs.length) {
+                    const settled = await Promise.allSettled(imgs.map((u) => deleteImageFromStorageByUrl(u)));
+                    const anyFailed = settled.some(s => s.status === 'rejected' || (s.status === 'fulfilled' && s.value === false));
+                    if (anyFailed) showToast?.(t('failed_to_delete_storage_image', { defaultValue: 'Failed to delete previous storage image. Check storage rules.' }), 'error');
+                }
+            } catch (errImgs) {
+                console.warn('Failed deleting activity images', errImgs);
+            }
             await deleteDoc(doc(db, 'activities', itemToDelete));
             showToast(t('activity_deleted', { defaultValue: 'Activity deleted successfully' }), 'success');
         } catch (e) {
@@ -209,6 +247,168 @@ export default function ActivitiesScreen() {
         } finally {
             setOperationLoading(false);
             setItemToDelete(null);
+        }
+    }
+
+    // Image helpers
+    async function uploadImageToStorage(uri: string, activityId: string): Promise<string> {
+        if (!uri) return '';
+        if (uri.startsWith('http')) return uri;
+        try {
+            const response = await fetch(uri);
+            const blob = await response.blob();
+            const filename = `activities/${activityId}_${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`;
+            const storageRef = ref(storage, filename);
+            await uploadBytes(storageRef, blob);
+            const downloadURL = await getDownloadURL(storageRef);
+            return downloadURL;
+        } catch (err) {
+            console.warn('Upload error', err);
+            throw err;
+        }
+    }
+
+    async function uploadAllImagesAndReturnUrls(uris: string[], activityId: string) {
+        const urls: string[] = [];
+        for (let i = 0; i < uris.length; i++) {
+            const u = uris[i];
+            if (!u) continue;
+            if (u.startsWith('http')) { urls.push(u); continue; }
+            const url = await uploadImageToStorage(u, activityId);
+            urls.push(url);
+        }
+        return urls;
+    }
+
+    // Use shared deleteImageFromStorageByUrl helper imported above
+
+    // Convert storage paths (gs:// or bucket path) to download URLs when necessary
+    async function ensureDownloadUrls(uris: string[]) {
+        if (!uris?.length) return [] as string[];
+        const converted = await Promise.all(uris.map(async (u) => {
+            try {
+                if (!u) return u;
+                if (u.startsWith('http')) return u;
+                let path = u;
+                if (u.startsWith('gs://')) {
+                    path = u.replace(/^[^/]+:\/\/[\w.-]+\//, '');
+                }
+                const m = (u || '').match(/\/o\/([^?]+)/);
+                if (m && m[1]) {
+                    path = decodeURIComponent(m[1]);
+                }
+                const storageRef = ref(storage, path);
+                return await getDownloadURL(storageRef);
+            } catch (err) {
+                console.warn('Failed to convert storage uri to download url', u, err);
+                return u; // fallback
+            }
+        }));
+        return converted;
+    }
+
+    async function showImagePreview(list: string[], startIndex = 0) {
+        setImageModalVisible(true);
+        setImageList([]);
+        setActiveImageIndex(startIndex);
+        if (!list || !list.length) return;
+        const urls = await ensureDownloadUrls(list);
+        setImageList(urls);
+    }
+
+    async function pickImages() {
+        setImagesLoading(true);
+        try {
+            const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+            if (!perm.granted) {
+                showToast(t('gallery_access_permission_required', { defaultValue: 'Gallery access permission required' }), 'error');
+                return;
+            }
+            const MEDIA_IMAGES = (ImagePicker as any)?.MediaType?.Images;
+            const res = await ImagePicker.launchImageLibraryAsync({
+                ...(MEDIA_IMAGES ? { mediaTypes: MEDIA_IMAGES } : {}),
+                allowsMultipleSelection: true,
+                quality: 0.8,
+            });
+            if (!res.canceled && res.assets) {
+                const uris = res.assets.map((a: any) => a.uri);
+                await new Promise(resolve => setTimeout(resolve, 250));
+                setImages(prev => [...prev, ...uris]);
+            }
+        } catch (err) {
+            console.warn('Image picker error', err);
+        } finally {
+            setImagesLoading(false);
+        }
+    }
+
+    useEffect(() => {
+        if (imageModalVisible && imageFlatListRef.current) {
+            const idx = Math.max(0, Math.min(activeImageIndex, (imageList.length || 1) - 1));
+            try { imageFlatListRef.current?.scrollToIndex({ index: idx, animated: true }); } catch { }
+        }
+    }, [activeImageIndex, imageModalVisible]);
+
+    async function handleReplaceImageInEdit(index: number) {
+        try {
+            if (!editingId) {
+                const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+                if (!perm.granted) { showToast(t('gallery_access_permission_required', { defaultValue: 'Gallery access permission required' }), 'error'); return; }
+                const res = await ImagePicker.launchImageLibraryAsync({ quality: 0.8, base64: false });
+                if (!res.canceled && res.assets?.[0]?.uri) {
+                    const newUri = res.assets[0].uri;
+                    setImages(prev => prev.map((u, i) => i === index ? newUri : u));
+                }
+                return;
+            }
+            setOperationLoading(true);
+            const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+            if (!perm.granted) { showToast(t('gallery_access_permission_required', { defaultValue: 'Gallery access permission required' }), 'error'); setOperationLoading(false); return; }
+            const res = await ImagePicker.launchImageLibraryAsync({ quality: 0.8, base64: false });
+            if (res.canceled || !res.assets?.[0]?.uri) { setOperationLoading(false); return; }
+            const newLocalUri = res.assets[0].uri;
+            const uploadedUrl = await uploadImageToStorage(newLocalUri, editingId);
+            const prevImages = images.slice();
+            const oldUrl = prevImages[index];
+            prevImages[index] = uploadedUrl;
+            setImages(prevImages);
+            await updateDoc(doc(db, 'activities', editingId), { images: prevImages });
+            if (oldUrl && (oldUrl.startsWith('http://') || oldUrl.startsWith('https://') || oldUrl.startsWith('gs://'))) {
+                const deleted = await deleteImageFromStorageByUrl(oldUrl);
+                if (!deleted) {
+                    console.warn('Failed to delete old activity image', oldUrl);
+                    showToast?.(t('failed_to_delete_storage_image', { defaultValue: 'Failed to delete previous storage image. Check storage rules.' }), 'error');
+                }
+            }
+        } catch (err) {
+            console.error('Replace image error', err);
+            showToast(t('failed_to_replace_image', { defaultValue: 'Failed to replace image' }), 'error');
+        } finally {
+            setOperationLoading(false);
+        }
+    }
+
+    async function handleRemoveImageInEdit(index: number) {
+        try {
+            const current = images.slice();
+            const removed = current.splice(index, 1)[0];
+            setImages(current);
+            if (editingId) {
+                setOperationLoading(true);
+                await updateDoc(doc(db, 'activities', editingId), { images: current });
+                if (removed && (removed.startsWith('http://') || removed.startsWith('https://') || removed.startsWith('gs://'))) {
+                    const deleted = await deleteImageFromStorageByUrl(removed);
+                    if (!deleted) {
+                        console.warn('Failed to delete removed activity image', removed);
+                        showToast?.(t('failed_to_delete_storage_image', { defaultValue: 'Failed to delete previous storage image. Check storage rules.' }), 'error');
+                    }
+                }
+            }
+        } catch (err) {
+            console.error('Remove image error', err);
+            showToast(t('failed_to_remove_image', { defaultValue: 'Failed to remove image' }), 'error');
+        } finally {
+            setOperationLoading(false);
         }
     }
 
@@ -394,6 +594,11 @@ export default function ActivitiesScreen() {
                         <Text numberOfLines={2} style={{ color: '#6B7280', fontSize: 13 }}>
                             {item.description}
                         </Text>
+                    )}
+                    {item.images && item.images.length > 0 && (
+                        <TouchableOpacity onPress={() => showImagePreview(item.images || [], 0)} style={{ marginTop: 6 }}>
+                            <Text style={{ color: '#3B82F6', fontWeight: '700' }}>{t('image_count_label', { count: item.images.length, defaultValue: `Image : ${item.images.length} (total)` })}</Text>
+                        </TouchableOpacity>
                     )}
                 </View>
             </View>
@@ -838,6 +1043,11 @@ export default function ActivitiesScreen() {
                                                     {item.description}
                                                 </Text>
                                             )}
+                                            {item.images && item.images.length > 0 && (
+                                                <TouchableOpacity onPress={() => showImagePreview(item.images || [], 0)} style={{ marginTop: 6 }}>
+                                                    <Text style={{ color: '#3B82F6', fontWeight: '700' }}>{t('image_count_label', { count: item.images.length, defaultValue: `image : ${item.images.length} (total)` })}</Text>
+                                                </TouchableOpacity>
+                                            )}
                                         </View>
                                     </View>
                                 );
@@ -924,6 +1134,45 @@ export default function ActivitiesScreen() {
                                 inputStyle={{ minHeight: 120, paddingTop: 18 }}
                             />
 
+                            {/* Image picker */}
+                            <View style={{ marginTop: 4 }}>
+                                <FloatingLabelInput
+                                    label={t('images_label', { defaultValue: 'Images' })}
+                                    value={images.length ? t('image_count_label', { count: images.length, defaultValue: `image : ${images.length} (total)` }) : ''}
+                                    onChangeText={() => { }}
+                                    editable={false}
+                                    onPress={pickImages}
+                                    placeholder={t('pick_images', { defaultValue: '📷 Pick Images' })}
+                                    inputStyle={{ paddingRight: 48 }}
+                                />
+                                {imagesLoading && (
+                                    <View style={{ position: 'absolute', right: 12, top: 14 }}>
+                                        <ActivityIndicator size="small" color="#3B82F6" />
+                                    </View>
+                                )}
+                                {imagesLoading ? (
+                                    <View style={{ marginTop: 8, alignItems: 'center' }}>
+                                        <ActivityIndicator size="small" color="#3B82F6" />
+                                    </View>
+                                ) : images.length > 0 ? (
+                                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }}>
+                                        {images.map((uri, idx) => (
+                                            <View key={idx} style={{ marginRight: 8, position: 'relative' }}>
+                                                <TouchableOpacity onPress={() => showImagePreview(images, idx)}>
+                                                    <Image source={{ uri }} style={{ width: 84, height: 84, borderRadius: 8 }} />
+                                                </TouchableOpacity>
+                                                <TouchableOpacity onPress={() => handleReplaceImageInEdit(idx)} style={{ position: 'absolute', top: -6, right: 18, backgroundColor: '#F3F4F6', borderRadius: 12, width: 24, height: 24, alignItems: 'center', justifyContent: 'center' }}>
+                                                    <Text style={{ color: '#111827', fontWeight: '700' }}>✎</Text>
+                                                </TouchableOpacity>
+                                                <TouchableOpacity onPress={() => handleRemoveImageInEdit(idx)} style={{ position: 'absolute', top: -6, right: -6, backgroundColor: '#EF4444', borderRadius: 12, width: 24, height: 24, alignItems: 'center', justifyContent: 'center' }}>
+                                                    <Text style={{ color: '#fff', fontWeight: '700' }}>×</Text>
+                                                </TouchableOpacity>
+                                            </View>
+                                        ))}
+                                    </ScrollView>
+                                ) : null}
+                            </View>
+
                             <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 16 }}>
                                 <TouchableOpacity onPress={() => !operationLoading && setModalVisible(false)} disabled={operationLoading} style={{ padding: 10, opacity: operationLoading ? 0.6 : 1 }}>
                                     <Text style={{ color: '#6B7280' }}>{t('cancel', { defaultValue: 'Cancel' })}</Text>
@@ -934,6 +1183,55 @@ export default function ActivitiesScreen() {
                             </View>
                         </ScrollView>
                     </View>
+                </View>
+            </Modal>
+
+            <Modal visible={imageModalVisible} transparent animationType="fade" onRequestClose={() => setImageModalVisible(false)}>
+                <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center' }}>
+                    <TouchableOpacity activeOpacity={1} onPress={() => setImageModalVisible(false)} style={{ position: 'absolute', top: 40, right: 20 }}>
+                        <Text style={{ color: '#fff', fontSize: 18 }}>✕</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity onPress={() => {
+                        if (activeImageIndex > 0) {
+                            setActiveImageIndex(prev => Math.max(0, prev - 1));
+                            imageFlatListRef.current?.scrollToIndex({ index: Math.max(0, activeImageIndex - 1), animated: true });
+                        }
+                    }} style={{ position: 'absolute', left: 12, top: '50%', zIndex: 30 }}>
+                        <Text style={{ color: '#fff', fontSize: 28 }}>‹</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => {
+                        if (activeImageIndex < (imageList.length - 1)) {
+                            setActiveImageIndex(prev => Math.min(imageList.length - 1, prev + 1));
+                            imageFlatListRef.current?.scrollToIndex({ index: Math.min(imageList.length - 1, activeImageIndex + 1), animated: true });
+                        }
+                    }} style={{ position: 'absolute', right: 12, top: '50%', zIndex: 30 }}>
+                        <Text style={{ color: '#fff', fontSize: 28 }}>›</Text>
+                    </TouchableOpacity>
+
+                    <Text style={{ color: '#fff', fontWeight: '700', marginBottom: 12, marginTop: 18 }}>{imageList.length > 0 ? `${activeImageIndex + 1} / ${imageList.length}` : ''}</Text>
+
+                    <FlatList
+                        ref={imageFlatListRef}
+                        data={imageList}
+                        horizontal
+                        pagingEnabled
+                        showsHorizontalScrollIndicator={false}
+                        keyExtractor={(it, i) => `${it}-${i}`}
+                        initialScrollIndex={activeImageIndex < imageList.length ? activeImageIndex : 0}
+                        getItemLayout={(_, index) => ({ length: Dimensions.get('window').width * 0.9, offset: (Dimensions.get('window').width * 0.9) * index, index })}
+                        onMomentumScrollEnd={(e) => {
+                            const offsetX = e.nativeEvent.contentOffset.x;
+                            const width = Dimensions.get('window').width * 0.9;
+                            const idx = Math.round(offsetX / width);
+                            setActiveImageIndex(idx);
+                        }}
+                        renderItem={({ item }) => (
+                            <View style={{ width: Dimensions.get('window').width * 0.9, alignItems: 'center', justifyContent: 'center' }}>
+                                <Image source={{ uri: item }} style={{ width: '100%', height: '70%', borderRadius: 12 }} resizeMode="contain" />
+                            </View>
+                        )}
+                    />
                 </View>
             </Modal>
 

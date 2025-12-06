@@ -1,12 +1,15 @@
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from 'expo-router';
 import { collection, deleteDoc, doc, getDoc, getDocs, setDoc, updateDoc } from 'firebase/firestore';
+import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
     ActivityIndicator,
     FlatList,
+    Image,
     Modal,
     Platform,
     RefreshControl,
@@ -24,7 +27,7 @@ import FloatingLabelInput from '../../src/components/FloatingLabelInput';
 import LoadMore from '../../src/components/LoadMore';
 import SelectInput from '../../src/components/SelectInput';
 import { useToast } from '../../src/contexts/ToastContext';
-import { db } from '../../src/firebaseConfig';
+import { db, storage } from '../../src/firebaseConfig';
 import { useRefresh } from '../../src/hooks/useRefresh';
 import { getCurrentUser } from '../../src/services/authService';
 
@@ -93,6 +96,7 @@ export default function UsersScreen() {
     const [maritalStatus, setMaritalStatus] = useState<string>('');
     const [spouseName, setSpouseName] = useState('');
     const [children, setChildren] = useState<Array<{ name: string; birthDate: string; placeOfBirth: string }>>([]);
+    const [photo, setPhoto] = useState<string | undefined>(undefined);
 
     // NEW: focused field for outline focus styling
     const [focusedField, setFocusedField] = useState<string | null>(null);
@@ -269,10 +273,10 @@ export default function UsersScreen() {
         }
 
         // NEW: Protect master admin account
-        if (u.email === 'suryadi.hhb@gmail.com') {
-            showToast(t('cannot_edit_master', { defaultValue: 'This account cannot be edited' }), 'error');
-            return;
-        }
+        // if (u.email === 'suryadi.hhb@gmail.com') {
+        //     showToast(t('cannot_edit_master', { defaultValue: 'This account cannot be edited' }), 'error');
+        //     return;
+        // }
 
         setEditingId(u.id);
         setName(u.name);
@@ -282,6 +286,7 @@ export default function UsersScreen() {
         setGenderOpen(false);
         setReligionOpen(false);
         setMaritalStatusOpen(false); // NEW: reset marital status dropdown
+        setPhoto(u.photo || undefined);
 
         // Load complete profile data from Firestore
         (async () => {
@@ -296,6 +301,7 @@ export default function UsersScreen() {
                     setMaritalStatus(data.maritalStatus || 'single');
                     setSpouseName(data.spouseName || '');
                     setChildren(data.children || []);
+                    setPhoto(data.profileImage || data.photo || undefined);
                     // ensure phone shown in modal is string
                     setPhone(data.phone !== undefined && data.phone !== null ? String(data.phone) : '');
                 }
@@ -327,10 +333,57 @@ export default function UsersScreen() {
         setMaritalStatus(''); // Default: empty => show "Choose marital status"
         setSpouseName('');
         setChildren([]);
+        setPhoto(undefined);
         setGenderOpen(false);
         setReligionOpen(false);
         setMaritalStatusOpen(false); // NEW: reset marital status dropdown
         setModalVisible(true);
+    }
+
+    // Image picker and upload functions
+    async function pickImage() {
+        try {
+            const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+            if (!perm.granted) {
+                showToast(t('gallery_access_permission_required', { defaultValue: 'Gallery access permission required' }), 'error');
+                return;
+            }
+            const res = await ImagePicker.launchImageLibraryAsync({ quality: 0.7, base64: false });
+            const uri = (res as any)?.assets?.[0]?.uri || (res as any)?.uri;
+            if (uri) {
+                setPhoto(uri);
+            }
+        } catch {
+            // ignore
+        }
+    }
+
+    // Upload image to Firebase Storage
+    async function uploadImageToStorage(uri: string, userId: string): Promise<string> {
+        // If already a remote URL (http/https), skip upload
+        if (uri.startsWith('http://') || uri.startsWith('https://')) {
+            return uri;
+        }
+
+        try {
+            // Fetch the local file and convert to blob
+            const response = await fetch(uri);
+            const blob = await response.blob();
+
+            // Generate unique filename
+            const filename = `user_photos/${userId}_${Date.now()}.jpg`;
+            const storageRef = ref(storage, filename);
+
+            // Upload to Firebase Storage
+            await uploadBytes(storageRef, blob);
+
+            // Get download URL
+            const downloadURL = await getDownloadURL(storageRef);
+            return downloadURL;
+        } catch (error) {
+            console.error('Error uploading image:', error);
+            throw error;
+        }
     }
 
     // NEW: Children management functions
@@ -402,6 +455,19 @@ export default function UsersScreen() {
                 console.log('=== UPDATING USER ===');
                 const docRef = doc(db, 'users', editingId);
 
+                // Upload photo if it's a local file
+                let uploadedPhotoUrl = photo || '';
+                if (photo && !photo.startsWith('http')) {
+                    try {
+                        showToast(t('uploading_image', { defaultValue: 'Uploading image...' }), 'info');
+                        uploadedPhotoUrl = await uploadImageToStorage(photo, editingId);
+                    } catch (uploadError) {
+                        console.error('Image upload failed:', uploadError);
+                        showToast(t('image_upload_failed', { defaultValue: 'Image upload failed' }), 'error');
+                        uploadedPhotoUrl = '';
+                    }
+                }
+
                 await setDoc(docRef, {
                     nama: name.trim(),
                     email: email.trim(),
@@ -414,6 +480,7 @@ export default function UsersScreen() {
                     maritalStatus: maritalStatus,
                     spouseName: maritalStatus === 'married' ? spouseName : '',
                     children: (maritalStatus === 'married' || maritalStatus === 'divorced' || maritalStatus === 'widowed') ? children : [],
+                    profileImage: uploadedPhotoUrl,
                 }, { merge: true });
 
                 const verifyDoc = await getDoc(docRef);
@@ -453,6 +520,20 @@ export default function UsersScreen() {
 
                     console.log('Auth user created:', newUser.uid);
 
+                    // Upload photo if provided
+                    let uploadedPhotoUrl = '';
+                    if (photo && !photo.startsWith('http')) {
+                        try {
+                            showToast(t('uploading_image', { defaultValue: 'Uploading image...' }), 'info');
+                            uploadedPhotoUrl = await uploadImageToStorage(photo, newUser.uid);
+                        } catch (uploadError) {
+                            console.error('Image upload failed:', uploadError);
+                            // Continue without photo
+                        }
+                    } else if (photo) {
+                        uploadedPhotoUrl = photo;
+                    }
+
                     // Create Firestore document with complete profile data
                     await setDoc(doc(db, 'users', newUser.uid), {
                         uid: newUser.uid,
@@ -467,6 +548,7 @@ export default function UsersScreen() {
                         maritalStatus: maritalStatus || 'single',
                         spouseName: maritalStatus === 'married' ? spouseName : '',
                         children: (maritalStatus === 'married' || maritalStatus === 'divorced' || maritalStatus === 'widowed') ? children : [],
+                        profileImage: uploadedPhotoUrl,
                         createdAt: new Date(),
                     });
 
@@ -688,7 +770,7 @@ export default function UsersScreen() {
         }
     }
 
-    const filteredUsers = users
+    const filteredUsersBase = users
         .filter(u => (roleFilter ? u.role === roleFilter : true))
         .filter(u => {
             // 'all' should show everyone except rejected (include pending/new users)
@@ -703,6 +785,11 @@ export default function UsersScreen() {
             if (!q) return true;
             return (u.name || '').toLowerCase().includes(q) || (u.email || '').toLowerCase().includes(q);
         });
+
+    // if viewing All, show pending users first while preserving order within groups
+    const filteredUsers = (activeFilter === 'all')
+        ? ([...filteredUsersBase.filter(isUserPending), ...filteredUsersBase.filter(u => !isUserPending(u))])
+        : filteredUsersBase;
 
     // Paginated users for display
     const displayedUsers = filteredUsers.slice(0, displayedCount);
@@ -872,7 +959,25 @@ export default function UsersScreen() {
                     {/* Main content row: icon + title/subtitle + actions */}
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                         <View style={{ flex: 1, flexDirection: 'row', alignItems: 'flex-start' }}>
-                            <Text style={{ fontSize: 24, marginRight: 12 }}>👤</Text>
+                            {/* User Photo */}
+                            <View style={{
+                                width: 48,
+                                height: 48,
+                                borderRadius: 24,
+                                backgroundColor: '#F3F4F6',
+                                marginRight: 12,
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                overflow: 'hidden',
+                                borderWidth: 2,
+                                borderColor: item.isActive ? colors.border : '#D1D5DB'
+                            }}>
+                                {item.photo ? (
+                                    <Image source={{ uri: item.photo }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                                ) : (
+                                    <Ionicons name="person" size={24} color="#9CA3AF" />
+                                )}
+                            </View>
 
                             <View style={{ flex: 1 }}>
                                 <Text style={{
@@ -984,14 +1089,8 @@ export default function UsersScreen() {
         return dateStr;
     }
 
-    if (loading) {
-        return (
-            <SafeAreaView style={{ flex: 1, backgroundColor: '#fff', justifyContent: 'center', alignItems: 'center' }}>
-                <ActivityIndicator size="large" color="#6366f1" />
-                <Text style={{ marginTop: 12, color: '#6B7280' }}>Loading users...</Text>
-            </SafeAreaView>
-        );
-    }
+    // NOTE: Show a non-fullscreen loading indicator inside the list area so header/filters remain visible
+    // The list container below will render a loader when `loading` is true.
 
     return (
         <SafeAreaView edges={['bottom']} style={{ flex: 1, backgroundColor: '#F8FAFC' }}>
@@ -1340,41 +1439,48 @@ export default function UsersScreen() {
                     overflow: 'hidden',
                     flex: 1
                 }}>
-                    <FlatList
-                        data={displayedUsers}
-                        keyExtractor={(i) => i.id}
-                        renderItem={renderItem}
-                        numColumns={1}
-                        style={{ flex: 1 }}
-                        contentContainerStyle={{
-                            paddingHorizontal: 16,
-                            paddingTop: 16,
-                            paddingBottom: 80
-                        }}
-                        showsVerticalScrollIndicator={false}
-                        refreshControl={
-                            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#7c3aed']} tintColor="#7c3aed" />
-                        }
-                        keyboardShouldPersistTaps="handled"
-                        // Load more pagination
-                        onEndReached={handleLoadMore}
-                        onEndReachedThreshold={0.2}
-                        ListFooterComponent={() => (
-                            <LoadMore
-                                loading={loadingMore}
-                                hasMore={displayedCount < filteredUsers.length}
-                            />
-                        )}
-                        ListEmptyComponent={() => (
-                            <View style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: 60 }}>
-                                <Text style={{ fontSize: 48, marginBottom: 12 }}>👤</Text>
-                                <Text style={{ color: '#6B7280', fontSize: 16, fontWeight: '600' }}>{t('no_users_found', { defaultValue: 'No users found' })}</Text>
-                                <Text style={{ color: '#9CA3AF', fontSize: 13, marginTop: 4, textAlign: 'center' }}>
-                                    {t('no_users_match_filters', { defaultValue: 'No users match your filters' })}
-                                </Text>
-                            </View>
-                        )}
-                    />
+                    {loading ? (
+                        <View style={{ flex: 1, minHeight: 160, alignItems: 'center', justifyContent: 'center', paddingVertical: 20 }}>
+                            <ActivityIndicator size="small" color="#6366f1" />
+                            <Text style={{ marginTop: 8, color: '#6B7280' }}>{t('loading_users', { defaultValue: 'Loading users...' })}</Text>
+                        </View>
+                    ) : (
+                        <FlatList
+                            data={displayedUsers}
+                            keyExtractor={(i) => i.id}
+                            renderItem={renderItem}
+                            numColumns={1}
+                            style={{ flex: 1 }}
+                            contentContainerStyle={{
+                                paddingHorizontal: 16,
+                                paddingTop: 16,
+                                paddingBottom: 80
+                            }}
+                            showsVerticalScrollIndicator={false}
+                            refreshControl={
+                                <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#7c3aed']} tintColor="#7c3aed" />
+                            }
+                            keyboardShouldPersistTaps="handled"
+                            // Load more pagination
+                            onEndReached={handleLoadMore}
+                            onEndReachedThreshold={0.2}
+                            ListFooterComponent={() => (
+                                <LoadMore
+                                    loading={loadingMore}
+                                    hasMore={displayedCount < filteredUsers.length}
+                                />
+                            )}
+                            ListEmptyComponent={() => (
+                                <View style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: 60 }}>
+                                    <Text style={{ fontSize: 48, marginBottom: 12 }}>👤</Text>
+                                    <Text style={{ color: '#6B7280', fontSize: 16, fontWeight: '600' }}>{t('no_users_found', { defaultValue: 'No users found' })}</Text>
+                                    <Text style={{ color: '#9CA3AF', fontSize: 13, marginTop: 4, textAlign: 'center' }}>
+                                        {t('no_users_match_filters', { defaultValue: 'No users match your filters' })}
+                                    </Text>
+                                </View>
+                            )}
+                        />
+                    )}
                 </View>
             </View>
 
@@ -1384,6 +1490,50 @@ export default function UsersScreen() {
                     <View className="bg-white rounded-t-3xl p-6" style={{ maxHeight: '90%' }}>
                         <ScrollView showsVerticalScrollIndicator={false}>
                             <Text className="text-xl font-semibold mb-4">{editingId ? t('edit_user', { defaultValue: 'Edit User' }) : t('create_user', { defaultValue: 'Create New User' })}</Text>
+
+                            {/* Photo Upload */}
+                            <View style={{ alignItems: 'center', marginBottom: 16 }}>
+                                <TouchableOpacity onPress={pickImage} style={{ position: 'relative' }}>
+                                    <View style={{
+                                        width: 100,
+                                        height: 100,
+                                        borderRadius: 50,
+                                        backgroundColor: '#F3F4F6',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        borderWidth: 2,
+                                        borderColor: '#7c3aed',
+                                        overflow: 'hidden'
+                                    }}>
+                                        {photo ? (
+                                            <Image source={{ uri: photo }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                                        ) : (
+                                            <Ionicons name="person" size={40} color="#9CA3AF" />
+                                        )}
+                                    </View>
+                                    <View style={{
+                                        position: 'absolute',
+                                        bottom: 0,
+                                        right: 0,
+                                        backgroundColor: '#7c3aed',
+                                        width: 28,
+                                        height: 28,
+                                        borderRadius: 14,
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        borderWidth: 2,
+                                        borderColor: '#fff'
+                                    }}>
+                                        <Ionicons name="camera" size={14} color="#fff" />
+                                    </View>
+                                </TouchableOpacity>
+                                <Text style={{ color: '#6B7280', fontSize: 12, marginTop: 8 }}>{t('tap_to_change_photo', { defaultValue: 'Tap to change photo' })}</Text>
+                                {photo && (
+                                    <TouchableOpacity onPress={() => setPhoto(undefined)} style={{ marginTop: 4 }}>
+                                        <Text style={{ color: '#EF4444', fontSize: 12 }}>{t('remove_photo', { defaultValue: 'Remove photo' })}</Text>
+                                    </TouchableOpacity>
+                                )}
+                            </View>
 
                             {/* Basic Info */}
                             <FloatingLabelInput

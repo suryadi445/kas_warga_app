@@ -40,6 +40,8 @@ type CardItemProps = {
     // Date or time info
     date?: string;
     dateColor?: string;
+    // Optional extra line or node displayed below description (e.g., image count)
+    meta?: string | React.ReactNode;
 };
 
 export default function CardItem({
@@ -62,6 +64,7 @@ export default function CardItem({
     containerStyle,
     date,
     dateColor = '#6B7280',
+    meta,
 }: CardItemProps) {
     return (
         <View style={[{ marginHorizontal: 16, marginVertical: 8 }, containerStyle]}>
@@ -154,6 +157,13 @@ export default function CardItem({
                                 <Text numberOfLines={2} style={{ color: descriptionColor, fontSize: 13, marginTop: 4, lineHeight: 18 }}>
                                     {description}
                                 </Text>
+                            )}
+                            {meta && (
+                                typeof meta === 'string' ? (
+                                    <Text style={{ color: '#6B7280', fontSize: 12, marginTop: 6 }}>{meta}</Text>
+                                ) : (
+                                    <View style={{ marginTop: 6 }}>{meta}</View>
+                                )
                             )}
                         </View>
                     </View>

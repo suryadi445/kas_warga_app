@@ -1,10 +1,13 @@
 import { Stack } from 'expo-router';
-import { StatusBar, View } from 'react-native';
+import { LogBox, StatusBar, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ToastProvider } from '../src/contexts/ToastContext';
 import '../src/i18n';
 
 export default function RootLayout() {
+    // Ignore a noisy deprecation warning from older expo-image-picker versions.
+    // We'll still prefer upgrading the package; this reduces clutter while we do that.
+    LogBox.ignoreLogs(['ImagePicker.MediaTypeOptions']);
     return (
         <ToastProvider>
             <SafeAreaProvider>
