@@ -582,13 +582,13 @@ export default function ProfilePage() {
             {/* Form Content Card */}
             <ScrollView
                 style={{ flex: 1, paddingHorizontal: 10 }}
-                contentContainerStyle={{ paddingBottom: 20 }}
+                contentContainerStyle={{ paddingBottom: 0, flexGrow: 1 }}
                 showsVerticalScrollIndicator={false}
                 refreshControl={
                     <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#6366f1']} />
                 }
             >
-                <ListCardWrapper style={{ marginHorizontal: 0, marginBottom: 16 }}>
+                <ListCardWrapper style={{ marginHorizontal: 0, marginBottom: 0, flex: 1 }}>
                     <View style={{ padding: 20 }}>
                         {/* Personal Information Section */}
                         <View style={{ marginBottom: 16 }}>
@@ -849,7 +849,7 @@ export default function ProfilePage() {
                         </View>
 
                         {/* Save Button - Inside ScrollView */}
-                        <View style={{ marginTop: 24, marginBottom: 8 }}>
+                        <View style={{ marginTop: 0, marginBottom: 48 }}>
                             <TouchableOpacity
                                 onPress={handleSave}
                                 disabled={saving}
