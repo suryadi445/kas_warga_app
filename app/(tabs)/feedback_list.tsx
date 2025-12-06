@@ -5,7 +5,6 @@ import { collection, doc, onSnapshot, orderBy, query, writeBatch } from 'firebas
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-    ActivityIndicator,
     FlatList,
     StatusBar,
     StyleSheet,
@@ -14,6 +13,7 @@ import {
     View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import ListLoadingState from '../../src/components/ListLoadingState';
 import { db } from '../../src/firebaseConfig';
 
 type Feedback = {
@@ -33,13 +33,16 @@ export default function FeedbackListScreen() {
     const [filterStatus, setFilterStatus] = useState<'all' | 'read' | 'unread'>('all');
 
     useEffect(() => {
+        const start = Date.now();
         const q = query(collection(db, 'feedbacks'), orderBy('created_date', 'desc'));
-        const unsubscribe = onSnapshot(q, (snapshot) => {
+        const unsubscribe = onSnapshot(q, async (snapshot) => {
             const list: Feedback[] = [];
             snapshot.forEach((doc) => {
                 list.push({ id: doc.id, ...doc.data() } as Feedback);
             });
             setFeedbacks(list);
+            const elapsed = Date.now() - start;
+            if (elapsed < 1000) await new Promise(res => setTimeout(res, 1000 - elapsed));
             setLoading(false);
         }, (error) => {
             console.error("Error fetching feedbacks: ", error);
@@ -260,8 +263,10 @@ export default function FeedbackListScreen() {
 
 
             {loading ? (
-                <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="large" color="#6366f1" />
+                <View style={{ flex: 1, paddingHorizontal: 18 }}>
+                    <View style={styles.listContainer}>
+                        <ListLoadingState message={t('loading_feedback', { defaultValue: 'Loading feedback...' })} />
+                    </View>
                 </View>
             ) : (
                 <View style={{ flex: 1, paddingHorizontal: 18 }}>

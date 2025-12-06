@@ -24,6 +24,7 @@ import DateTimePickerModal from 'react-native-modal-datetime-picker';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import ConfirmDialog from '../../src/components/ConfirmDialog';
 import FloatingLabelInput from '../../src/components/FloatingLabelInput';
+import ListLoadingState from '../../src/components/ListLoadingState';
 import LoadMore from '../../src/components/LoadMore';
 import SelectInput from '../../src/components/SelectInput';
 import { useToast } from '../../src/contexts/ToastContext';
@@ -181,6 +182,7 @@ export default function UsersScreen() {
     }
 
     async function loadUsers() {
+        const startTime = Date.now();
         try {
             setLoading(true);
             const snapshot = await getDocs(collection(db, 'users'));
@@ -261,6 +263,10 @@ export default function UsersScreen() {
             console.error('Failed to load users:', error);
             showToast(t('failed_load_users', { defaultValue: 'Failed to load users from Firestore' }), 'error');
         } finally {
+            const elapsed = Date.now() - startTime;
+            if (elapsed < 1000) {
+                await new Promise(resolve => setTimeout(resolve, 1000 - elapsed));
+            }
             setLoading(false);
         }
     }
@@ -1440,10 +1446,7 @@ export default function UsersScreen() {
                     flex: 1
                 }}>
                     {loading ? (
-                        <View style={{ flex: 1, minHeight: 160, alignItems: 'center', justifyContent: 'center', paddingVertical: 20 }}>
-                            <ActivityIndicator size="small" color="#6366f1" />
-                            <Text style={{ marginTop: 8, color: '#6B7280' }}>{t('loading_users', { defaultValue: 'Loading users...' })}</Text>
-                        </View>
+                        <ListLoadingState message={t('loading_users', { defaultValue: 'Loading users...' })} />
                     ) : (
                         <FlatList
                             data={displayedUsers}
@@ -1770,6 +1773,8 @@ export default function UsersScreen() {
                 confirmText={t('reject_confirm', { defaultValue: 'Reject' })}
                 cancelText={t('cancel')}
             />
+
+
 
             {/* Confirm dialog for restoring users from Rejected list */}
             <ConfirmDialog

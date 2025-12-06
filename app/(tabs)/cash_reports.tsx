@@ -11,6 +11,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import CardItem from '../../src/components/CardItem';
 import ConfirmDialog from '../../src/components/ConfirmDialog';
 import FloatingLabelInput from '../../src/components/FloatingLabelInput';
+import ListLoadingState from '../../src/components/ListLoadingState';
 import SelectInput from '../../src/components/SelectInput';
 import { useToast } from '../../src/contexts/ToastContext';
 import { db, storage } from '../../src/firebaseConfig';
@@ -767,17 +768,9 @@ export default function CashReportsScreen() {
         }
     }
 
-    // show loader if initial load
-    if (loadingReports) {
-        return (
-            <SafeAreaView edges={['bottom']} style={{ flex: 1, backgroundColor: '#fff' }}>
-                <StatusBar barStyle="dark-content" translucent backgroundColor="transparent" />
-                <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-                    <Text style={{ color: '#6B7280' }}>{t('loading_reports', { defaultValue: 'Loading reports...' })}</Text>
-                </View>
-            </SafeAreaView>
-        );
-    }
+    // show loader if initial load - REMOVED to allow UI to render
+    // if (loadingReports) { ... }
+
 
     const renderItem = ({ item }: { item: Report }) => {
         const isIncome = item.type === 'in';
@@ -1095,47 +1088,51 @@ export default function CashReportsScreen() {
                     overflow: 'hidden',
                     flex: 1
                 }}>
-                    <FlatList
-                        data={displayedReports}
-                        keyExtractor={(i) => i.id}
-                        renderItem={renderItem}
-                        style={{ flex: 1 }}
-                        contentContainerStyle={{
-                            paddingHorizontal: 2,
-                            paddingTop: 16,
-                            paddingBottom: 80
-                        }}
-                        showsVerticalScrollIndicator={false}
-                        refreshControl={
-                            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#7c3aed']} tintColor="#7c3aed" />
-                        }
-                        initialNumToRender={5}
-                        maxToRenderPerBatch={5}
-                        windowSize={10}
-                        removeClippedSubviews={false}
-                        onEndReached={handleLoadMore}
-                        onEndReachedThreshold={0.2}
-                        ListFooterComponent={() => {
-                            if (loadingMore) {
-                                return (
-                                    <View style={{ paddingVertical: 20, alignItems: 'center' }}>
-                                        <ActivityIndicator size="small" color="#7c3aed" />
-                                        <Text style={{ color: '#6B7280', fontSize: 13, marginTop: 8 }}>{t('loading_more', { defaultValue: 'Loading more...' })}</Text>
-                                    </View>
-                                );
+                    {loadingReports ? (
+                        <ListLoadingState message={t('loading_reports', { defaultValue: 'Loading reports...' })} />
+                    ) : (
+                        <FlatList
+                            data={displayedReports}
+                            keyExtractor={(i) => i.id}
+                            renderItem={renderItem}
+                            style={{ flex: 1 }}
+                            contentContainerStyle={{
+                                paddingHorizontal: 2,
+                                paddingTop: 16,
+                                paddingBottom: 80
+                            }}
+                            showsVerticalScrollIndicator={false}
+                            refreshControl={
+                                <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#7c3aed']} tintColor="#7c3aed" />
                             }
-                            return <View style={{ height: 20 }} />;
-                        }}
-                        ListEmptyComponent={() => (
-                            <View style={{ paddingVertical: 60, alignItems: 'center' }}>
-                                <Text style={{ fontSize: 48, marginBottom: 12 }}>📭</Text>
-                                <Text style={{ color: '#6B7280', fontSize: 16, fontWeight: '600' }}>{t('no_data_available', { defaultValue: 'No data available' })}</Text>
-                                <Text style={{ color: '#9CA3AF', fontSize: 13, marginTop: 4, textAlign: 'center' }}>
-                                    {t('no_cash_transactions', { defaultValue: 'No cash transactions' })}{(filterMonth !== 'all' || filterYear !== 'all' || filterType !== 'all' || filterCategory !== '') ? ` ${t('for_selected_filters', { defaultValue: 'for selected filters' })}` : ''}
-                                </Text>
-                            </View>
-                        )}
-                    />
+                            initialNumToRender={5}
+                            maxToRenderPerBatch={5}
+                            windowSize={10}
+                            removeClippedSubviews={false}
+                            onEndReached={handleLoadMore}
+                            onEndReachedThreshold={0.2}
+                            ListFooterComponent={() => {
+                                if (loadingMore) {
+                                    return (
+                                        <View style={{ paddingVertical: 20, alignItems: 'center' }}>
+                                            <ActivityIndicator size="small" color="#7c3aed" />
+                                            <Text style={{ color: '#6B7280', fontSize: 13, marginTop: 8 }}>{t('loading_more', { defaultValue: 'Loading more...' })}</Text>
+                                        </View>
+                                    );
+                                }
+                                return <View style={{ height: 20 }} />;
+                            }}
+                            ListEmptyComponent={() => (
+                                <View style={{ paddingVertical: 60, alignItems: 'center' }}>
+                                    <Text style={{ fontSize: 48, marginBottom: 12 }}>📭</Text>
+                                    <Text style={{ color: '#6B7280', fontSize: 16, fontWeight: '600' }}>{t('no_data_available', { defaultValue: 'No data available' })}</Text>
+                                    <Text style={{ color: '#9CA3AF', fontSize: 13, marginTop: 4, textAlign: 'center' }}>
+                                        {t('no_cash_transactions', { defaultValue: 'No cash transactions' })}{(filterMonth !== 'all' || filterYear !== 'all' || filterType !== 'all' || filterCategory !== '') ? ` ${t('for_selected_filters', { defaultValue: 'for selected filters' })}` : ''}
+                                    </Text>
+                                </View>
+                            )}
+                        />
+                    )}
                     {/* Image preview modal */}
                     <Modal visible={imageModalVisible} transparent animationType="fade" onRequestClose={() => setImageModalVisible(false)}>
                         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center' }}>

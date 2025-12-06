@@ -7,7 +7,6 @@ import { collection, doc, getDoc, onSnapshot, query } from 'firebase/firestore';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-    ActivityIndicator,
     Image,
     Pressable,
     ScrollView,
@@ -16,10 +15,11 @@ import {
     TextInput,
     TouchableOpacity,
     useWindowDimensions,
-    View,
+    View
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import ConfirmDialog from '../../src/components/ConfirmDialog';
+import ListLoadingState from '../../src/components/ListLoadingState';
 import { useToast } from '../../src/contexts/ToastContext';
 import { auth, db } from '../../src/firebaseConfig';
 import { signOut } from '../../src/services/authService';
@@ -485,9 +485,8 @@ export default function TabsIndex() {
             {/* Scrollable Grid */}
             <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 12, paddingBottom: 80 }}>
                 {menuLoading ? (
-                    <View style={{ minHeight: 180, alignItems: 'center', justifyContent: 'center', paddingTop: 24 }}>
-                        <ActivityIndicator size="small" color="#6366f1" />
-                        <Text style={{ marginTop: 10, color: '#6B7280', fontWeight: '600' }}>{t('loading', { defaultValue: 'Loading..' })}</Text>
+                    <View style={{ minHeight: 180, paddingHorizontal: 18 }}>
+                        <ListLoadingState message={t('loading', { defaultValue: 'Loading..' })} />
                     </View>
                 ) : (
                     <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -6 }}>

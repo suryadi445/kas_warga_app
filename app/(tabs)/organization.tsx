@@ -19,7 +19,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import ConfirmDialog from '../../src/components/ConfirmDialog';
 import FloatingLabelInput from '../../src/components/FloatingLabelInput';
-import ListCardWrapper from '../../src/components/ListCardWrapper';
+// Removed redundant ListCardWrapper to avoid nested card duplication
+import ListLoadingState from '../../src/components/ListLoadingState';
 import LoadMore from '../../src/components/LoadMore';
 import { useToast } from '../../src/contexts/ToastContext';
 import { db, storage } from '../../src/firebaseConfig';
@@ -70,6 +71,7 @@ export default function OrganizationScreen() {
 
     // realtime listener for organization collection
     useEffect(() => {
+        const startTime = Date.now();
         setLoadingOrg(true);
         const q = query(collection(db, 'organization'), orderBy('createdAt', 'desc'));
         const unsub = onSnapshot(q, (snap) => {
@@ -85,7 +87,10 @@ export default function OrganizationScreen() {
                 };
             });
             setItems(rows);
-            setLoadingOrg(false);
+            const elapsed = Date.now() - startTime;
+            if (elapsed < 1000) {
+                setTimeout(() => setLoadingOrg(false), 1000 - elapsed);
+            } else setLoadingOrg(false);
         }, (err) => {
             console.warn('organization snapshot error', err);
             setLoadingOrg(false);
@@ -559,8 +564,22 @@ export default function OrganizationScreen() {
             </View>
 
             {loadingOrg ? (
-                <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 40 }}>
-                    <ActivityIndicator size="small" color="#6366f1" />
+                <View style={{ flex: 1, paddingHorizontal: 18 }}>
+                    <View style={{
+                        backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                        borderRadius: 16,
+                        shadowColor: '#000',
+                        shadowOffset: { width: 0, height: 6 },
+                        shadowOpacity: 0.12,
+                        shadowRadius: 16,
+                        elevation: 6,
+                        borderWidth: 1,
+                        borderColor: 'rgba(255, 255, 255, 0.3)',
+                        overflow: 'hidden',
+                        flex: 1
+                    }}>
+                        <ListLoadingState message={t('loading_organization', { defaultValue: 'Loading organization...' })} />
+                    </View>
                 </View>
             ) : (
                 <View style={{ flex: 1, paddingHorizontal: 18 }}>
@@ -577,138 +596,137 @@ export default function OrganizationScreen() {
                         overflow: 'hidden',
                         flex: 1
                     }}>
-                        <ListCardWrapper style={{ marginHorizontal: 0, backgroundColor: 'transparent', elevation: 0, shadowOpacity: 0 }}>
-                            <FlatList
-                                data={filteredItems.slice(0, displayedCount)}
-                                keyExtractor={(i) => i.id}
-                                style={{ flex: 1 }}
-                                contentContainerStyle={{
-                                    paddingHorizontal: 16,
-                                    paddingTop: 16,
-                                    paddingBottom: 80
-                                }}
-                                showsVerticalScrollIndicator={false}
-                                refreshControl={
-                                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#7c3aed']} tintColor="#7c3aed" />
-                                } ListEmptyComponent={() => (
-                                    <View style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: 60 }}>
-                                        <Text style={{ fontSize: 48, marginBottom: 12 }}>📭</Text>
-                                        <Text style={{ color: '#6B7280', fontSize: 16, fontWeight: '600' }}>{t('no_members_found', { defaultValue: 'No members found' })}</Text>
-                                        <Text style={{ color: '#9CA3AF', fontSize: 13, marginTop: 4, textAlign: 'center' }}>
-                                            {searchQuery ? t('no_members_match_search', { defaultValue: 'No members match your search' }) : t('no_organization_members_yet', { defaultValue: 'No organization members yet' })}
-                                        </Text>
-                                    </View>
-                                )}
-                                renderItem={({ item }) => (
-                                    <View style={{ marginVertical: 6 }}>
+                        <FlatList
+                            data={filteredItems.slice(0, displayedCount)}
+                            keyExtractor={(i) => i.id}
+                            style={{ flex: 1 }}
+                            contentContainerStyle={{
+                                paddingHorizontal: 16,
+                                paddingTop: 16,
+                                paddingBottom: 80
+                            }}
+                            showsVerticalScrollIndicator={false}
+                            refreshControl={
+                                <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#7c3aed']} tintColor="#7c3aed" />
+                            } ListEmptyComponent={() => (
+                                <View style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: 60 }}>
+                                    <Text style={{ fontSize: 48, marginBottom: 12 }}>📭</Text>
+                                    <Text style={{ color: '#6B7280', fontSize: 16, fontWeight: '600' }}>{t('no_members_found', { defaultValue: 'No members found' })}</Text>
+                                    <Text style={{ color: '#9CA3AF', fontSize: 13, marginTop: 4, textAlign: 'center' }}>
+                                        {searchQuery ? t('no_members_match_search', { defaultValue: 'No members match your search' }) : t('no_organization_members_yet', { defaultValue: 'No organization members yet' })}
+                                    </Text>
+                                </View>
+                            )}
+                            renderItem={({ item }) => (
+                                <View style={{ marginVertical: 6 }}>
+                                    <View style={{
+                                        position: 'relative',
+                                        backgroundColor: '#fff',
+                                        padding: 16,
+                                        borderRadius: 12,
+                                        elevation: 2,
+                                        shadowColor: '#000',
+                                        shadowOffset: { width: 0, height: 1 },
+                                        shadowOpacity: 0.08,
+                                        shadowRadius: 4,
+                                        borderLeftWidth: 4,
+                                        borderLeftColor: item.leader ? '#EC4899' : '#818CF8',
+                                        paddingRight: 110,
+                                    }}>
+                                        {/* Actions - positioned absolute center right */}
+                                        <View style={{ position: 'absolute', top: '50%', right: 12, zIndex: 5, flexDirection: 'column', gap: 8, transform: [{ translateY: -30 }] }}>
+                                            <TouchableOpacity
+                                                onPress={() => openEdit(item)}
+                                                disabled={operationLoading}
+                                                style={{
+                                                    backgroundColor: '#E0F2FE',
+                                                    paddingHorizontal: 12,
+                                                    paddingVertical: 6,
+                                                    borderRadius: 8,
+                                                    opacity: operationLoading ? 0.5 : 1
+                                                }}
+                                            >
+                                                <Text style={{ color: '#0369A1', fontWeight: '600', fontSize: 12 }}>{t('edit', { defaultValue: 'Edit' })}</Text>
+                                            </TouchableOpacity>
+                                            <TouchableOpacity
+                                                onPress={() => confirmRemove(item.id)}
+                                                disabled={operationLoading}
+                                                style={{
+                                                    backgroundColor: '#FEE2E2',
+                                                    paddingHorizontal: 12,
+                                                    paddingVertical: 6,
+                                                    borderRadius: 8,
+                                                    opacity: operationLoading ? 0.5 : 1
+                                                }}
+                                            >
+                                                <Text style={{ color: '#991B1B', fontWeight: '600', fontSize: 12 }}>{t('delete', { defaultValue: 'Delete' })}</Text>
+                                            </TouchableOpacity>
+                                        </View>
+
+                                        {/* Leader/Member badge */}
                                         <View style={{
-                                            position: 'relative',
-                                            backgroundColor: '#fff',
-                                            padding: 16,
-                                            borderRadius: 12,
-                                            elevation: 2,
-                                            shadowColor: '#000',
-                                            shadowOffset: { width: 0, height: 1 },
-                                            shadowOpacity: 0.08,
-                                            shadowRadius: 4,
-                                            borderLeftWidth: 4,
-                                            borderLeftColor: item.leader ? '#EC4899' : '#818CF8',
-                                            paddingRight: 110,
+                                            backgroundColor: item.leader ? '#FCE7F3' : '#EDE9FE',
+                                            paddingHorizontal: 10,
+                                            paddingVertical: 5,
+                                            borderRadius: 999,
+                                            borderWidth: 2,
+                                            borderColor: item.leader ? '#EC4899' : '#818CF8',
+                                            alignSelf: 'flex-start',
+                                            marginBottom: 8
                                         }}>
-                                            {/* Actions - positioned absolute center right */}
-                                            <View style={{ position: 'absolute', top: '50%', right: 12, zIndex: 5, flexDirection: 'column', gap: 8, transform: [{ translateY: -30 }] }}>
-                                                <TouchableOpacity
-                                                    onPress={() => openEdit(item)}
-                                                    disabled={operationLoading}
-                                                    style={{
-                                                        backgroundColor: '#E0F2FE',
-                                                        paddingHorizontal: 12,
-                                                        paddingVertical: 6,
-                                                        borderRadius: 8,
-                                                        opacity: operationLoading ? 0.5 : 1
-                                                    }}
-                                                >
-                                                    <Text style={{ color: '#0369A1', fontWeight: '600', fontSize: 12 }}>{t('edit', { defaultValue: 'Edit' })}</Text>
-                                                </TouchableOpacity>
-                                                <TouchableOpacity
-                                                    onPress={() => confirmRemove(item.id)}
-                                                    disabled={operationLoading}
-                                                    style={{
-                                                        backgroundColor: '#FEE2E2',
-                                                        paddingHorizontal: 12,
-                                                        paddingVertical: 6,
-                                                        borderRadius: 8,
-                                                        opacity: operationLoading ? 0.5 : 1
-                                                    }}
-                                                >
-                                                    <Text style={{ color: '#991B1B', fontWeight: '600', fontSize: 12 }}>{t('delete', { defaultValue: 'Delete' })}</Text>
-                                                </TouchableOpacity>
+                                            <Text style={{ color: item.leader ? '#9F1239' : '#4338CA', fontWeight: '700', fontSize: 10 }}>
+                                                {item.leader ? t('leader_badge', { defaultValue: '★ LEADER' }) : t('member_badge', { defaultValue: '● MEMBER' })}
+                                            </Text>
+                                        </View>
+
+                                        {/* Avatar + Info */}
+                                        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+                                            <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: '#F3F4F6', overflow: 'hidden', marginRight: 12, borderWidth: 2, borderColor: item.leader ? '#EC4899' : '#818CF8' }}>
+                                                {item.image ? (
+                                                    <Image source={{ uri: item.image }} style={{ width: '100%', height: '100%' }} />
+                                                ) : (
+                                                    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+                                                        <Text style={{ fontSize: 32 }}>👤</Text>
+                                                    </View>
+                                                )}
                                             </View>
 
-                                            {/* Leader/Member badge */}
-                                            <View style={{
-                                                backgroundColor: item.leader ? '#FCE7F3' : '#EDE9FE',
-                                                paddingHorizontal: 10,
-                                                paddingVertical: 5,
-                                                borderRadius: 999,
-                                                borderWidth: 2,
-                                                borderColor: item.leader ? '#EC4899' : '#818CF8',
-                                                alignSelf: 'flex-start',
-                                                marginBottom: 8
-                                            }}>
-                                                <Text style={{ color: item.leader ? '#9F1239' : '#4338CA', fontWeight: '700', fontSize: 10 }}>
-                                                    {item.leader ? t('leader_badge', { defaultValue: '★ LEADER' }) : t('member_badge', { defaultValue: '● MEMBER' })}
+                                            <View style={{ flex: 1 }}>
+                                                <Text style={{ fontWeight: '800', fontSize: 16, color: '#111827', marginBottom: 4 }}>
+                                                    {item.name}
                                                 </Text>
-                                            </View>
-
-                                            {/* Avatar + Info */}
-                                            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
-                                                <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: '#F3F4F6', overflow: 'hidden', marginRight: 12, borderWidth: 2, borderColor: item.leader ? '#EC4899' : '#818CF8' }}>
-                                                    {item.image ? (
-                                                        <Image source={{ uri: item.image }} style={{ width: '100%', height: '100%' }} />
-                                                    ) : (
-                                                        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-                                                            <Text style={{ fontSize: 32 }}>👤</Text>
-                                                        </View>
-                                                    )}
-                                                </View>
-
-                                                <View style={{ flex: 1 }}>
-                                                    <Text style={{ fontWeight: '800', fontSize: 16, color: '#111827', marginBottom: 4 }}>
-                                                        {item.name}
-                                                    </Text>
-                                                    {!!item.title && (
-                                                        <View style={{
-                                                            backgroundColor: '#F3F4F6',
-                                                            paddingHorizontal: 8,
-                                                            paddingVertical: 3,
-                                                            borderRadius: 6,
-                                                            alignSelf: 'flex-start',
-                                                            marginBottom: 4
-                                                        }}>
-                                                            <Text style={{ color: '#374151', fontSize: 11, fontWeight: '600' }}>📋 {item.title}</Text>
-                                                        </View>
-                                                    )}
-                                                </View>
-                                            </View>
-
-                                            {/* Phone */}
-                                            <View style={{ backgroundColor: '#EFF6FF', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, alignSelf: 'flex-start' }}>
-                                                <Text style={{ color: '#1E40AF', fontSize: 11, fontWeight: '600' }}>📞 {item.phone}</Text>
+                                                {!!item.title && (
+                                                    <View style={{
+                                                        backgroundColor: '#F3F4F6',
+                                                        paddingHorizontal: 8,
+                                                        paddingVertical: 3,
+                                                        borderRadius: 6,
+                                                        alignSelf: 'flex-start',
+                                                        marginBottom: 4
+                                                    }}>
+                                                        <Text style={{ color: '#374151', fontSize: 11, fontWeight: '600' }}>📋 {item.title}</Text>
+                                                    </View>
+                                                )}
                                             </View>
                                         </View>
+
+                                        {/* Phone */}
+                                        <View style={{ backgroundColor: '#EFF6FF', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, alignSelf: 'flex-start' }}>
+                                            <Text style={{ color: '#1E40AF', fontSize: 11, fontWeight: '600' }}>📞 {item.phone}</Text>
+                                        </View>
                                     </View>
-                                )}
-                                onEndReached={handleLoadMore}
-                                onEndReachedThreshold={0.2}
-                                ListFooterComponent={() => (
-                                    <LoadMore
-                                        loading={loadingMore}
-                                        hasMore={displayedCount < filteredItems.length}
-                                    />
-                                )}
-                            />
-                        </ListCardWrapper>
+                                </View>
+                            )}
+                            onEndReached={handleLoadMore}
+                            onEndReachedThreshold={0.2}
+                            ListFooterComponent={() => (
+                                <LoadMore
+                                    loading={loadingMore}
+                                    hasMore={displayedCount < filteredItems.length}
+                                />
+                            )}
+                        />
+                        {/* removed extra ListCardWrapper to prevent double card appearance */}
                     </View>
                 </View>
             )}

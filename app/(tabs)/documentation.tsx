@@ -19,6 +19,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import ConfirmDialog from '../../src/components/ConfirmDialog';
 import FloatingLabelInput from '../../src/components/FloatingLabelInput';
+import ListLoadingState from '../../src/components/ListLoadingState';
 import LoadMore from '../../src/components/LoadMore';
 import SelectInput from '../../src/components/SelectInput';
 import { useToast } from '../../src/contexts/ToastContext';
@@ -84,9 +85,10 @@ export default function DocumentationScreen() {
 
     // realtime listener for documentation collection
     useEffect(() => {
+        const startTime = Date.now();
         setLoadingDocs(true);
         const q = query(collection(db, 'documentation'), orderBy('date', 'desc'));
-        const unsub = onSnapshot(q, (snap) => {
+        const unsub = onSnapshot(q, async (snap) => {
             const rows: Documentation[] = snap.docs.map(d => {
                 const data = d.data() as any;
                 return {
@@ -99,6 +101,11 @@ export default function DocumentationScreen() {
                 };
             });
             setItems(rows);
+
+            const elapsed = Date.now() - startTime;
+            if (elapsed < 1000) {
+                await new Promise(resolve => setTimeout(resolve, 1000 - elapsed));
+            }
             setLoadingDocs(false);
         }, (err) => {
             console.error('documentation snapshot error', err);
@@ -480,25 +487,23 @@ export default function DocumentationScreen() {
                 </View>
             </View>
 
-            {loadingDocs ? (
-                <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 40 }}>
-                    <ActivityIndicator size="small" color="#6366f1" />
-                </View>
-            ) : (
-                <View style={{ flex: 1, paddingHorizontal: 18 }}>
-                    <View style={{
-                        backgroundColor: 'rgba(255, 255, 255, 0.95)',
-                        borderRadius: 16,
-                        shadowColor: '#000',
-                        shadowOffset: { width: 0, height: 6 },
-                        shadowOpacity: 0.12,
-                        shadowRadius: 16,
-                        elevation: 6,
-                        borderWidth: 1,
-                        borderColor: 'rgba(255, 255, 255, 0.3)',
-                        overflow: 'hidden',
-                        flex: 1
-                    }}>
+            <View style={{ flex: 1, paddingHorizontal: 18 }}>
+                <View style={{
+                    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                    borderRadius: 16,
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: 6 },
+                    shadowOpacity: 0.12,
+                    shadowRadius: 16,
+                    elevation: 6,
+                    borderWidth: 1,
+                    borderColor: 'rgba(255, 255, 255, 0.3)',
+                    overflow: 'hidden',
+                    flex: 1
+                }}>
+                    {loadingDocs ? (
+                        <ListLoadingState message={t('loading_documentation', { defaultValue: 'Loading documentation...' })} />
+                    ) : (
                         <FlatList
                             data={filteredItems.slice(0, displayedCount)}
                             keyExtractor={(i) => i.id}
@@ -603,9 +608,9 @@ export default function DocumentationScreen() {
                                 />
                             )}
                         />
-                    </View>
+                    )}
                 </View>
-            )}
+            </View>
 
             {/* Modal Form */}
             <Modal visible={modalVisible} animationType="slide" transparent onRequestClose={() => setModalVisible(false)}>

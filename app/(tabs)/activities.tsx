@@ -1,8 +1,7 @@
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { addDoc, collection, deleteDoc, doc, getDoc, onSnapshot, orderBy, query, serverTimestamp, updateDoc } from 'firebase/firestore';
-import { deleteObject, getDownloadURL, ref, uploadBytes } from 'firebase/storage';
-import { deleteImageFromStorageByUrl } from '../../src/utils/storage';
+import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -23,12 +22,14 @@ import DateTimePickerModal from 'react-native-modal-datetime-picker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import ConfirmDialog from '../../src/components/ConfirmDialog';
 import FloatingLabelInput from '../../src/components/FloatingLabelInput';
+import ListLoadingState from '../../src/components/ListLoadingState';
 import LoadMore from '../../src/components/LoadMore';
 import SelectInput from '../../src/components/SelectInput';
 import { useToast } from '../../src/contexts/ToastContext';
 import { db, storage } from '../../src/firebaseConfig';
 import { useRefresh } from '../../src/hooks/useRefresh';
 import { getCurrentUser } from '../../src/services/authService';
+import { deleteImageFromStorageByUrl } from '../../src/utils/storage';
 
 type Activity = {
     id: string;
@@ -97,6 +98,12 @@ export default function ActivitiesScreen() {
     useEffect(() => {
         setLoadingActivities(true);
         const q = query(collection(db, 'activities'), orderBy('date', 'desc'));
+
+        // Add artificial delay for better UX
+        const minLoadTime = 1000;
+        const start = Date.now();
+        let isFirstLoad = true;
+
         const unsub = onSnapshot(q, (snap) => {
             const rows: Activity[] = snap.docs.map(d => {
                 const data = d.data() as any;
@@ -110,8 +117,19 @@ export default function ActivitiesScreen() {
                     images: Array.isArray(data?.images) ? data.images : [],
                 };
             });
-            setItems(rows);
-            setLoadingActivities(false);
+
+            if (isFirstLoad) {
+                const elapsed = Date.now() - start;
+                const remaining = Math.max(0, minLoadTime - elapsed);
+                setTimeout(() => {
+                    setItems(rows);
+                    setLoadingActivities(false);
+                }, remaining);
+                isFirstLoad = false;
+            } else {
+                setItems(rows);
+                setLoadingActivities(false);
+            }
         }, (err) => {
             console.error('activities snapshot error', err);
             setLoadingActivities(false);
@@ -907,25 +925,23 @@ export default function ActivitiesScreen() {
                 onCancel={() => setFilterDatePickerVisible(false)}
             />
 
-            {loadingActivities ? (
-                <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-                    <ActivityIndicator size="small" color="#6366f1" />
-                </View>
-            ) : (
-                <View style={{ flex: 1, paddingHorizontal: 18 }}>
-                    <View style={{
-                        backgroundColor: 'rgba(255, 255, 255, 0.95)',
-                        borderRadius: 16,
-                        shadowColor: '#000',
-                        shadowOffset: { width: 0, height: 6 },
-                        shadowOpacity: 0.12,
-                        shadowRadius: 16,
-                        elevation: 6,
-                        borderWidth: 1,
-                        borderColor: 'rgba(255, 255, 255, 0.3)',
-                        overflow: 'hidden',
-                        flex: 1
-                    }}>
+            <View style={{ flex: 1, paddingHorizontal: 18 }}>
+                <View style={{
+                    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                    borderRadius: 16,
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: 6 },
+                    shadowOpacity: 0.12,
+                    shadowRadius: 16,
+                    elevation: 6,
+                    borderWidth: 1,
+                    borderColor: 'rgba(255, 255, 255, 0.3)',
+                    overflow: 'hidden',
+                    flex: 1
+                }}>
+                    {loadingActivities ? (
+                        <ListLoadingState message={t('loading_activities', { defaultValue: 'Loading activities...' })} />
+                    ) : (
                         <FlatList
                             data={displayedItems.slice(0, displayedCount)}
                             keyExtractor={(i) => i.id}
@@ -1061,9 +1077,9 @@ export default function ActivitiesScreen() {
                                 />
                             )}
                         />
-                    </View>
+                    )}
                 </View>
-            )}
+            </View>
 
             <Modal visible={modalVisible} animationType="slide" transparent onRequestClose={() => setModalVisible(false)}>
                 <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.3)' }}>

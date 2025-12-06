@@ -24,6 +24,7 @@ import DateTimePickerModal from 'react-native-modal-datetime-picker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import ConfirmDialog from '../../src/components/ConfirmDialog';
 import FloatingLabelInput from '../../src/components/FloatingLabelInput';
+import ListLoadingState from '../../src/components/ListLoadingState';
 import LoadMore from '../../src/components/LoadMore';
 import SelectInput from '../../src/components/SelectInput';
 import { useToast } from '../../src/contexts/ToastContext';
@@ -116,6 +117,12 @@ export default function AnnouncementsScreen() {
     useEffect(() => {
         setLoadingAnnouncements(true);
         const q = query(collection(db, 'announcements'), orderBy('date', 'desc'));
+
+        // Add artificial delay for better UX (so loading spinner is visible)
+        const minLoadTime = 1000;
+        const start = Date.now();
+        let isFirstLoad = true;
+
         const unsub = onSnapshot(q, (snap) => {
             const rows: Announcement[] = snap.docs.map(d => {
                 const data = d.data() as any;
@@ -133,8 +140,19 @@ export default function AnnouncementsScreen() {
                     images: Array.isArray(data.images) ? data.images : [],
                 };
             });
-            setItems(rows);
-            setLoadingAnnouncements(false);
+
+            if (isFirstLoad) {
+                const elapsed = Date.now() - start;
+                const remaining = Math.max(0, minLoadTime - elapsed);
+                setTimeout(() => {
+                    setItems(rows);
+                    setLoadingAnnouncements(false);
+                }, remaining);
+                isFirstLoad = false;
+            } else {
+                setItems(rows);
+                setLoadingAnnouncements(false);
+            }
         }, (err) => {
             console.error('announcements snapshot error', err);
             setLoadingAnnouncements(false);
@@ -836,25 +854,23 @@ export default function AnnouncementsScreen() {
                 </View>
             </View>
 
-            {loadingAnnouncements ? (
-                <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-                    <ActivityIndicator size="small" color="#6366f1" />
-                </View>
-            ) : (
-                <View style={{ flex: 1, paddingHorizontal: 18 }}>
-                    <View style={{
-                        backgroundColor: 'rgba(255, 255, 255, 0.95)',
-                        borderRadius: 16,
-                        shadowColor: '#000',
-                        shadowOffset: { width: 0, height: 6 },
-                        shadowOpacity: 0.12,
-                        shadowRadius: 16,
-                        elevation: 6,
-                        borderWidth: 1,
-                        borderColor: 'rgba(255, 255, 255, 0.3)',
-                        overflow: 'hidden',
-                        flex: 1
-                    }}>
+            <View style={{ flex: 1, paddingHorizontal: 18 }}>
+                <View style={{
+                    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                    borderRadius: 16,
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: 6 },
+                    shadowOpacity: 0.12,
+                    shadowRadius: 16,
+                    elevation: 6,
+                    borderWidth: 1,
+                    borderColor: 'rgba(255, 255, 255, 0.3)',
+                    overflow: 'hidden',
+                    flex: 1
+                }}>
+                    {loadingAnnouncements ? (
+                        <ListLoadingState message={t('loading_announcements', { defaultValue: 'Loading announcements...' })} />
+                    ) : (
                         <FlatList
                             data={paginatedItems}
                             keyExtractor={(i) => i.id}
@@ -1015,9 +1031,9 @@ export default function AnnouncementsScreen() {
                                 />
                             )}
                         />
-                    </View>
+                    )}
                 </View>
-            )}
+            </View>
 
             <Modal visible={modalVisible} animationType="slide" transparent onRequestClose={() => setModalVisible(false)}>
                 <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.3)' }}>

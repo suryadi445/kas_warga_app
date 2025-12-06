@@ -22,6 +22,7 @@ import DateTimePickerModal from 'react-native-modal-datetime-picker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import ConfirmDialog from '../../src/components/ConfirmDialog';
 import FloatingLabelInput from '../../src/components/FloatingLabelInput';
+import ListLoadingState from '../../src/components/ListLoadingState';
 import LoadMore from '../../src/components/LoadMore';
 import SelectInput from '../../src/components/SelectInput';
 import { useToast } from '../../src/contexts/ToastContext';
@@ -130,6 +131,12 @@ export default function SchedulerScreen() {
     useEffect(() => {
         setLoadingSchedules(true);
         const q = query(collection(db, 'schedules'), orderBy('createdAt', 'desc'));
+
+        // Add artificial delay for better UX
+        const minLoadTime = 1000;
+        const start = Date.now();
+        let isFirstLoad = true;
+
         const unsub = onSnapshot(q, (snap) => {
             const rows: Schedule[] = snap.docs.map(d => {
                 const data = d.data() as any;
@@ -160,8 +167,19 @@ export default function SchedulerScreen() {
                     images: Array.isArray(data?.images) ? data.images : [],
                 };
             });
-            setItems(rows);
-            setLoadingSchedules(false);
+
+            if (isFirstLoad) {
+                const elapsed = Date.now() - start;
+                const remaining = Math.max(0, minLoadTime - elapsed);
+                setTimeout(() => {
+                    setItems(rows);
+                    setLoadingSchedules(false);
+                }, remaining);
+                isFirstLoad = false;
+            } else {
+                setItems(rows);
+                setLoadingSchedules(false);
+            }
         }, (err) => {
             console.error('schedules snapshot error', err);
             setLoadingSchedules(false);
@@ -826,25 +844,23 @@ export default function SchedulerScreen() {
                 </View>
             </View>
 
-            {loadingSchedules ? (
-                <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 40 }}>
-                    <ActivityIndicator size="small" color="#6366f1" />
-                </View>
-            ) : (
-                <View style={{ flex: 1, paddingHorizontal: 18 }}>
-                    <View style={{
-                        backgroundColor: 'rgba(255, 255, 255, 0.95)',
-                        borderRadius: 16,
-                        shadowColor: '#000',
-                        shadowOffset: { width: 0, height: 6 },
-                        shadowOpacity: 0.12,
-                        shadowRadius: 16,
-                        elevation: 6,
-                        borderWidth: 1,
-                        borderColor: 'rgba(255, 255, 255, 0.3)',
-                        overflow: 'hidden',
-                        flex: 1
-                    }}>
+            <View style={{ flex: 1, paddingHorizontal: 18 }}>
+                <View style={{
+                    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                    borderRadius: 16,
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: 6 },
+                    shadowOpacity: 0.12,
+                    shadowRadius: 16,
+                    elevation: 6,
+                    borderWidth: 1,
+                    borderColor: 'rgba(255, 255, 255, 0.3)',
+                    overflow: 'hidden',
+                    flex: 1
+                }}>
+                    {loadingSchedules ? (
+                        <ListLoadingState message={t('loading_schedules', { defaultValue: 'Loading schedules...' })} />
+                    ) : (
                         <FlatList
                             data={displayedItems.slice(0, displayedCount)}
                             keyExtractor={(i) => i.id}
@@ -1000,9 +1016,9 @@ export default function SchedulerScreen() {
                                 />
                             )}
                         />
-                    </View>
+                    )}
                 </View>
-            )}
+            </View>
 
             {/* Modal Form */}
             <Modal visible={modalVisible} animationType="slide" transparent onRequestClose={() => setModalVisible(false)}>
