@@ -50,7 +50,7 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                     easing: Easing.in(Easing.cubic),
                     useNativeDriver: true
                 }).start(() => setToast(null));
-            }, 1800);
+            }, 3000);
         });
     };
 
