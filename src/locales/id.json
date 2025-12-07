@@ -525,5 +525,6 @@
     "attachments_label": "Lampiran",
     "pick_file": "Pilih File",
     "attachment_count_label": "{{count}} file dipilih",
-    "failed_to_pick_document": "Gagal memilih dokumen"
+    "failed_to_pick_document": "Gagal memilih dokumen",
+    "change_loc": "Ganti"
 }

@@ -525,5 +525,6 @@
     "attachments_label": "Attachments",
     "pick_file": "Pick File",
     "attachment_count_label": "{{count}} files selected",
-    "failed_to_pick_document": "Failed to pick document"
+    "failed_to_pick_document": "Failed to pick document",
+    "change_loc": "Change"
 }

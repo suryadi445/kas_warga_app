@@ -54,7 +54,7 @@ type Announcement = {
     attachments?: Attachment[];
 };
 
-const ROLES = ['All', 'Admin', 'Staff', 'User'];
+const ROLES = ['All', 'Admin', 'Staff', 'Member'];
 
 export default function AnnouncementsScreen() {
     const { showToast } = useToast();
@@ -597,6 +597,19 @@ export default function AnnouncementsScreen() {
     // ADDED: compute displayed items based on role, status filter, and search query
     const displayedItems = items
         .filter(i => {
+            // 1. PERMISSION FILTER
+            // Admin sees all. Others see 'All' or their specific role.
+            if (currentUserRole !== 'Admin') {
+                const itemRole = i.role || 'All';
+                // Treat 'User' as 'Member' for backward compatibility
+                const effectiveItemRole = itemRole === 'User' ? 'Member' : itemRole;
+                const effectiveUserRole = currentUserRole === 'User' ? 'Member' : currentUserRole;
+
+                if (effectiveItemRole !== 'All' && effectiveItemRole !== effectiveUserRole) {
+                    return false;
+                }
+            }
+
             // search filter (by title or category)
             if (searchQuery.trim()) {
                 const query = searchQuery.toLowerCase();
