@@ -416,7 +416,7 @@ export default function SettingsScreen() {
                                 {appImage ? (
                                     <Image source={{ uri: appImage }} style={{ width: '100%', height: '100%' }} />
                                 ) : (
-                                    <Text style={{ fontSize: 48 }}></Text>
+                                    <Image source={require('../../assets/images/logo.png')} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
                                 )}
                             </View>
                         </View>
@@ -541,9 +541,7 @@ export default function SettingsScreen() {
                                     {appImage ? (
                                         <Image source={{ uri: appImage }} style={{ width: '100%', height: '100%' }} />
                                     ) : (
-                                        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-                                            <Text style={{ fontSize: 40 }}></Text>
-                                        </View>
+                                        <Image source={require('../../assets/images/logo.png')} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
                                     )}
                                 </View>
                                 <Text style={{ color: '#374151', marginBottom: 6, fontSize: 12 }}>{t('app_logo', { defaultValue: 'App Logo' })}</Text>
@@ -704,7 +702,7 @@ export default function SettingsScreen() {
                                 </View>
                             </View>
 
-                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 16 }}>
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 16, marginBottom: 30 }}>
                                 <TouchableOpacity onPress={() => setModalVisible(false)} disabled={savingSettings} style={{ padding: 10, opacity: savingSettings ? 0.6 : 1 }}>
                                     <Text style={{ color: '#6B7280' }}>{t('cancel', { defaultValue: 'Cancel' })}</Text>
                                 </TouchableOpacity>

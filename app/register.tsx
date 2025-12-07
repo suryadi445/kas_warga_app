@@ -5,6 +5,7 @@ import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
     ActivityIndicator,
+    Image,
     KeyboardAvoidingView,
     Platform,
     ScrollView,
@@ -113,17 +114,22 @@ export default function RegisterScreen() {
                         {/* Logo/Icon Section - Compact */}
                         <View style={{ alignItems: 'center', marginBottom: 15 }}>
                             <View style={{
-                                width: 70,
-                                height: 70,
-                                borderRadius: 35,
+                                width: 90,
+                                height: 90,
+                                borderRadius: 45,
                                 backgroundColor: 'rgba(255,255,255,0.2)',
                                 alignItems: 'center',
                                 justifyContent: 'center',
                                 marginBottom: 8,
                                 borderWidth: 3,
                                 borderColor: 'rgba(255,255,255,0.3)',
+                                overflow: 'hidden',
                             }}>
-                                <Text style={{ fontSize: 35 }}>✨</Text>
+                                <Image
+                                    source={require('../assets/images/logo.png')}
+                                    style={{ width: '100%', height: '100%' }}
+                                    resizeMode="cover"
+                                />
                             </View>
                             <Text style={{ color: '#fff', fontSize: 24, fontWeight: '800', marginBottom: 4, textAlign: 'center' }}>
                                 {t('join_title', { appName: appName || 'Community App', defaultValue: `Join ${appName || 'Community App'}` })}

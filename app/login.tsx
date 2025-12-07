@@ -5,6 +5,7 @@ import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
     ActivityIndicator,
+    Image,
     KeyboardAvoidingView,
     Platform,
     ScrollView,
@@ -96,17 +97,22 @@ export default function LoginScreen() {
                         {/* Logo/Icon Section - Compact */}
                         <View style={{ alignItems: 'center', marginBottom: 24 }}>
                             <View style={{
-                                width: 80,
-                                height: 80,
-                                borderRadius: 40,
+                                width: 100,
+                                height: 100,
+                                borderRadius: 50,
                                 backgroundColor: 'rgba(255,255,255,0.2)',
                                 alignItems: 'center',
                                 justifyContent: 'center',
                                 marginBottom: 12,
                                 borderWidth: 3,
                                 borderColor: 'rgba(255,255,255,0.3)',
+                                overflow: 'hidden',
                             }}>
-                                <Text style={{ fontSize: 40 }}>💰</Text>
+                                <Image
+                                    source={require('../assets/images/logo.png')}
+                                    style={{ width: '100%', height: '100%' }}
+                                    resizeMode="cover"
+                                />
                             </View>
                             <Text style={{ color: '#fff', fontSize: 28, fontWeight: '800', marginBottom: 6 }}>
                                 {appName || t('app_name', { defaultValue: 'Community App' })}
