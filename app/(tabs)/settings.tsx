@@ -39,7 +39,7 @@ const LinearGradient = (LinearGradientModule as any)?.LinearGradient ?? (LinearG
 export default function SettingsScreen() {
     const { showToast } = useToast(); // added
     const { t } = useTranslation();
-    const [appName, setAppName] = useState('Kas Warga');
+    const [appName, setAppName] = useState('Community App');
     const [appImage, setAppImage] = useState<string | undefined>(undefined);
     const [uploadingImage, setUploadingImage] = useState(false);
     const [businessType, setBusinessType] = useState('Community Service');

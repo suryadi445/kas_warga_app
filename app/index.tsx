@@ -19,7 +19,7 @@ export default function Index() {
         <SafeAreaView style={styles.container}>
             <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
             <View style={styles.content}>
-                <Text style={styles.title}>Kas Warga</Text>
+                <Text style={styles.title}>Community App</Text>
                 <ActivityIndicator size="small" color="#fff" style={{ marginTop: 12 }} />
             </View>
         </SafeAreaView>

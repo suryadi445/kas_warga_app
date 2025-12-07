@@ -33,7 +33,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
             <View className="flex-1 justify-center px-8">
                 {/* Header */}
                 <View className="items-center mb-12">
-                    <Text className="text-4xl font-bold text-blue-600 mb-2">{t('app_name', { defaultValue: 'Kas Warga' })}</Text>
+                    <Text className="text-4xl font-bold text-blue-600 mb-2">{t('app_name', { defaultValue: 'Community App' })}</Text>
                     <Text className="text-gray-600 text-base">{t('community_finance_system', { defaultValue: 'Community finance management system' })}</Text>
                 </View>
 
@@ -84,7 +84,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
 
                 {/* Footer */}
                 <Text className="text-center text-gray-500 text-sm mt-8">
-                    © 2024 Kas Warga. All rights reserved.
+                    © 2024 Community App. All rights reserved.
                 </Text>
             </View>
         </KeyboardAvoidingView>
