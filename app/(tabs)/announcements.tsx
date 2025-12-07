@@ -1,3 +1,4 @@
+import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { addDoc, collection, deleteDoc, doc, getDoc, onSnapshot, orderBy, query, serverTimestamp, updateDoc } from 'firebase/firestore';
@@ -12,6 +13,7 @@ import {
     Dimensions,
     FlatList,
     Image,
+    Linking,
     Modal,
     RefreshControl,
     ScrollView,
@@ -31,6 +33,12 @@ import { useToast } from '../../src/contexts/ToastContext';
 import { useRefresh } from '../../src/hooks/useRefresh';
 import { getCurrentUser } from '../../src/services/authService';
 
+type Attachment = {
+    name: string;
+    url: string;
+    type: string;
+};
+
 type Announcement = {
     id: string;
     category: string;
@@ -43,6 +51,7 @@ type Announcement = {
     endTime: string;
     date: string;
     images?: string[];
+    attachments?: Attachment[];
 };
 
 const ROLES = ['All', 'Admin', 'Staff', 'User'];
@@ -74,6 +83,9 @@ export default function AnnouncementsScreen() {
     const [imageList, setImageList] = useState<string[]>([]);
     const [activeImageIndex, setActiveImageIndex] = useState<number>(0);
     const imageFlatListRef = React.useRef<FlatList>(null);
+
+    const [attachments, setAttachments] = useState<Attachment[]>([]);
+    const [attachmentsLoading, setAttachmentsLoading] = useState(false);
 
     // Date/Time pickers
     const [startDatePickerVisible, setStartDatePickerVisible] = useState(false);
@@ -138,6 +150,7 @@ export default function AnnouncementsScreen() {
                     endTime: data.endTime || '',
                     date: data.date || (data.createdAt ? new Date(data.createdAt.seconds * 1000).toISOString().split('T')[0] : ''),
                     images: Array.isArray(data.images) ? data.images : [],
+                    attachments: Array.isArray(data.attachments) ? data.attachments : [],
                 };
             });
 
@@ -202,6 +215,7 @@ export default function AnnouncementsScreen() {
         setRoleOpen(false);
         setModalVisible(true);
         setImages([]);
+        setAttachments([]);
     }
 
     async function openEdit(a: Announcement) {
@@ -222,6 +236,7 @@ export default function AnnouncementsScreen() {
         // Convert any storage paths to download urls if needed
         const urls = await ensureDownloadUrls(a.images || []);
         setImages(urls);
+        setAttachments(a.attachments || []);
     }
 
     async function save() {
@@ -238,7 +253,13 @@ export default function AnnouncementsScreen() {
                 if (images?.length) {
                     uploadedUrls = await uploadAllImagesAndReturnUrls(images, editingId);
                 }
-                await updateDoc(ref, { category, role, title, content, startDate, startTime, endDate, endTime, date: new Date().toISOString().split('T')[0], images: uploadedUrls });
+
+                let uploadedAttachments: Attachment[] = [];
+                if (attachments?.length) {
+                    uploadedAttachments = await uploadAllAttachments(attachments, editingId);
+                }
+
+                await updateDoc(ref, { category, role, title, content, startDate, startTime, endDate, endTime, date: new Date().toISOString().split('T')[0], images: uploadedUrls, attachments: uploadedAttachments });
                 showToast(t('announcement_updated'), 'success');
             } else {
                 const docRef = await addDoc(collection(db, 'announcements'), {
@@ -253,11 +274,21 @@ export default function AnnouncementsScreen() {
                     date: new Date().toISOString().split('T')[0],
                     createdAt: serverTimestamp(),
                 });
+
+                let uploadedUrls: string[] = [];
                 if (images?.length) {
-                    const urls = await uploadAllImagesAndReturnUrls(images, docRef.id);
-                    await updateDoc(doc(db, 'announcements', docRef.id), { images: urls });
+                    uploadedUrls = await uploadAllImagesAndReturnUrls(images, docRef.id);
                 }
-                showToast(t('announcement_added'), 'success');
+
+                let uploadedAttachments: Attachment[] = [];
+                if (attachments?.length) {
+                    uploadedAttachments = await uploadAllAttachments(attachments, docRef.id);
+                }
+
+                if (uploadedUrls.length || uploadedAttachments.length) {
+                    await updateDoc(doc(db, 'announcements', docRef.id), { images: uploadedUrls, attachments: uploadedAttachments });
+                }
+                showToast(t('announcement_added', { defaultValue: 'Announcement added' }), 'success');
             }
             setModalVisible(false);
         } catch (e) {
@@ -339,6 +370,69 @@ export default function AnnouncementsScreen() {
             urls.push(url);
         }
         return urls;
+    }
+
+    async function uploadDocumentToStorage(uri: string, announcementId: string, fileName: string): Promise<string> {
+        if (!uri) return '';
+        if (uri.startsWith('http')) return uri;
+        try {
+            const response = await fetch(uri);
+            const blob = await response.blob();
+            // Sanitize filename
+            const safeName = fileName.replace(/[^a-zA-Z0-9.]/g, '_');
+            const storagePath = `announcements/docs/${announcementId}_${Date.now()}_${safeName}`;
+            const storageRef = ref(storage, storagePath);
+            await uploadBytes(storageRef, blob, {
+                contentDisposition: `attachment; filename="${fileName}"`
+            });
+            const downloadURL = await getDownloadURL(storageRef);
+            return downloadURL;
+        } catch (err) {
+            console.warn('Document upload error', err);
+            throw err;
+        }
+    }
+
+    async function uploadAllAttachments(atts: Attachment[], announcementId: string): Promise<Attachment[]> {
+        const result: Attachment[] = [];
+        for (const att of atts) {
+            if (att.url.startsWith('http')) {
+                result.push(att);
+            } else {
+                const url = await uploadDocumentToStorage(att.url, announcementId, att.name);
+                result.push({ ...att, url });
+            }
+        }
+        return result;
+    }
+
+    async function pickDocuments() {
+        setAttachmentsLoading(true);
+        try {
+            const result = await DocumentPicker.getDocumentAsync({
+                type: '*/*',
+                copyToCacheDirectory: true,
+                multiple: true
+            });
+
+            if (!result.canceled && result.assets) {
+                const newAttachments = result.assets.map(asset => ({
+                    name: asset.name,
+                    url: asset.uri,
+                    type: asset.mimeType || 'application/octet-stream'
+                }));
+                setAttachments(prev => [...prev, ...newAttachments]);
+            }
+        } catch (err) {
+            console.warn('Document picker error', err);
+            showToast(t('failed_to_pick_document', { defaultValue: 'Failed to pick document' }), 'error');
+        } finally {
+            setAttachmentsLoading(false);
+        }
+    }
+
+    function removeAttachment(index: number) {
+        setAttachments(prev => prev.filter((_, i) => i !== index));
     }
 
     // Using shared delete helper (imported above) instead of local implementation
@@ -1009,6 +1103,30 @@ export default function AnnouncementsScreen() {
                                                     <Text style={{ color: '#3B82F6', fontWeight: '700' }}>{t('image_count_label', { count: item.images.length, defaultValue: `image : ${item.images.length} ()` })}</Text>
                                                 </TouchableOpacity>
                                             )}
+                                            {item.attachments && item.attachments.length > 0 && (
+                                                <View style={{ marginTop: 8 }}>
+                                                    {item.attachments.map((att, idx) => (
+                                                        <TouchableOpacity
+                                                            key={idx}
+                                                            onPress={() => Linking.openURL(att.url)}
+                                                            style={{
+                                                                flexDirection: 'row',
+                                                                alignItems: 'center',
+                                                                gap: 6,
+                                                                backgroundColor: '#F3F4F6',
+                                                                padding: 8,
+                                                                borderRadius: 8,
+                                                                marginBottom: 4
+                                                            }}
+                                                        >
+                                                            <Text>📎</Text>
+                                                            <Text numberOfLines={1} ellipsizeMode="tail" style={{ flex: 1, color: '#2563EB', fontSize: 12, fontWeight: '500', textDecorationLine: 'underline' }}>
+                                                                {att.name}
+                                                            </Text>
+                                                        </TouchableOpacity>
+                                                    ))}
+                                                </View>
+                                            )}
                                         </View>
                                     </View>
                                 );
@@ -1124,6 +1242,52 @@ export default function AnnouncementsScreen() {
                                 inputStyle={{ minHeight: 100, paddingTop: 18 }}
                             />
 
+                            {/* Attachments - Document Picker */}
+                            <View style={{ marginBottom: 12 }}>
+                                <View style={{ position: 'relative' }}>
+                                    <FloatingLabelInput
+                                        label={t('attachments_label', { defaultValue: '📎 Attachments' })}
+                                        value={attachments.length ? t('attachment_count_label', { count: attachments.length, defaultValue: `${attachments.length} files selected` }) : ''}
+                                        onPress={pickDocuments}
+                                        editable={false}
+                                        placeholder={t('pick_file', { defaultValue: '📂 Pick a file' })}
+                                        inputStyle={{ paddingRight: 48 }}
+                                    />
+                                    {attachmentsLoading && (
+                                        <View style={{ position: 'absolute', right: 12, top: 14 }}>
+                                            <ActivityIndicator size="small" color="#3B82F6" />
+                                        </View>
+                                    )}
+                                </View>
+
+                                {/* Selected attachments list */}
+                                {attachments.length > 0 && (
+                                    <View style={{ marginTop: 8 }}>
+                                        {attachments.map((att, idx) => (
+                                            <View key={idx} style={{
+                                                backgroundColor: '#fff',
+                                                padding: 10,
+                                                borderRadius: 8,
+                                                flexDirection: 'row',
+                                                alignItems: 'center',
+                                                justifyContent: 'space-between',
+                                                marginBottom: 6,
+                                                borderWidth: 1,
+                                                borderColor: '#E5E7EB'
+                                            }}>
+                                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
+                                                    <Text style={{ fontSize: 20 }}>📄</Text>
+                                                    <Text numberOfLines={1} style={{ flex: 1, color: '#374151', fontSize: 13 }}>{att.name}</Text>
+                                                </View>
+                                                <TouchableOpacity onPress={() => removeAttachment(idx)} style={{ padding: 4 }}>
+                                                    <Text style={{ color: '#EF4444', fontWeight: '700' }}>×</Text>
+                                                </TouchableOpacity>
+                                            </View>
+                                        ))}
+                                    </View>
+                                )}
+                            </View>
+
                             {/* Image Upload & Thumbnails */}
                             <View style={{ marginBottom: 12 }}>
                                 <View style={{ position: 'relative' }}>
@@ -1164,8 +1328,6 @@ export default function AnnouncementsScreen() {
                                     </ScrollView>
                                 ) : null}
                             </View>
-
-                            {/* End Date & Time block has been moved above role in the modal */}
 
                             {/* Buttons */}
                             <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 16 }}>

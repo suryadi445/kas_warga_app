@@ -521,5 +521,9 @@
     "auth_account_not_activated": "Akun Anda menunggu aktivasi. Silakan hubungi administrator.",
     "auth_unknown_error": "Terjadi kesalahan saat memproses permintaan Anda.",
     "login_failed": "Login gagal",
-    "login_success": "Login berhasil!"
+    "login_success": "Login berhasil!",
+    "attachments_label": "Lampiran",
+    "pick_file": "Pilih File",
+    "attachment_count_label": "{{count}} file dipilih",
+    "failed_to_pick_document": "Gagal memilih dokumen"
 }

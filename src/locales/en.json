@@ -521,5 +521,9 @@
     "auth_account_not_activated": "Your account is pending activation. Please contact an administrator.",
     "auth_unknown_error": "An error occurred while processing your request.",
     "login_failed": "Login failed",
-    "login_success": "Login successful!"
+    "login_success": "Login successful!",
+    "attachments_label": "Attachments",
+    "pick_file": "Pick File",
+    "attachment_count_label": "{{count}} files selected",
+    "failed_to_pick_document": "Failed to pick document"
 }
