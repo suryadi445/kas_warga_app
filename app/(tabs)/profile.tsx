@@ -464,22 +464,8 @@ export default function ProfilePage() {
                     </TouchableOpacity>
                 </View>
 
-                {/* Language switch & Dark Mode */}
+                {/* Language switch */}
                 <View style={{ position: 'absolute', top: 20, left: 20, zIndex: 10, flexDirection: 'row', gap: 8, alignItems: 'center' }}>
-                    <TouchableOpacity
-                        onPress={toggleColorScheme}
-                        style={{
-                            backgroundColor: 'rgba(255,255,255,0.2)',
-                            padding: 8,
-                            borderRadius: 20,
-                            marginRight: 8,
-                            borderWidth: 1,
-                            borderColor: 'rgba(255,255,255,0.3)'
-                        }}
-                    >
-                        <Ionicons name={colorScheme === 'dark' ? 'moon' : 'sunny'} size={18} color="#fff" />
-                    </TouchableOpacity>
-
                     <TouchableOpacity
                         onPress={async () => {
                             const newLang = appLang === 'id' ? 'en' : 'id';

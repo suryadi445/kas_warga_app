@@ -401,7 +401,7 @@ export default function TabsIndex() {
                             {appImage ? (
                                 <Image source={{ uri: appImage }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
                             ) : (
-                                <Text style={{ fontSize: 28 }}>🕌</Text>
+                                <Text style={{ fontSize: 28 }}></Text>
                             )}
                         </View>
                         <View style={{ flex: 1 }}>

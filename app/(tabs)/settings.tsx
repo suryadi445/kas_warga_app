@@ -416,7 +416,7 @@ export default function SettingsScreen() {
                                 {appImage ? (
                                     <Image source={{ uri: appImage }} style={{ width: '100%', height: '100%' }} />
                                 ) : (
-                                    <Text style={{ fontSize: 48 }}>🕌</Text>
+                                    <Text style={{ fontSize: 48 }}></Text>
                                 )}
                             </View>
                         </View>
@@ -542,7 +542,7 @@ export default function SettingsScreen() {
                                         <Image source={{ uri: appImage }} style={{ width: '100%', height: '100%' }} />
                                     ) : (
                                         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-                                            <Text style={{ fontSize: 40 }}>🕌</Text>
+                                            <Text style={{ fontSize: 40 }}></Text>
                                         </View>
                                     )}
                                 </View>
