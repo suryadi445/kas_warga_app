@@ -28,7 +28,7 @@ export default function LoginScreen() {
 
     async function handleLogin() {
         if (!email.trim() || !password.trim()) {
-            showToast('Please fill in all fields', 'error');
+            showToast(t('please_fill_all_fields', { defaultValue: 'Please fill in all fields' }), 'error');
             return;
         }
 
@@ -38,14 +38,25 @@ export default function LoginScreen() {
 
             // Check if login was successful
             if (result.success) {
-                showToast('Login successful!', 'success');
+                showToast(t('login_success', { defaultValue: 'Login successful!' }), 'success');
                 router.replace('/(tabs)/dashboard');
             } else {
                 // Handle errors including activation check
-                showToast(result.error || 'Login failed', 'error');
+                let errorMessage = t('login_failed', { defaultValue: 'Login failed' });
+
+                if (result.code) {
+                    // Convert firebase error code to snake_case key
+                    // e.g. auth/user-not-found -> auth_user_not_found
+                    const key = result.code.replace('/', '_').replace(/-/g, '_');
+                    errorMessage = t(key, { defaultValue: result.error || errorMessage });
+                } else if (result.error) {
+                    errorMessage = result.error;
+                }
+
+                showToast(errorMessage, 'error');
             }
         } catch (error: any) {
-            showToast(error.message || 'Login failed', 'error');
+            showToast(error.message || t('login_failed', { defaultValue: 'Login failed' }), 'error');
         } finally {
             setLoading(false);
         }

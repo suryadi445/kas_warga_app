@@ -80,6 +80,55 @@ export const signUp = async (email: string, password: string, nama: string, phon
     } catch (err: any) {
         console.error('signUp error:', err);
         const code = err?.code || null;
+
+        // Handle email already in use (re-registration of deleted user)
+        if (code === 'auth/email-already-in-use') {
+            try {
+                // Try to sign in with the provided password
+                const credential = await signInWithEmailAndPassword(auth, email, password);
+                const user = credential.user;
+
+                // Check if Firestore document exists
+                const docRef = doc(db, 'users', user.uid);
+                const snap = await getDoc(docRef);
+
+                if (snap.exists()) {
+                    // Account exists and has data -> return original error
+                    return {
+                        success: false,
+                        error: 'Email already registered. Please login.',
+                        code: 'auth/email-already-in-use'
+                    };
+                } else {
+                    // Account exists in Auth but NO data in Firestore (deleted user)
+                    // Re-create the user data
+                    const userData = {
+                        uid: user.uid,
+                        email: user.email || email,
+                        nama: nama.trim(),
+                        phone: phone.trim(),
+                        role: 'Member',
+                        isActive: false,
+                        gender: '',
+                        birthday: '',
+                        religion: '',
+                        maritalStatus: 'single',
+                        spouseName: '',
+                        children: [],
+                        createdAt: serverTimestamp(),
+                    };
+
+                    console.log('Re-creating user data for deleted account:', userData);
+                    await setDoc(doc(db, 'users', user.uid), userData);
+
+                    return { success: true, user: { uid: user.uid, email: user.email } };
+                }
+            } catch (signInErr: any) {
+                // If sign in fails (e.g. wrong password), return original error
+                console.warn('Re-registration sign-in failed:', signInErr.code);
+            }
+        }
+
         const friendly = mapAuthError(code, err?.message);
         return {
             success: false,
@@ -126,13 +175,23 @@ export const signIn = async (email: string, password: string): Promise<AuthResul
             profile = snap.exists() ? snap.data() : null;
 
             // NEW: Check if user is activated
-            if (profile && profile.isActive === false) {
-                // Sign out the user since they can't proceed
+            if (profile) {
+                if (profile.isActive === false) {
+                    // Sign out the user since they can't proceed
+                    await auth.signOut();
+                    return {
+                        success: false,
+                        error: 'Your account is pending activation. Please contact an administrator.',
+                        code: 'auth/account-not-activated'
+                    };
+                }
+            } else {
+                // Profile not found (e.g. deleted user)
                 await auth.signOut();
                 return {
                     success: false,
-                    error: 'Your account is pending activation. Please contact an administrator.',
-                    code: 'auth/account-not-activated'
+                    error: 'User data not found. Please register again.',
+                    code: 'auth/user-not-found'
                 };
             }
         } catch (fireErr: any) {

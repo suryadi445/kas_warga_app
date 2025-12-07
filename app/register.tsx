@@ -47,7 +47,24 @@ export default function RegisterScreen() {
 
         try {
             setLoading(true);
-            await signUp(email, password, name);
+            const result = await signUp(email, password, name);
+
+            if (!result.success) {
+                // Handle errors including activation check
+                let errorMessage = t('registration_failed', { defaultValue: 'Registration failed' });
+
+                if (result.code) {
+                    // Convert firebase error code to snake_case key
+                    // e.g. auth/email-already-in-use -> auth_email_already_in_use
+                    const key = result.code.replace('/', '_').replace(/-/g, '_');
+                    errorMessage = t(key, { defaultValue: result.error || errorMessage });
+                } else if (result.error) {
+                    errorMessage = result.error;
+                }
+
+                showToast(errorMessage, 'error');
+                return;
+            }
 
             // NEW: Sign out immediately since account needs admin activation
             const { signOut } = await import('../src/services/authService');

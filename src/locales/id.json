@@ -510,5 +510,16 @@
     "total_balance": "Saldo Total",
     "announcement_status_active": "● AKTIF",
     "announcement_status_upcoming": "◐ Segera",
-    "announcement_status_expired": "○ KADALUARSA"
+    "announcement_status_expired": "○ KADALUARSA",
+    "auth_email_already_in_use": "Email sudah terdaftar. Silakan login atau gunakan email lain.",
+    "auth_invalid_email": "Format email tidak valid.",
+    "auth_weak_password": "Password terlalu lemah. Gunakan minimal 6 karakter.",
+    "auth_user_not_found": "Pengguna tidak ditemukan. Silakan periksa email Anda atau daftar terlebih dahulu.",
+    "auth_wrong_password": "Password salah. Silakan coba lagi.",
+    "auth_invalid_credential": "Email atau password salah. Silakan periksa dan coba lagi.",
+    "auth_configuration_not_found": "Konfigurasi autentikasi tidak ditemukan. Periksa pengaturan Firebase.",
+    "auth_account_not_activated": "Akun Anda menunggu aktivasi. Silakan hubungi administrator.",
+    "auth_unknown_error": "Terjadi kesalahan saat memproses permintaan Anda.",
+    "login_failed": "Login gagal",
+    "login_success": "Login berhasil!"
 }

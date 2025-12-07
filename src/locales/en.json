@@ -510,5 +510,16 @@
     "total_balance": "Total Balance",
     "announcement_status_active": "● ACTIVE",
     "announcement_status_upcoming": "◐ UPCOMING",
-    "announcement_status_expired": "○ EXPIRED"
+    "announcement_status_expired": "○ EXPIRED",
+    "auth_email_already_in_use": "Email already registered. Please login or use another email.",
+    "auth_invalid_email": "Invalid email format.",
+    "auth_weak_password": "Password is too weak. Use at least 6 characters.",
+    "auth_user_not_found": "User not found. Please check your email or register first.",
+    "auth_wrong_password": "Wrong password. Please try again.",
+    "auth_invalid_credential": "Invalid email or password. Please check and try again.",
+    "auth_configuration_not_found": "Authentication configuration not found. Check Firebase settings.",
+    "auth_account_not_activated": "Your account is pending activation. Please contact an administrator.",
+    "auth_unknown_error": "An error occurred while processing your request.",
+    "login_failed": "Login failed",
+    "login_success": "Login successful!"
 }
