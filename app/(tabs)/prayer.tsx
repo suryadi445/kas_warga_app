@@ -1,9 +1,12 @@
+import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
 import { Magnetometer } from 'expo-sensors';
 import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ActivityIndicator, Platform, RefreshControl, ScrollView, StatusBar, Text, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRefresh } from '../../src/hooks/useRefresh';
 
 // --- Helper: Hijri <-> Gregorian ---
@@ -51,10 +54,14 @@ export default function PrayerPage() {
     const holidaysFetched = useRef(false);
     const [currentTime, setCurrentTime] = useState(new Date());
     const [locationName, setLocationName] = useState<string>(t('locating', { defaultValue: 'Locating...' }));
+    const [cityKeyword, setCityKeyword] = useState<string | null>(null);
     const [deviceHeading, setDeviceHeading] = useState(0);
     const [magnetometerData, setMagnetometerData] = useState(0); // in microTesla (uT)
     const [bearing, setBearing] = useState(0);
     const [distanceKm, setDistanceKm] = useState(0);
+    const [source, setSource] = useState<string>('');
+    const fetchIdRef = useRef(0);
+    const [refreshKey, setRefreshKey] = useState(0);
 
     // Update current time every second for real-time countdown
     useEffect(() => {
@@ -112,70 +119,214 @@ export default function PrayerPage() {
         }
     }, []);
 
-    useEffect(() => {
-        (async () => {
+    const updateQibla = (latitude: number, longitude: number) => {
+        const qibla = computeBearing(latitude, longitude, KAABA.lat, KAABA.lon);
+        setBearing(qibla);
+        const dist = haversineDistanceKm(latitude, longitude, KAABA.lat, KAABA.lon);
+        setDistanceKm(dist);
+    };
+
+    const getLocationFromGPS = async () => {
+        setLoading(true);
+        setTimes(null);
+        setError(null);
+        setLocationName(t('locating', { defaultValue: 'Locating...' }));
+
+        try {
             let { status } = await Location.requestForegroundPermissionsAsync();
             if (status !== 'granted') {
                 setError(t('location_permission_denied', { defaultValue: 'Permission to access location was denied' }));
+                setLocationName(t('unknown_location', { defaultValue: 'Unknown Location' }));
+                setLoading(false);
                 return;
             }
 
             let location = await Location.getCurrentPositionAsync({});
-            setLat(location.coords.latitude);
-            setLon(location.coords.longitude);
+            const { latitude, longitude } = location.coords;
+            setLat(latitude);
+            setLon(longitude);
+            updateQibla(latitude, longitude);
 
-            // Calculate Qibla direction
-            const qibla = computeBearing(location.coords.latitude, location.coords.longitude, KAABA.lat, KAABA.lon);
-            setBearing(qibla);
-
-            // Calculate distance to Kaaba
-            const dist = haversineDistanceKm(location.coords.latitude, location.coords.longitude, KAABA.lat, KAABA.lon);
-            setDistanceKm(dist);
-
-            // Reverse Geocode to get District Name
             try {
-                const reverseGeocode = await Location.reverseGeocodeAsync({
-                    latitude: location.coords.latitude,
-                    longitude: location.coords.longitude
-                });
-
+                const reverseGeocode = await Location.reverseGeocodeAsync({ latitude, longitude });
                 if (reverseGeocode.length > 0) {
                     const address = reverseGeocode[0];
+                    console.log('Detected Address:', JSON.stringify(address));
+
                     // Prioritize district, fallback to city or subregion
                     const name = address.district || address.city || address.subregion || address.region;
-                    if (name) {
-                        setLocationName(name);
-                    } else {
-                        setLocationName(t('unknown_location', { defaultValue: 'Unknown Location' }));
+                    const finalName = name || t('unknown_location', { defaultValue: 'Unknown Location' });
+                    setLocationName(finalName);
+
+                    // Set keyword for MyQuran search
+                    // Try to find a suitable city name. Prioritize subregion (often Kota/Kabupaten) over city.
+                    let keyword = address.subregion || address.city || address.region;
+
+                    // If the picked keyword contains 'Kecamatan', try to find a better field
+                    if (keyword && keyword.toLowerCase().includes('kecamatan')) {
+                        const candidates = [address.subregion, address.city, address.region];
+                        const better = candidates.find(c => c && !c.toLowerCase().includes('kecamatan'));
+                        if (better) keyword = better;
                     }
+
+                    if (keyword) setCityKeyword(keyword);
+
+                    // Save to storage
+                    AsyncStorage.setItem('prayer_location', JSON.stringify({
+                        lat: latitude,
+                        lon: longitude,
+                        locationName: finalName,
+                        cityKeyword: keyword
+                    }));
                 }
             } catch (e) {
                 console.log('Reverse geocoding failed', e);
                 setLocationName(t('unknown_location', { defaultValue: 'Unknown Location' }));
             }
-        })();
-    }, []);
-    useEffect(() => { fetchTimes(); }, [dateStr, lat, lon]);
-    async function fetchTimes() {
-        setLoading(true); setError(null); setTimes(null);
+            setRefreshKey(prev => prev + 1);
+        } catch (err) {
+            setLoading(false);
+            setError(t('location_error', { defaultValue: 'Failed to get location' }));
+        }
+    };
+
+    const loadLocation = async () => {
         try {
+            const saved = await AsyncStorage.getItem('prayer_location');
+            if (saved) {
+                const data = JSON.parse(saved);
+                setLat(data.lat);
+                setLon(data.lon);
+                setLocationName(data.locationName);
+                setCityKeyword(data.cityKeyword);
+                updateQibla(data.lat, data.lon);
+            } else {
+                getLocationFromGPS();
+            }
+        } catch {
+            getLocationFromGPS();
+        }
+    };
+
+    useEffect(() => {
+        loadLocation();
+    }, []);
+    useEffect(() => { fetchTimes(); }, [dateStr, lat, lon, cityKeyword, refreshKey]);
+    async function fetchTimes() {
+        const myId = fetchIdRef.current + 1;
+        fetchIdRef.current = myId;
+
+        setLoading(true); setError(null); setTimes(null);
+
+        try {
+            let myQuranSuccess = false;
+
+            // 1. Try MyQuran API if cityKeyword is available
+            if (cityKeyword) {
+                try {
+                    // Independent controller for MyQuran
+                    const mqController = new AbortController();
+                    const mqTimeout = setTimeout(() => mqController.abort(), 5000); // 5s timeout
+
+                    console.log('Searching city in MyQuran:', cityKeyword);
+                    const searchRes = await fetch(`https://api.myquran.com/v2/sholat/kota/cari/${encodeURIComponent(cityKeyword)}`, { signal: mqController.signal });
+                    const searchJson = await searchRes.json();
+
+                    if (searchJson.status && searchJson.data && searchJson.data.length > 0) {
+                        const cityId = searchJson.data[0].id;
+                        const [y, m, d] = dateStr.split('-');
+
+                        console.log('Fetching schedule from MyQuran for ID:', cityId);
+                        const scheduleRes = await fetch(`https://api.myquran.com/v2/sholat/jadwal/${cityId}/${y}/${m}/${d}`, { signal: mqController.signal });
+                        const scheduleJson = await scheduleRes.json();
+
+                        clearTimeout(mqTimeout);
+
+                        if (scheduleJson.status && scheduleJson.data && scheduleJson.data.jadwal) {
+                            if (fetchIdRef.current !== myId) return;
+                            const j = scheduleJson.data.jadwal;
+                            setTimes({
+                                Fajr: j.subuh,
+                                Dhuhr: j.dzuhur,
+                                Asr: j.ashar,
+                                Maghrib: j.maghrib,
+                                Isha: j.isya,
+                                Sunrise: j.terbit,
+                                Imsak: j.imsak
+                            });
+
+                            // Calculate Hijri date locally
+                            const [gy, gm, gd] = dateStr.split('-').map(Number);
+                            const h = gregorianToIslamic(gy, gm, gd);
+                            const hMonth = HIJRI_MONTHS[h.im - 1];
+                            setHijriDate(`${h.id} ${hMonth} ${h.iy}`);
+
+                            myQuranSuccess = true;
+                            setSource('MyQuran');
+                        }
+                    } else {
+                        clearTimeout(mqTimeout);
+                        console.log('MyQuran search returned no results for:', cityKeyword);
+                    }
+                } catch (err) {
+                    console.log('MyQuran API failed/timed out, falling back to Aladhan', err);
+                }
+            }
+
+            if (fetchIdRef.current !== myId) return;
+
+            if (myQuranSuccess) {
+                setLoading(false);
+                return;
+            }
+
+            // 2. Fallback to Aladhan API
+            console.log('Fetching from Aladhan API...');
+            const aladhanController = new AbortController();
+            const aladhanTimeout = setTimeout(() => aladhanController.abort(), 10000); // 10s timeout
+
             const timestamp = Math.floor(new Date(dateStr + 'T00:00:00').getTime() / 1000);
             const url = `https://api.aladhan.com/v1/timings/${timestamp}?latitude=${lat}&longitude=${lon}&method=2`;
-            const res = await fetch(url);
-            const json = await res.json();
-            if (json?.code === 200 && json?.data?.timings) {
-                setTimes(json.data.timings);
-                const hij = json.data?.date?.hijri;
-                if (hij) {
-                    const month = hij.month?.en ?? hij.month?.ar ?? '';
-                    setHijriDate(`${hij.day} ${month} ${hij.year}`);
-                } else setHijriDate('');
-            } else { setError(t('failed_get_prayer_times', { defaultValue: 'Failed to get prayer times' })); setHijriDate(''); }
-        } catch { setError(t('network_error', { defaultValue: 'Network error' })); setHijriDate(''); }
-        finally { setLoading(false); }
-    }
 
-    async function fetchHolidays() {
+            try {
+                const res = await fetch(url, { signal: aladhanController.signal });
+                clearTimeout(aladhanTimeout);
+
+                const json = await res.json();
+                if (fetchIdRef.current !== myId) return;
+
+                if (json?.code === 200 && json?.data?.timings) {
+                    setTimes(json.data.timings);
+                    const hij = json.data?.date?.hijri;
+                    if (hij) {
+                        const month = hij.month?.en ?? hij.month?.ar ?? '';
+                        setHijriDate(`${hij.day} ${month} ${hij.year}`);
+                    } else setHijriDate('');
+                    setSource('Aladhan');
+                } else {
+                    setError(t('failed_get_prayer_times', { defaultValue: 'Failed to get prayer times' }));
+                    setHijriDate('');
+                }
+            } catch (err: any) {
+                clearTimeout(aladhanTimeout);
+                throw err;
+            }
+
+        } catch (err: any) {
+            if (fetchIdRef.current !== myId) return;
+            if (err.name === 'AbortError') {
+                setError(t('request_timeout', { defaultValue: 'Request timed out. Please check your connection.' }));
+            } else {
+                setError(t('network_error', { defaultValue: 'Network error. Please try again.' }));
+            }
+            setHijriDate('');
+        }
+        finally {
+            if (fetchIdRef.current === myId) {
+                setLoading(false);
+            }
+        }
+    } async function fetchHolidays() {
         try {
             const res = await fetch('https://api-harilibur.vercel.app/api');
             const data = await res.json();
@@ -446,21 +597,15 @@ export default function PrayerPage() {
     function getNextPrayer() {
         if (!times) return null;
 
-        const prayerNames = [
-            t('prayer_fajr', { defaultValue: 'Fajr' }),
-            t('prayer_dhuhr', { defaultValue: 'Dhuhr' }),
-            t('prayer_asr', { defaultValue: 'Asr' }),
-            t('prayer_maghrib', { defaultValue: 'Maghrib' }),
-            t('prayer_isha', { defaultValue: 'Isha' }),
-        ];
+        const prayerKeys = ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'];
         const now = currentTime;
         const currentHour = now.getHours();
         const currentMinute = now.getMinutes();
         const currentSeconds = now.getSeconds();
         const currentTotalSeconds = currentHour * 3600 + currentMinute * 60 + currentSeconds;
 
-        for (const name of prayerNames) {
-            const timeStr = times[name]; // format: "HH:MM"
+        for (const key of prayerKeys) {
+            const timeStr = times[key]; // format: "HH:MM"
             if (!timeStr) continue;
 
             const [h, m] = timeStr.split(':').map(Number);
@@ -468,6 +613,7 @@ export default function PrayerPage() {
 
             if (prayerTotalSeconds > currentTotalSeconds) {
                 const diff = prayerTotalSeconds - currentTotalSeconds;
+                const name = t(`prayer_${key.toLowerCase()}`, { defaultValue: key });
                 return { name, timeStr, remainingSeconds: diff };
             }
         }
@@ -478,7 +624,8 @@ export default function PrayerPage() {
             const [h, m] = fajrTime.split(':').map(Number);
             const fajrTotalSeconds = h * 3600 + m * 60;
             const diff = (24 * 3600) - currentTotalSeconds + fajrTotalSeconds;
-            return { name: 'Fajr', timeStr: fajrTime, remainingSeconds: diff };
+            const name = t('prayer_fajr', { defaultValue: 'Fajr' });
+            return { name, timeStr: fajrTime, remainingSeconds: diff };
         }
 
         return null;
@@ -503,7 +650,7 @@ export default function PrayerPage() {
 
 
     return (
-        <View style={{ flex: 1, backgroundColor: '#F8FAFC' }}>
+        <SafeAreaView edges={['bottom']} style={{ flex: 1, backgroundColor: '#F8FAFC' }}>
             <StatusBar barStyle="dark-content" translucent backgroundColor="transparent" />
 
             {/* Purple Gradient Background for Header */}
@@ -516,39 +663,45 @@ export default function PrayerPage() {
                     top: 0,
                     left: 0,
                     right: 0,
-                    height: 300,
+                    height: 200,
                 }}
             />
 
-            {/* Header */}
-            <View style={{ padding: 16, alignItems: 'center' }}>
-                <View style={{
-                    width: 80,
-                    height: 80,
-                    borderRadius: 40,
-                    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-                    backdropFilter: 'blur(10px)',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    marginBottom: 12,
-                    borderWidth: 2,
-                    borderColor: 'rgba(255, 255, 255, 0.3)',
-                    shadowColor: '#000',
-                    shadowOffset: { width: 0, height: 8 },
-                    shadowOpacity: 0.3,
-                    shadowRadius: 16,
-                    elevation: 8
-                }}>
-                    <Text style={{ fontSize: 40 }}>🕌</Text>
+            {/* Header - Horizontal Layout */}
+            <View style={{ padding: 16, paddingBottom: 30 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+                    {/* Icon on left */}
+                    <View style={{
+                        width: 64,
+                        height: 64,
+                        borderRadius: 32,
+                        backgroundColor: 'rgba(255, 255, 255, 0.15)',
+                        backdropFilter: 'blur(10px)',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        borderWidth: 2,
+                        borderColor: 'rgba(255, 255, 255, 0.3)',
+                        shadowColor: '#000',
+                        shadowOffset: { width: 0, height: 4 },
+                        shadowOpacity: 0.2,
+                        shadowRadius: 8,
+                        elevation: 6
+                    }}>
+                        <Text style={{ fontSize: 32 }}>🕌</Text>
+                    </View>
+
+                    {/* Text on right */}
+                    <View style={{ flex: 1 }}>
+                        <Text style={{ color: '#FFFFFF', fontSize: 22, fontWeight: '800', letterSpacing: 0.3 }}>{t('prayer_schedule_title', { defaultValue: 'Prayer Schedule' })}</Text>
+                        <Text style={{ color: 'rgba(255, 255, 255, 0.85)', marginTop: 4, fontSize: 13, lineHeight: 18 }}>
+                            {t('prayer_schedule_subtitle', { defaultValue: 'View prayer times, qibla direction, and Hijri calendar' })}
+                        </Text>
+                    </View>
                 </View>
-                <Text style={{ color: '#FFFFFF', fontSize: 28, fontWeight: '800', letterSpacing: 0.5 }}>{t('prayer_schedule_title', { defaultValue: 'Prayer Schedule' })}</Text>
-                <Text style={{ color: 'rgba(255, 255, 255, 0.85)', marginTop: 6, textAlign: 'center', fontSize: 15, paddingHorizontal: 20 }}>
-                    {t('prayer_schedule_subtitle', { defaultValue: 'View prayer times, qibla direction, and Hijri calendar' })}
-                </Text>
             </View>
 
             {/* Tab Switcher - Fixed, Not Scrollable */}
-            <View style={{ paddingHorizontal: 20, paddingBottom: 16 }}>
+            <View style={{ paddingHorizontal: 20, paddingBottom: 30 }}>
                 <View style={{
                     flexDirection: 'row',
                     backgroundColor: 'rgba(255, 255, 255, 0.15)',
@@ -645,22 +798,32 @@ export default function PrayerPage() {
                         borderWidth: 1,
                         borderColor: 'rgba(255, 255, 255, 0.3)'
                     }}>
-                        <Text style={{ fontWeight: '800', fontSize: 18, color: '#1F2937', marginBottom: 8 }}>{t('prayer_times_title', { defaultValue: '🕐 Prayer Times' })}</Text>
+                        <Text style={{ fontWeight: '800', fontSize: 18, color: '#1F2937', marginBottom: 12 }}>{t('prayer_times_title', { defaultValue: '🕐 Prayer Times' })}</Text>
 
                         {/* Next Prayer Countdown */}
                         {nextPrayer && (
                             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6, paddingHorizontal: 16 }}>
-                                <Text style={{ fontSize: 12, fontWeight: '800', color: '#10B981' }}>
+                                <Text style={{ fontSize: 12, fontWeight: '400', color: '#10B981' }}>
                                     {nextPrayer.name}
                                 </Text>
-                                <Text style={{ fontSize: 12, fontWeight: '800', color: '#10B981', letterSpacing: 0.5 }}>
+                                <Text style={{ fontSize: 12, fontWeight: '400', color: '#10B981', letterSpacing: 0.5 }}>
                                     {formatCountdown(nextPrayer.remainingSeconds)}
                                 </Text>
                             </View>
                         )}
 
                         {loading && <ActivityIndicator size="small" color="#7C3AED" />}
-                        {error && <Text style={{ color: '#EF4444', fontWeight: '600' }}>{error}</Text>}
+                        {error && (
+                            <View style={{ alignItems: 'center', padding: 20 }}>
+                                <Text style={{ color: '#EF4444', fontWeight: '600', marginBottom: 10, textAlign: 'center' }}>{error}</Text>
+                                <TouchableOpacity
+                                    onPress={fetchTimes}
+                                    style={{ backgroundColor: '#7C3AED', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8 }}
+                                >
+                                    <Text style={{ color: '#fff', fontWeight: '700' }}>{t('retry', { defaultValue: 'Retry' })}</Text>
+                                </TouchableOpacity>
+                            </View>
+                        )}
                         {times && (
                             <View>
                                 {['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'].map((k, idx) => (
@@ -673,15 +836,29 @@ export default function PrayerPage() {
                                         borderRadius: 12,
                                         marginBottom: 4
                                     }}>
-                                        <Text style={{ color: '#4B5563', fontWeight: '600', fontSize: 16 }}>{k}</Text>
+                                        <Text style={{ color: '#4B5563', fontWeight: '600', fontSize: 16 }}>{t(`prayer_${k.toLowerCase()}`, { defaultValue: k })}</Text>
                                         <Text style={{ color: '#7C3AED', fontWeight: '800', fontSize: 16 }}>{times[k]}</Text>
                                     </View>
                                 ))}
-                                <Text style={{ color: '#9CA3AF', marginTop: 12, fontSize: 12, textAlign: 'center' }}>
-                                    {t('powered_by_aladhan', { defaultValue: 'Powered by Aladhan API' })}
-                                </Text>
                             </View>
                         )}
+
+                        {/* Location Header */}
+                        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 12, backgroundColor: '#F3F4F6', padding: 8, borderRadius: 8 }}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                                <Text style={{ fontSize: 14, color: '#4B5563', fontWeight: '600', marginRight: 8 }} numberOfLines={1}>
+                                    {locationName}
+                                </Text>
+                                <TouchableOpacity onPress={getLocationFromGPS}>
+                                    <Ionicons name="reload" size={16} color="#7C3AED" />
+                                </TouchableOpacity>
+                            </View>
+                            {source ? (
+                                <Text style={{ color: '#9CA3AF', fontSize: 10, marginLeft: 8 }}>
+                                    {source === 'MyQuran' ? 'Powered by MyQuran.com' : t('powered_by_aladhan', { defaultValue: 'Powered by Aladhan API' })}
+                                </Text>
+                            ) : null}
+                        </View>
                     </View>
                 )}
 
@@ -891,6 +1068,6 @@ export default function PrayerPage() {
 
                 <View style={{ height: 40 }} />
             </ScrollView >
-        </View >
+        </SafeAreaView >
     );
 }
