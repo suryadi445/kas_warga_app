@@ -5,6 +5,7 @@ import * as LinearGradientModule from 'expo-linear-gradient';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
+import { useColorScheme } from 'nativewind';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -35,6 +36,7 @@ const LinearGradient = (LinearGradientModule as any)?.LinearGradient ?? (LinearG
 
 export default function ProfilePage() {
     const router = useRouter();
+    const { colorScheme, toggleColorScheme } = useColorScheme();
     const { t } = useTranslation();
     const [appLang, setAppLang] = useState<string>('en');
     const [loading, setLoading] = useState(true);
@@ -462,30 +464,44 @@ export default function ProfilePage() {
                     </TouchableOpacity>
                 </View>
 
-                {/* Language switch */}
-                <View style={{ position: 'absolute', top: 64, right: 20, zIndex: 10, flexDirection: 'row', gap: 8 }}>
+                {/* Language switch & Dark Mode */}
+                <View style={{ position: 'absolute', top: 20, left: 20, zIndex: 10, flexDirection: 'row', gap: 8, alignItems: 'center' }}>
                     <TouchableOpacity
-                        onPress={async () => { await setAppLanguage('id'); setAppLang('id'); }}
+                        onPress={toggleColorScheme}
                         style={{
-                            backgroundColor: appLang === 'id' ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.18)',
-                            paddingHorizontal: 10,
-                            paddingVertical: 6,
-                            borderRadius: 8,
-                            marginRight: 6,
+                            backgroundColor: 'rgba(255,255,255,0.2)',
+                            padding: 8,
+                            borderRadius: 20,
+                            marginRight: 8,
+                            borderWidth: 1,
+                            borderColor: 'rgba(255,255,255,0.3)'
                         }}
                     >
-                        <Text style={{ color: appLang === 'id' ? '#111' : '#fff', fontWeight: '700' }}>ID</Text>
+                        <Ionicons name={colorScheme === 'dark' ? 'moon' : 'sunny'} size={18} color="#fff" />
                     </TouchableOpacity>
+
                     <TouchableOpacity
-                        onPress={async () => { await setAppLanguage('en'); setAppLang('en'); }}
+                        onPress={async () => {
+                            const newLang = appLang === 'id' ? 'en' : 'id';
+                            await setAppLanguage(newLang);
+                            setAppLang(newLang);
+                        }}
                         style={{
-                            backgroundColor: appLang === 'en' ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.18)',
-                            paddingHorizontal: 10,
-                            paddingVertical: 6,
-                            borderRadius: 8,
+                            backgroundColor: 'rgba(255,255,255,0.2)',
+                            paddingHorizontal: 8,
+                            paddingVertical: 4,
+                            borderRadius: 20,
+                            borderWidth: 1,
+                            borderColor: 'rgba(255,255,255,0.3)',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            height: 36,
+                            width: 36
                         }}
                     >
-                        <Text style={{ color: appLang === 'en' ? '#111' : '#fff', fontWeight: '700' }}>EN</Text>
+                        <Text style={{ fontSize: 20 }}>
+                            {appLang === 'id' ? '🇮🇩' : '🇬🇧'}
+                        </Text>
                     </TouchableOpacity>
                 </View>
 
