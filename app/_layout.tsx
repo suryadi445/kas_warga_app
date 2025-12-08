@@ -4,6 +4,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { useCallback, useEffect, useState } from 'react';
 import { Image, LogBox, StatusBar, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import DashboardNotificationManager from '../src/components/DashboardNotificationManager';
 import { ToastProvider } from '../src/contexts/ToastContext';
 import '../src/i18n';
 
@@ -78,6 +79,7 @@ export default function RootLayout() {
 
     return (
         <ToastProvider>
+            <DashboardNotificationManager />
             <SafeAreaProvider onLayout={onLayoutRootView}>
                 {/* Global translucent status bar so app content can render under it */}
                 <StatusBar translucent backgroundColor="transparent" barStyle="dark-content" />
@@ -98,3 +100,5 @@ export default function RootLayout() {
         </ToastProvider>
     );
 }
+
+

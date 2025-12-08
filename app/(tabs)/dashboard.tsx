@@ -1,5 +1,5 @@
 import { LinearGradient } from 'expo-linear-gradient';
-import { collection, doc, onSnapshot, orderBy, query } from 'firebase/firestore';
+import { doc, onSnapshot } from 'firebase/firestore';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Dimensions, FlatList, Image, RefreshControl, StatusBar, Text, TouchableOpacity, View } from 'react-native';
@@ -8,6 +8,7 @@ import ListCardWrapper from '../../src/components/ListCardWrapper';
 // ADDED: LoadMore footer component
 import LoadMore from '../../src/components/LoadMore';
 import { db } from '../../src/firebaseConfig';
+import { Announcement, useDashboardData } from '../../src/hooks/useDashboardData';
 import { useRefresh } from '../../src/hooks/useRefresh';
 import { getCurrentUser } from '../../src/services/authService';
 
@@ -18,17 +19,8 @@ import { getCurrentUser } from '../../src/services/authService';
  * - Schedules
  * - Activities
  *
- * Data is loaded in real-time from Firestore collections:
- * - cash_reports  -> Cash tab
- * - announcements -> Announcements tab
- * - schedules     -> Schedules tab
- * - activities    -> Activities tab
+ * Data is loaded in real-time from Firestore collections via useDashboardData hook
  */
-
-type CashItem = { id: string; type: 'in' | 'out'; date: string; amount: number; category?: string; description?: string; deleted?: boolean };
-type Announcement = { id: string; title: string; content: string; startDate?: string; endDate?: string; date?: string; role?: string; category?: string };
-type Schedule = { id: string; activityName: string; time?: string; frequency?: string; days?: string[]; location?: string; description?: string; createdAt?: any };
-type Activity = { id: string; title: string; location?: string; date?: string; time?: string; description?: string };
 
 const TAB_KEYS = ['cash', 'announcements', 'schedules', 'activities'] as const;
 type TabKey = typeof TAB_KEYS[number];
@@ -48,11 +40,10 @@ export default function DashboardPage() {
     // NEW: ref untuk FlatList Quick Access
     const quickAccessRef = useRef<FlatList>(null);
 
-    // Realtime states
-    const [cash, setCash] = useState<CashItem[]>([]);
-    const [announcements, setAnnouncements] = useState<Announcement[]>([]);
-    const [schedules, setSchedules] = useState<Schedule[]>([]);
-    const [activities, setActivities] = useState<Activity[]>([]);
+    const [refreshTrigger, setRefreshTrigger] = useState(0);
+
+    // Use the shared hook for data
+    const { cash, announcements, schedules, activities } = useDashboardData(refreshTrigger);
 
     // SCHEDULES pagination (used by renderSchedules)
     const SCHEDULES_PER_PAGE = 5;
@@ -73,7 +64,7 @@ export default function DashboardPage() {
     const ACTIVITIES_PER_PAGE = 5;
     const [activitiesDisplayedCount, setActivitiesDisplayedCount] = useState<number>(ACTIVITIES_PER_PAGE);
     const [activitiesLoadingMore, setActivitiesLoadingMore] = useState<boolean>(false);
-    const [refreshTrigger, setRefreshTrigger] = useState(0);
+
     // load user's avatar for the header
     const [userPhoto, setUserPhoto] = useState<string | undefined>(undefined);
 
@@ -139,167 +130,9 @@ export default function DashboardPage() {
         }, 300);
     };
 
-    // NEW: get today's date string (YYYY-MM-DD)
-    const getTodayString = () => new Date().toISOString().split('T')[0];
-
-    // Listen to Firestore collections
+    // User profile image (listen to users/{uid})
     useEffect(() => {
         const subs: (() => void)[] = [];
-
-        try {
-            const qCash = query(collection(db, 'cash_reports'), orderBy('createdAt', 'desc'));
-            const unsubCash = onSnapshot(qCash, snap => {
-                const todayStr = getTodayString();
-                const rows: CashItem[] = snap.docs.map(d => {
-                    const data = d.data() as any;
-                    return {
-                        id: d.id,
-                        type: data.type || 'in',
-                        date: data.date || '',
-                        amount: Number(data.amount) || 0,
-                        category: data.category || '',
-                        description: data.description || '',
-                        deleted: !!data.deleted,
-                    };
-                }).filter(item => !item.deleted && item.date === todayStr); // Filter hari ini saja
-                setCash(rows);
-            }, err => { console.warn('cash_reports snapshot err', err); });
-            subs.push(unsubCash);
-        } catch (e) { /* ignore */ }
-
-        try {
-            const qAnn = query(collection(db, 'announcements'), orderBy('date', 'desc'));
-            const unsubAnn = onSnapshot(qAnn, snap => {
-                const todayStr = getTodayString();
-                const rows: Announcement[] = snap.docs.map(d => {
-                    const data = d.data() as any;
-                    return {
-                        id: d.id,
-                        title: data.title ?? '',
-                        content: data.content ?? '',
-                        startDate: data.startDate ?? '',
-                        endDate: data.endDate ?? '',
-                        date: data.date ?? '',
-                        role: data.role ?? '',
-                        category: data.category ?? '',
-                        description: data.description ?? data.desc ?? data.details ?? data.body ?? '',
-                    };
-                }).filter(item => {
-                    // Filter announcements yang aktif hari ini (startDate <= today <= endDate)
-                    if (!item.startDate || !item.endDate) return false;
-                    const today = new Date(todayStr);
-                    const start = new Date(item.startDate);
-                    const end = new Date(item.endDate);
-                    return today >= start && today <= end;
-                });
-                setAnnouncements(rows);
-            }, err => { console.warn('announcements snapshot err', err); });
-            subs.push(unsubAnn);
-        } catch (e) { /* ignore */ }
-
-        try {
-            const qSched = query(collection(db, 'schedules'), orderBy('createdAt', 'desc'));
-            const unsubSched = onSnapshot(qSched, snap => {
-                const today = new Date();
-                const todayStr = getTodayString();
-                const dayOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][today.getDay()];
-                // console.debug('schedules snapshot docs:', snap.docs.map(d => ({ id: d.id, data: d.data() })));
-                const rows: Schedule[] = snap.docs.map(d => {
-                    const data = d.data() as any;
-                    // normalize createdAt to JS Date when available
-                    let createdAt: Date | undefined = undefined;
-                    if (data.createdAt) {
-                        try {
-                            createdAt = data.createdAt.toDate ? data.createdAt.toDate() : new Date(data.createdAt);
-                        } catch (e) {
-                            createdAt = new Date(data.createdAt);
-                        }
-                    }
-                    return {
-                        id: d.id,
-                        activityName: data.activityName ?? '',
-                        time: data.time ?? '',
-                        frequency: data.frequency ?? '',
-                        days: Array.isArray(data.days) ? data.days : [],
-                        location: data.location ?? '',
-                        description: data.description ?? data.desc ?? data.details ?? data.body ?? '',
-                        createdAt,
-                    };
-                }).filter(item => {
-                    // Helper: start of day for date-only comparisons
-                    const startOfDay = (dt: Date) => new Date(dt.getFullYear(), dt.getMonth(), dt.getDate());
-
-                    // If frequency is twice_week (two times per week)
-                    if (item.frequency === 'twice_week') {
-                        // if days specified, honor those
-                        if (item.days && item.days.length > 0) return item.days.includes(dayOfWeek);
-                        // derive two weekdays from createdAt: base day and base+3
-                        const base = item.createdAt ?? today;
-                        const baseIdx = base.getDay();
-                        const secondIdx = (baseIdx + 3) % 7;
-                        const todayIdx = today.getDay();
-                        return todayIdx === baseIdx || todayIdx === secondIdx;
-                    }
-
-                    // If frequency is month_twice (every 14 days)
-                    if (item.frequency === 'month_twice') {
-                        const base = item.createdAt ?? startOfDay(new Date());
-                        const diffMs = startOfDay(today).getTime() - startOfDay(base).getTime();
-                        if (diffMs < 0) return false;
-                        const daysDiff = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-                        if (daysDiff % 14 !== 0) return false; // show only on every 14th day since base
-                        // if days specified, also require day-of-week match
-                        if (item.days && item.days.length > 0) return item.days.includes(dayOfWeek);
-                        return true;
-                    }
-
-                    // If frequency is quarter (every 3 calendar months)
-                    if (item.frequency === 'quarter') {
-                        const base = item.createdAt ?? new Date();
-                        const yearDiff = today.getFullYear() - base.getFullYear();
-                        const monthDiff = today.getMonth() - base.getMonth() + yearDiff * 12;
-                        if (monthDiff < 0) return false;
-                        if (monthDiff % 3 !== 0) return false; // every 3 months
-                        // match day-of-month; if base day > days in current month, match last day
-                        const baseDay = base.getDate();
-                        const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
-                        const targetDay = Math.min(baseDay, daysInMonth);
-                        if (today.getDate() !== targetDay) return false;
-                        if (item.days && item.days.length > 0) return item.days.includes(dayOfWeek);
-                        return true;
-                    }
-
-                    // Default behavior: check days of week; if no days provided, show all
-                    if (!item.days || item.days.length === 0) return true;
-                    return item.days.includes(dayOfWeek);
-                });
-                setSchedules(rows);
-            }, err => { console.warn('schedules snapshot err', err); });
-            subs.push(unsubSched);
-        } catch (e) { /* ignore */ }
-
-        try {
-            const qAct = query(collection(db, 'activities'), orderBy('date', 'desc'));
-            const unsubAct = onSnapshot(qAct, snap => {
-                const todayStr = getTodayString();
-                // console.debug('activities snapshot docs:', snap.docs.map(d => ({ id: d.id, data: d.data() })));
-                const rows: Activity[] = snap.docs.map(d => {
-                    const data = d.data() as any;
-                    return {
-                        id: d.id,
-                        title: data.title ?? '',
-                        location: data.location ?? '',
-                        date: data.date ?? '',
-                        time: data.time ?? '',
-                        description: data.description ?? data.desc ?? data.details ?? data.body ?? '',
-                    };
-                }).filter(item => item.date === todayStr); // Filter hari ini saja
-                setActivities(rows);
-            }, err => { console.warn('activities snapshot err', err); });
-            subs.push(unsubAct);
-        } catch (e) { /* ignore */ }
-
-        // User profile image (listen to users/{uid})
         try {
             const currentUser = getCurrentUser();
             if (currentUser) {
@@ -322,7 +155,7 @@ export default function DashboardPage() {
         }
 
         return () => subs.forEach(u => u());
-    }, [refreshTrigger]);
+    }, []);
 
     // Pull to refresh
     const { refreshing, onRefresh } = useRefresh(async () => {

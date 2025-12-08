@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { Platform, StatusBar, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { db } from '../../src/firebaseConfig';
+import { useDashboardData } from '../../src/hooks/useDashboardData';
 import { getCurrentUser } from '../../src/services/authService';
 import { startNotificationListeners } from '../../src/services/NotificationService';
 
@@ -17,6 +18,10 @@ export default function TabsLayout({ children }: { children: React.ReactNode }) 
     const [unreadCount, setUnreadCount] = useState(0);
     const [currentUserId, setCurrentUserId] = useState<string | null>(null);
     const { t } = useTranslation();
+
+    // NEW: get dashboard data for badge count
+    const { cash, announcements, schedules, activities } = useDashboardData();
+    const dashboardBadgeCount = cash.length + announcements.length + schedules.length + activities.length;
 
     // Get current user
     useEffect(() => {
@@ -57,7 +62,7 @@ export default function TabsLayout({ children }: { children: React.ReactNode }) 
     }, [currentUserId]); // Re-run when user ID changes
 
     const tabs = [
-        { id: 'dashboard', label: t('menu_dashboard'), icon: '🗂️', route: '/(tabs)/dashboard' },
+        { id: 'dashboard', label: t('menu_dashboard'), icon: '🗂️', route: '/(tabs)/dashboard', badge: dashboardBadgeCount },
         { id: 'home', label: 'Home', icon: '🏠', route: '/(tabs)' },
         { id: 'notifications', label: 'Notifikasi', icon: '🔔', route: '/(tabs)/notifications', badge: unreadCount },
         { id: 'profile', label: 'Akun', icon: '👤', route: '/(tabs)/profile' },
@@ -114,12 +119,12 @@ export default function TabsLayout({ children }: { children: React.ReactNode }) 
                             <View style={{ alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
                                 <Text style={{ fontSize: 20, lineHeight: 24 }}>{t.icon}</Text>
                                 {/* Badge for unread count */}
-                                {t.id === 'notifications' && unreadCount > 0 && (
+                                {t.badge && t.badge > 0 && (
                                     <View style={{
                                         position: 'absolute',
                                         top: -4,
                                         right: -8,
-                                        backgroundColor: '#EF4444',
+                                        backgroundColor: t.id === 'dashboard' ? '#6366f1' : '#EF4444',
                                         borderRadius: 10,
                                         minWidth: 20,
                                         height: 20,
@@ -134,7 +139,7 @@ export default function TabsLayout({ children }: { children: React.ReactNode }) 
                                             fontSize: 11,
                                             fontWeight: '700',
                                         }}>
-                                            {unreadCount > 99 ? '99+' : unreadCount}
+                                            {t.badge > 99 ? '99+' : t.badge}
                                         </Text>
                                     </View>
                                 )}

@@ -1,5 +1,16 @@
 import { collection, doc, getDocs, limit, onSnapshot, orderBy, query, serverTimestamp, setDoc, where } from 'firebase/firestore';
+import { Platform } from 'react-native';
 import { db } from '../firebaseConfig';
+
+// Lazy import expo-notifications to handle Expo Go limitations
+let Notifications: typeof import('expo-notifications') | null = null;
+
+// Try to import expo-notifications, but don't crash if it fails
+try {
+    Notifications = require('expo-notifications');
+} catch (e) {
+    console.warn('[NotificationService] expo-notifications not available:', e);
+}
 
 /**
  * Background notification listener service
@@ -7,6 +18,88 @@ import { db } from '../firebaseConfig';
  * - Creates a notification document in "notifications" when a new document is inserted.
  * - Skips initial snapshot load to avoid creating notifications for existing documents.
  */
+
+// Configure notification handler for push notifications (if available)
+if (Notifications) {
+    try {
+        Notifications.setNotificationHandler({
+            handleNotification: async () => ({
+                shouldShowAlert: true,
+                shouldPlaySound: true,
+                shouldSetBadge: true,
+                shouldShowBanner: true,
+                shouldShowList: true,
+            }),
+        });
+    } catch (e) {
+        console.warn('[NotificationService] Failed to set notification handler:', e);
+    }
+}
+
+export async function registerForPushNotificationsAsync() {
+    if (!Notifications) {
+        console.log('[NotificationService] Notifications not available in Expo Go');
+        return;
+    }
+
+    try {
+        if (Platform.OS === 'android') {
+            await Notifications.setNotificationChannelAsync('default', {
+                name: 'default',
+                importance: Notifications.AndroidImportance.MAX,
+                vibrationPattern: [0, 250, 250, 250],
+                lightColor: '#FF231F7C',
+            });
+        }
+
+        const { status: existingStatus } = await Notifications.getPermissionsAsync();
+        let finalStatus = existingStatus;
+        if (existingStatus !== 'granted') {
+            const { status } = await Notifications.requestPermissionsAsync();
+            finalStatus = status;
+        }
+        if (finalStatus !== 'granted') {
+            console.log('Failed to get push token for push notification!');
+            return;
+        }
+    } catch (e) {
+        console.warn('[NotificationService] registerForPushNotificationsAsync error:', e);
+    }
+}
+
+export async function sendLocalNotification(title: string, body: string, data: any = {}) {
+    if (!Notifications) {
+        console.log('[NotificationService] Local notification skipped (Expo Go):', title);
+        return;
+    }
+
+    try {
+        await Notifications.scheduleNotificationAsync({
+            content: {
+                title,
+                body,
+                data,
+                sound: true,
+            },
+            trigger: null, // immediate
+        });
+    } catch (e) {
+        console.warn('[NotificationService] sendLocalNotification error:', e);
+    }
+}
+
+export async function setBadgeCount(count: number) {
+    if (!Notifications) {
+        return;
+    }
+
+    try {
+        await Notifications.setBadgeCountAsync(count);
+    } catch (e) {
+        console.warn('[NotificationService] setBadgeCount error:', e);
+    }
+}
+
 
 export function startNotificationListeners() {
     // avoid starting listeners multiple times (e.g. hot-reload) per JS runtime
