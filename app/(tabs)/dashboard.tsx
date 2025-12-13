@@ -734,8 +734,8 @@ export default function DashboardPage() {
                             try {
                                 const todayStr = new Date().toISOString().split('T')[0];
                                 const total = cashTotalsFiltered.totalCount + announcementCounts.active + schedules.length + activityCounts.active;
-                                if (total < 7) {
-                                    showToast(`Hanya ${total} item hari ini — butuh minimal 7 untuk mengirim summary`, 'info');
+                                if (total <= 0) {
+                                    showToast(`No notifications for today`, 'info');
                                     return;
                                 }
                                 const summaryId = `summary_${todayStr}`;
