@@ -67,9 +67,9 @@ export default function TabsLayout({ children }: { children: React.ReactNode }) 
 
     const tabs = [
         { id: 'dashboard', label: translate('menu_dashboard'), icon: '🗂️', route: '/(tabs)/dashboard', badge: dashboardBadgeCount },
-        { id: 'home', label: 'Home', icon: '🏠', route: '/(tabs)' },
-        { id: 'notifications', label: 'Notifikasi', icon: '🔔', route: '/(tabs)/notifications', badge: unreadCount },
-        { id: 'profile', label: 'Akun', icon: '👤', route: '/(tabs)/profile' },
+        { id: 'home', label: translate('menu_home'), icon: '🏠', route: '/(tabs)' },
+        { id: 'notifications', label: translate('menu_notifications'), icon: '🔔', route: '/(tabs)/notifications', badge: unreadCount },
+        { id: 'profile', label: translate('menu_profile'), icon: '👤', route: '/(tabs)/profile' },
     ];
 
     const isActive = (route: string) => {

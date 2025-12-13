@@ -5,7 +5,7 @@
         "version": "1.0.0",
         "orientation": "portrait",
         "icon": "./assets/images/logo.png",
-        "scheme": "kaswarga",
+        "scheme": "community_app",
         "userInterfaceStyle": "automatic",
         "newArchEnabled": true,
         "ios": {
@@ -32,7 +32,8 @@
                 "READ_MEDIA_IMAGES",
                 "POST_NOTIFICATIONS"
             ],
-            "package": "com.suryadi445.kas_warga"
+            "package": "com.suryadi445.community_app",
+            "googleServicesFile": "./google-services.json"
         },
         "web": {
             "output": "static",

@@ -5,6 +5,7 @@ const moment = require('moment-timezone');
 
 admin.initializeApp();
 const db = admin.firestore();
+const { FieldValue } = require('firebase-admin/firestore');
 const expo = new Expo();
 
 const MONITORED_COLLECTIONS = ['cash_reports', 'announcements', 'schedules', 'activities'];
@@ -107,13 +108,13 @@ async function sendExpoNotifications(messages) {
 }
 
 exports.dailyDashboardSummary = functions.pubsub
-    .schedule('45 9 * * *') // 09:45
+    .schedule('15 6 * * *') // 06:15
     .timeZone('Asia/Jakarta')
     .onRun(async (context) => {
         console.log('dailyDashboardSummary triggered', new Date().toISOString());
         const jakartaNow = moment().tz('Asia/Jakarta');
         const todayStr = toDateStringJakarta(jakartaNow);
-        const threshold = process.env.SUMMARY_THRESHOLD ? Number(process.env.SUMMARY_THRESHOLD) : 7;
+        const threshold = process.env.SUMMARY_THRESHOLD ? Number(process.env.SUMMARY_THRESHOLD) : 1;
 
         try {
             const found = [];
@@ -126,8 +127,16 @@ exports.dailyDashboardSummary = functions.pubsub
                         if (isItemForToday(col, data, jakartaNow)) found.push({ col, id: d.id, data });
                     });
                 } else if (col === 'announcements') {
-                    const snap = await db.collection(col).where('startDate', '<=', todayStr).where('endDate', '>=', todayStr).get();
-                    snap.forEach(d => { if (isItemForToday(col, d.data(), jakartaNow)) found.push({ col, id: d.id, data: d.data() }); });
+                    // Avoid composite index requirement by querying only one range field (endDate >= today)
+                    // and filtering the other (startDate <= today) in memory.
+                    const snap = await db.collection(col).where('endDate', '>=', todayStr).get();
+                    snap.forEach(d => {
+                        const data = d.data();
+                        // Manual check for startDate <= todayStr (string comparison works for YYYY-MM-DD)
+                        if (data.startDate && data.startDate <= todayStr) {
+                            if (isItemForToday(col, data, jakartaNow)) found.push({ col, id: d.id, data });
+                        }
+                    });
                 } else {
                     const snap = await db.collection(col).where('date', '==', todayStr).get();
                     snap.forEach(d => { if (isItemForToday(col, d.data(), jakartaNow)) found.push({ col, id: d.id, data: d.data() }); });
@@ -149,7 +158,7 @@ exports.dailyDashboardSummary = functions.pubsub
                             message,
                             type: 'info',
                             date: new Date().toISOString(),
-                            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                            createdAt: FieldValue.serverTimestamp(),
                             readBy: [],
                             category: f.col,
                             sourceCollection: f.col,
@@ -162,21 +171,13 @@ exports.dailyDashboardSummary = functions.pubsub
                 }
             }
 
-            // create summary if threshold met
-            if (createdCount >= threshold) {
-                const summaryId = `summary_${todayStr}`;
-                await db.collection('notifications').doc(summaryId).set({
-                    title: `${createdCount} Notifications for today`,
-                    message: `You have ${createdCount} items on the dashboard today.`,
-                    type: 'summary',
-                    date: todayStr,
-                    createdAt: admin.firestore.FieldValue.serverTimestamp(),
-                    readBy: [],
-                    category: 'summary',
-                    sourceCollection: 'summary',
-                    referenceId: null,
-                    count: createdCount
-                }, { merge: true });
+            console.log(`Summary check: found=${found.length}, createdNew=${createdCount}, threshold=${threshold}`);
+
+            // create summary if threshold met (based on TOTAL items found today, not just new ones)
+            if (found.length >= threshold) {
+                // Skip creating persistent summary notification in Firestore as per user request.
+                // Only send push notification.
+                console.log('Threshold met, preparing push notifications...');
 
                 // send push to all known devices (expo tokens)
                 try {
@@ -185,9 +186,16 @@ exports.dailyDashboardSummary = functions.pubsub
                     tokensSnap.forEach(d => {
                         const data = d.data();
                         if (data && data.token && String(data.type || '').toLowerCase() === 'expo') {
-                            messages.push({ to: data.token, title: `${createdCount} Notifications for today`, body: `You have ${createdCount} items on the dashboard today.`, data: { type: 'summary' } });
+                            messages.push({
+                                to: data.token,
+                                title: `${found.length} Notifications for today`,
+                                body: `You have ${found.length} items notification today.`,
+                                data: { type: 'summary' }
+                            });
                         }
                     });
+
+                    console.log(`Found ${messages.length} devices to send push to.`);
 
                     if (messages.length > 0) {
                         await sendExpoNotifications(messages);
@@ -195,12 +203,45 @@ exports.dailyDashboardSummary = functions.pubsub
                 } catch (e) {
                     console.warn('sendExpoNotifications failed', e);
                 }
+            } else {
+                console.log('Threshold not met, skipping summary push.');
             }
 
-            console.log('dailyDashboardSummary completed', { found: found.length, createdCount });
+            console.log('dailyDashboardSummary completed');
         } catch (e) {
             console.error('dailyDashboardSummary failed', e);
         }
 
         return null;
     });
+
+// Callable function to send push notifications to all registered devices
+exports.sendPush = functions.https.onCall(async (data, context) => {
+    // Only allow authenticated callers
+    if (!context.auth) {
+        throw new functions.https.HttpsError('unauthenticated', 'Authentication required to send push notifications');
+    }
+
+    const title = String(data?.title || 'Notification');
+    const body = String(data?.body || '');
+    const payload = data?.data || {};
+
+    try {
+        const tokensSnap = await db.collection('devices').get();
+        const messages = [];
+        tokensSnap.forEach(d => {
+            const docData = d.data();
+            if (docData && docData.token && String(docData.type || '').toLowerCase() === 'expo') {
+                messages.push({ to: docData.token, title, body, data: payload });
+            }
+        });
+
+        if (messages.length === 0) return { sent: 0 };
+
+        await sendExpoNotifications(messages);
+        return { sent: messages.length };
+    } catch (e) {
+        console.error('sendPush failed', e);
+        throw new functions.https.HttpsError('internal', 'Failed to send push notifications');
+    }
+});

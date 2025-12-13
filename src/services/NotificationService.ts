@@ -1,21 +1,23 @@
 import { collection, doc, getDocs, limit, onSnapshot, orderBy, query, serverTimestamp, setDoc, Timestamp, where } from 'firebase/firestore';
 import { Platform } from 'react-native';
-import Constants from 'expo-constants';
 import { db } from '../firebaseConfig';
 
-// Lazy import expo-notifications to handle Expo Go limitations
+// Lazy import expo-notifications
 let Notifications: typeof import('expo-notifications') | null = null;
 
-// In Expo Go, remote push features are limited/removed. Only import expo-notifications
-// when running in a development build / standalone app (appOwnership !== 'expo').
+// Try to import expo-notifications regardless of environment.
+// Local notifications work in Expo Go, only remote push has limitations.
 try {
-    if (!Constants || Constants.appOwnership !== 'expo') {
-        Notifications = require('expo-notifications');
-    } else {
-        console.log('[NotificationService] running inside Expo Go — skipping expo-notifications import (use a dev build for full push support)');
-    }
+    Notifications = require('expo-notifications');
+    console.log('[NotificationService] expo-notifications loaded successfully');
 } catch (e) {
     console.warn('[NotificationService] expo-notifications not available or failed to load:', e);
+}
+
+
+// Small helper for other modules to check whether notifications APIs are available
+export function areNotificationsAvailable() {
+    return !!Notifications;
 }
 
 /**
@@ -275,9 +277,13 @@ export async function registerForPushNotificationsAsync() {
         }
         // If we have permissions, try to get an Expo push token and save to Firestore so server can push
         try {
-            const tokenObj = await Notifications.getExpoPushTokenAsync();
+            // Explicitly pass projectId from app.json / EAS config
+            const tokenObj = await Notifications.getExpoPushTokenAsync({
+                projectId: '1e552634-d83a-4a51-8e39-5db9354a1330'
+            });
             const token = (tokenObj as any)?.data;
             if (token) {
+                console.log('[NotificationService] Got push token:', token);
                 // store token in devices collection for this user (if auth available)
                 try {
                     // lazy import to avoid cycles
@@ -292,9 +298,12 @@ export async function registerForPushNotificationsAsync() {
                         uid: uid || null,
                         createdAt: serverTimestamp()
                     }, { merge: true });
+                    console.log('[NotificationService] Device token saved to Firestore');
                 } catch (e) {
                     console.warn('[NotificationService] failed to save device token to Firestore', e);
                 }
+            } else {
+                console.warn('[NotificationService] Failed to get push token: token data is empty');
             }
         } catch (e) {
             console.warn('[NotificationService] getExpoPushTokenAsync failed', e);
@@ -576,7 +585,7 @@ export function startNotificationListeners() {
                         // mark all collections as seen and perform a single global scan
                         for (const c of MONITORED_COLLECTIONS) initialSeen[c] = true;
                         console.debug('[NotificationService] performing global initial scan for today across monitored collections');
-                        scanAllCollectionsForTodayAndCreateSummary().catch(e => console.warn('[NotificationService] global initial scan failed:', e));
+                        // scanAllCollectionsForTodayAndCreateSummary().catch(e => console.warn('[NotificationService] global initial scan failed:', e));
                     }
 
                     for (const change of changes) {
@@ -584,9 +593,17 @@ export function startNotificationListeners() {
                             (async () => {
                                 try {
                                     const data = change.doc.data() as any;
-                                    // Only create a notification if the document qualifies for the Dashboard today
-                                    if (!isItemForToday(colName, data)) {
+
+                                    // For cash_reports, send notification for ALL new entries (not just today)
+                                    // For other collections, only send if the item is for today
+                                    if (colName !== 'cash_reports' && !isItemForToday(colName, data)) {
                                         console.debug(`[NotificationService] new ${colName}/${change.doc.id} is not for today, skipping notification`);
+                                        return;
+                                    }
+
+                                    // Skip deleted cash_reports
+                                    if (colName === 'cash_reports' && data.deleted) {
+                                        console.debug(`[NotificationService] cash_reports/${change.doc.id} is deleted, skipping notification`);
                                         return;
                                     }
                                     // Build a concise notification payload

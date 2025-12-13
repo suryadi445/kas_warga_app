@@ -449,7 +449,13 @@ export default function CashReportsScreen() {
                     showToast(t('report_updated', { defaultValue: 'Report updated' }), 'success');
                 } else {
                     // create a doc first (without images)
-                    const docRef = await addDoc(collection(db, 'cash_reports'), { type, date, amount: amt, category, description, createdAt: new Date(), deleted: false });
+                    const currentUser = getCurrentUser();
+                    const ownerId = currentUser?.uid || null;
+                    const docRef = await addDoc(collection(db, 'cash_reports'), {
+                        type, date, amount: amt, category, description,
+                        createdAt: new Date(), deleted: false,
+                        ownerId  // Add ownerId for Firestore security rules
+                    });
                     // upload images with new doc id
                     if (images?.length) {
                         const uploadedUrls = await uploadAllImagesAndReturnUrls(images, docRef.id);
