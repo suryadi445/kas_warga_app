@@ -95,27 +95,46 @@ export default function TabsIndex() {
     const [unreadFeedback, setUnreadFeedback] = useState(0);
     const [unreadNewUsers, setUnreadNewUsers] = useState(0);
     const [isAdmin, setIsAdmin] = useState(false);
+    const [tokenClaims, setTokenClaims] = useState<any | null>(null);
+    const isAdminToken = Boolean(tokenClaims && tokenClaims.role === 'Admin');
+    const [adminListenersBlocked, setAdminListenersBlocked] = useState(false);
 
-    // check admin role
+    // check admin role via auth state and ID token claims; fallback to users/{uid} doc for UI visibility only
     useEffect(() => {
         let mounted = true;
-        (async () => {
+        const unsubscribe = auth.onAuthStateChanged(async (user: any) => {
+            if (!mounted) return;
+            if (!user) {
+                setIsAdmin(false);
+                setTokenClaims(null);
+                return;
+            }
             try {
-                const user = auth.currentUser;
-                if (user) {
-                    const userDoc = await getDoc(doc(db, 'users', user.uid));
-                    if (mounted && userDoc.exists()) {
-                        const data = userDoc.data();
-                        if (data.role === 'Admin') {
-                            setIsAdmin(true);
+                const idTokenResult = await user.getIdTokenResult(true);
+                const claims = (idTokenResult && idTokenResult.claims) ? (idTokenResult.claims as any) : {};
+                setTokenClaims(claims);
+                setIsAdmin(claims.role === 'Admin');
+                // fallback for UI visibility only; this DOES NOT grant Firestore admin privileges
+                if (claims.role !== 'Admin') {
+                    try {
+                        const uref = doc(db, 'users', user.uid);
+                        const usnap = await getDoc(uref);
+                        if (usnap.exists()) {
+                            const udata = usnap.data() as any;
+                            if (udata.role === 'Admin') {
+                                setIsAdmin(true);
+                            }
                         }
+                    } catch (e) {
+                        console.warn('Failed to check users/{uid} for role fallback:', e);
                     }
                 }
-            } catch (e) {
-                console.error('Failed to check admin role', e);
+            } catch (claimErr) {
+                console.warn('Failed to fetch ID token claims for user:', claimErr);
+                setIsAdmin(false);
             }
-        })();
-        return () => { mounted = false; };
+        });
+        return () => { mounted = false; unsubscribe(); };
     }, []);
 
     // load app settings
@@ -186,9 +205,9 @@ export default function TabsIndex() {
         return () => { if (unsub) unsub(); };
     }, []);
 
-    // listen for unread feedback (admin only)
+    // listen for unread feedback (admin only - requires token claim Admin)
     useEffect(() => {
-        if (!isAdmin) return;
+        if (!isAdminToken || adminListenersBlocked) return;
 
         // Fetch all and filter client-side to handle missing 'read' field
         const q = query(collection(db, 'feedbacks'));
@@ -197,14 +216,18 @@ export default function TabsIndex() {
             setUnreadFeedback(unreadCount);
         }, (error: any) => {
             console.error("Error fetching unread feedback count: ", error);
+            if ((error as any)?.code === 'permission-denied') {
+                setAdminListenersBlocked(true);
+                showToast('Missing Firestore Admin claim: cannot read feedbacks. Please set Admin claim and re-login.');
+            }
         });
 
         return () => unsubscribe();
-    }, [isAdmin]);
+    }, [isAdminToken, adminListenersBlocked]);
 
-    // listen for newly-registered users (admin only)
+    // listen for newly-registered users (admin only - requires token claim Admin)
     useEffect(() => {
-        if (!isAdmin) return;
+        if (!isAdminToken || adminListenersBlocked) return;
 
         const q = query(collection(db, 'users'));
         const unsubscribe = onSnapshot(q, (snapshot: any) => {
@@ -239,10 +262,16 @@ export default function TabsIndex() {
             } catch (err) {
                 console.error('Error computing new users count', err);
             }
-        }, (err: any) => console.error('users onSnapshot error', err));
+        }, (err: any) => {
+            console.error('users onSnapshot error', err);
+            if ((err as any)?.code === 'permission-denied') {
+                setAdminListenersBlocked(true);
+                showToast('Missing Firestore Admin claim: cannot read user list. Please set Admin claim and re-login.');
+            }
+        });
 
         return () => unsubscribe();
-    }, [isAdmin]);
+    }, [isAdminToken, adminListenersBlocked]);
 
     const filteredMenu = useMemo(() => {
         let items = MENU_ITEMS;

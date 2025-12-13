@@ -147,8 +147,8 @@ export default function UsersScreen() {
 
     useFocusEffect(
         useCallback(() => {
-            loadUsers();
-        }, [])
+            if (canManageUsers) loadUsers();
+        }, [canManageUsers])
     );
 
     // Reset displayed count when users or filters change
@@ -174,7 +174,19 @@ export default function UsersScreen() {
             const currentUser = getCurrentUser();
             if (!currentUser) return;
 
-            // Only suryadi.hhb@gmail.com can manage users
+            // Prefer custom claims (role) if present; otherwise fallback to specific admin email for legacy support
+            try {
+                const idToken = await currentUser.getIdTokenResult(true);
+                const claims = (idToken && idToken.claims) ? (idToken.claims as any) : {};
+                if (claims.role === 'Admin') {
+                    setCanManageUsers(true);
+                    return;
+                }
+            } catch (err) {
+                // ignore claim fetch errors and fall back to email check
+            }
+
+            // Back-compat: allow specific owner email as admin
             setCanManageUsers(currentUser.email === 'suryadi.hhb@gmail.com');
         } catch (error) {
             console.error('Failed to check permissions:', error);

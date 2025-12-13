@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { doc, onSnapshot } from 'firebase/firestore';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
@@ -6,11 +7,14 @@ import { Dimensions, FlatList, Image, RefreshControl, StatusBar, Text, Touchable
 import { SafeAreaView } from 'react-native-safe-area-context';
 import ListCardWrapper from '../../src/components/ListCardWrapper';
 // ADDED: LoadMore footer component
+import { serverTimestamp, setDoc } from 'firebase/firestore';
 import LoadMore from '../../src/components/LoadMore';
-import { db } from '../../src/firebaseConfig';
+import { useToast } from '../../src/contexts/ToastContext';
+import { auth, db } from '../../src/firebaseConfig';
 import { Announcement, useDashboardData } from '../../src/hooks/useDashboardData';
 import { useRefresh } from '../../src/hooks/useRefresh';
 import { getCurrentUser } from '../../src/services/authService';
+import { sendLocalNotification } from '../../src/services/NotificationService';
 
 /**
  * Dashboard with tabs:
@@ -30,6 +34,7 @@ const CARD_WIDTH = SCREEN_WIDTH - 40; // 20px padding each side
 
 export default function DashboardPage() {
     const { t } = useTranslation();
+    const { showToast } = useToast();
     const [activeTab, setActiveTab] = useState<TabKey>('cash');
     // NEW: filter for cash list: 'all' | 'in' | 'out'
     const [cashFilter, setCashFilter] = useState<'all' | 'in' | 'out'>('all');
@@ -43,7 +48,18 @@ export default function DashboardPage() {
     const [refreshTrigger, setRefreshTrigger] = useState(0);
 
     // Use the shared hook for data
-    const { cash, announcements, schedules, activities } = useDashboardData(refreshTrigger);
+    const [currentUserId, setCurrentUserId] = useState<string | null>(auth.currentUser?.uid ?? null);
+    useEffect(() => {
+        const unsub = auth.onAuthStateChanged((u: any) => setCurrentUserId(u ? u.uid : null));
+        return unsub;
+    }, []);
+
+    const { cash, announcements, schedules, activities } = useDashboardData(refreshTrigger, currentUserId);
+
+    // Debug: log when data updated to ensure hook returns values
+    useEffect(() => {
+        console.log('dashboard data updated', { currentUserId, cashCount: cash.length, annCount: announcements.length, schedCount: schedules.length, actCount: activities.length });
+    }, [cash, announcements, schedules, activities, currentUserId]);
 
     // SCHEDULES pagination (used by renderSchedules)
     const SCHEDULES_PER_PAGE = 5;
@@ -707,10 +723,46 @@ export default function DashboardPage() {
                         <Text style={{ color: '#1e293b', fontSize: 16, fontWeight: '700' }}>{t('app_name')}</Text>
                     </View>
                 </View>
-                <View style={{ backgroundColor: '#fff', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 }}>
-                    <Text style={{ color: '#64748b', fontSize: 12, fontWeight: '600' }}>
-                        {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
-                    </Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <View style={{ backgroundColor: '#fff', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 }}>
+                        <Text style={{ color: '#64748b', fontSize: 12, fontWeight: '600' }}>
+                            {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        </Text>
+                    </View>
+                    <TouchableOpacity
+                        onPress={async () => {
+                            try {
+                                const todayStr = new Date().toISOString().split('T')[0];
+                                const total = cashTotalsFiltered.totalCount + announcementCounts.active + schedules.length + activityCounts.active;
+                                if (total < 7) {
+                                    showToast(`Hanya ${total} item hari ini — butuh minimal 7 untuk mengirim summary`, 'info');
+                                    return;
+                                }
+                                const summaryId = `summary_${todayStr}`;
+                                await setDoc(doc(db, 'notifications', summaryId), {
+                                    title: `${total} Notifications for today`,
+                                    message: `You have ${total} items on the dashboard today.`,
+                                    type: 'summary',
+                                    date: todayStr,
+                                    createdAt: serverTimestamp(),
+                                    readBy: [],
+                                    category: 'summary',
+                                    sourceCollection: 'summary',
+                                    referenceId: null,
+                                    count: total
+                                }, { merge: true });
+                                // send local push
+                                try { await sendLocalNotification(`${total} Notifications for today`, `You have ${total} items on the dashboard today.`, { type: 'summary', count: total }); } catch (e) { }
+                                showToast(`Summary notification sent: ${total} items`, 'success');
+                            } catch (err) {
+                                console.warn('Dashboard test notification failed', err);
+                                showToast('Gagal kirim notifikasi uji', 'error');
+                            }
+                        }}
+                        style={{ backgroundColor: '#fff', padding: 8, borderRadius: 28, elevation: 1 }}
+                    >
+                        <Ionicons name="notifications-outline" size={18} color="#6366f1" />
+                    </TouchableOpacity>
                 </View>
             </View>
 

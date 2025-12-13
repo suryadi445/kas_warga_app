@@ -1,7 +1,7 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { doc, getDoc } from 'firebase/firestore';
-import React, { useEffect, useState } from 'react';
+// reading app name from firestore is removed: hardcode app name
+import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
     ActivityIndicator,
@@ -17,7 +17,6 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useToast } from '../src/contexts/ToastContext';
-import { db } from '../src/firebaseConfig';
 import { signUp } from '../src/services/authService';
 
 export default function RegisterScreen() {
@@ -31,16 +30,7 @@ export default function RegisterScreen() {
     const [loading, setLoading] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-    const [appName, setAppName] = useState<string | null>(null);
-
-    useEffect(() => {
-        getDoc(doc(db, 'settings', 'app')).then(snap => {
-            if (snap.exists()) {
-                const data = snap.data();
-                if (data?.appName) setAppName(data.appName);
-            }
-        }).catch(err => console.log('failed to load app name', err));
-    }, []);
+    const appName = 'Community App';
 
     async function handleRegister() {
         if (!name.trim() || !email.trim() || !password.trim() || !confirmPassword.trim()) {
@@ -132,7 +122,7 @@ export default function RegisterScreen() {
                                 />
                             </View>
                             <Text style={{ color: '#fff', fontSize: 24, fontWeight: '800', marginBottom: 4, textAlign: 'center' }}>
-                                {t('join_title', { appName: appName || 'Community App', defaultValue: `Join ${appName || 'Community App'}` })}
+                                Join Community App
                             </Text>
                             <Text style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13, textAlign: 'center' }}>
                                 {t('join_subtitle')}
@@ -348,7 +338,7 @@ export default function RegisterScreen() {
                             textAlign: 'center',
                             marginTop: 16
                         }}>
-                            © {new Date().getFullYear()} {appName || t('app_name', { defaultValue: 'Community App' })}. All rights reserved.
+                            © {new Date().getFullYear()} Community App. All rights reserved.
                         </Text>
                     </ScrollView>
                 </KeyboardAvoidingView>

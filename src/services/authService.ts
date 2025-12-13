@@ -211,6 +211,12 @@ export const signIn = async (email: string, password: string): Promise<AuthResul
                 message: fireErr?.message,
                 isOffline
             });
+
+            // If Firestore explicitly denies permission, sign the user out and return a friendly error
+            if (code === 'permission-denied') {
+                try { await auth.signOut(); } catch { /* ignore */ }
+                return { success: false, error: 'Missing or insufficient Firestore permissions. Please login with a user that has access or update your Firestore security rules.', code };
+            }
         }
 
         return {

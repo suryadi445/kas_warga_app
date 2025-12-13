@@ -29,7 +29,8 @@
             "permissions": [
                 "READ_EXTERNAL_STORAGE",
                 "WRITE_EXTERNAL_STORAGE",
-                "READ_MEDIA_IMAGES"
+                "READ_MEDIA_IMAGES",
+                "POST_NOTIFICATIONS"
             ],
             "package": "com.suryadi445.kas_warga"
         },
@@ -49,6 +50,14 @@
                     "dark": {
                         "backgroundColor": "#000000"
                     }
+                }
+            ],
+            [
+                "expo-notifications",
+                {
+                    "icon": "./assets/images/logo.png",
+                    "color": "#6366f1",
+                    "sounds": []
                 }
             ]
         ],

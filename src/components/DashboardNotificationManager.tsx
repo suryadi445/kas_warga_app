@@ -1,11 +1,17 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { auth } from '../firebaseConfig';
 import { useDashboardData } from '../hooks/useDashboardData';
-import { registerForPushNotificationsAsync, sendLocalNotification, setBadgeCount } from '../services/NotificationService';
+import { registerForPushNotificationsAsync, setBadgeCount } from '../services/NotificationService';
 
 export default function DashboardNotificationManager() {
     const { t } = useTranslation();
-    const { cash, announcements, schedules, activities, loading } = useDashboardData();
+    const [currentUserId, setCurrentUserId] = useState<string | null>(auth.currentUser?.uid ?? null);
+    useEffect(() => {
+        const unsub = auth.onAuthStateChanged((user: any) => setCurrentUserId(user ? user.uid : null));
+        return unsub;
+    }, []);
+    const { cash, announcements, schedules, activities, loading } = useDashboardData(0, currentUserId);
     const lastCashCount = useRef<number>(-1);
     const lastAnnouncementCount = useRef<number>(-1);
     const lastScheduleCount = useRef<number>(-1);
@@ -34,7 +40,7 @@ export default function DashboardNotificationManager() {
             return;
         }
 
-        // Send notification for new cash reports
+        // DashboardNotificationManager will NOT send local notifications directly; NotificationService is the single source-of-truth
         if (cash.length > lastCashCount.current && lastCashCount.current >= 0) {
             const newCash = cash.slice(0, cash.length - lastCashCount.current);
             const inCount = newCash.filter(c => c.type === 'in').length;
@@ -50,11 +56,7 @@ export default function DashboardNotificationManager() {
             }
 
             if (body) {
-                sendLocalNotification(
-                    t('notification_cash_title', { defaultValue: '💰 Cash Report' }),
-                    body,
-                    { type: 'cash' }
-                );
+                console.log('DashboardNotificationManager: new cash detected (skipping local push, NotificationService handles notifications)', { inCount, outCount });
             }
         }
         lastCashCount.current = cash.length;
@@ -62,33 +64,24 @@ export default function DashboardNotificationManager() {
         // Send notification for new announcements
         if (announcements.length > lastAnnouncementCount.current && lastAnnouncementCount.current >= 0) {
             const newCount = announcements.length - lastAnnouncementCount.current;
-            sendLocalNotification(
-                t('notification_announcement_title', { defaultValue: '📢 Announcement' }),
-                t('notification_announcement_body', { count: newCount, defaultValue: `${newCount} active announcement(s) today` }),
-                { type: 'announcement' }
-            );
+            console.log('DashboardNotificationManager: new announcements detected (skipping local push, NotificationService handles notifications)', { newCount });
+            // NotificationService handles creating and sending notifications, so the manager skips local pushes.
         }
         lastAnnouncementCount.current = announcements.length;
 
         // Send notification for new schedules
         if (schedules.length > lastScheduleCount.current && lastScheduleCount.current >= 0) {
             const newCount = schedules.length - lastScheduleCount.current;
-            sendLocalNotification(
-                t('notification_schedule_title', { defaultValue: '📅 Schedule' }),
-                t('notification_schedule_body', { count: newCount, defaultValue: `${newCount} schedule(s) for today` }),
-                { type: 'schedule' }
-            );
+            console.log('DashboardNotificationManager: new schedules detected (skipping local push, NotificationService handles notifications)', { newCount });
+            // NotificationService handles creating and sending notifications, so the manager skips local pushes.
         }
         lastScheduleCount.current = schedules.length;
 
         // Send notification for new activities
         if (activities.length > lastActivityCount.current && lastActivityCount.current >= 0) {
             const newCount = activities.length - lastActivityCount.current;
-            sendLocalNotification(
-                t('notification_activity_title', { defaultValue: '🎯 Activity' }),
-                t('notification_activity_body', { count: newCount, defaultValue: `${newCount} activity(ies) scheduled for today` }),
-                { type: 'activity' }
-            );
+            console.log('DashboardNotificationManager: new activities detected (skipping local push, NotificationService handles notifications)', { newCount });
+            // NotificationService handles creating and sending notifications, so the manager skips local pushes.
         }
         lastActivityCount.current = activities.length;
 

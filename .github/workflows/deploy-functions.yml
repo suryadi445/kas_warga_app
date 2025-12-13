@@ -1,0 +1,37 @@
+name: Deploy Functions
+
+on:
+  push:
+    branches:
+      - push-notification
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+
+      - name: Install dependencies
+        working-directory: ./functions
+        run: npm ci
+
+      - name: Install firebase-tools
+        run: npm install -g firebase-tools
+
+      - name: Authenticate to Firebase
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        run: echo "$$FIREBASE_TOKEN" | base64 --decode > token || true
+
+      - name: Deploy function dailyDashboardSummary
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+          FIREBASE_PROJECT: ${{ secrets.FIREBASE_PROJECT }}
+        run: firebase deploy --only functions:dailyDashboardSummary --project $FIREBASE_PROJECT

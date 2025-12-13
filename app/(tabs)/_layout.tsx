@@ -4,9 +4,8 @@ import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Platform, StatusBar, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { db } from '../../src/firebaseConfig';
+import { auth, db } from '../../src/firebaseConfig';
 import { useDashboardData } from '../../src/hooks/useDashboardData';
-import { getCurrentUser } from '../../src/services/authService';
 import { startNotificationListeners } from '../../src/services/NotificationService';
 
 export default function TabsLayout({ children }: { children: React.ReactNode }) {
@@ -17,24 +16,29 @@ export default function TabsLayout({ children }: { children: React.ReactNode }) 
     // NEW: state for unread notifications count
     const [unreadCount, setUnreadCount] = useState(0);
     const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-    const { t } = useTranslation();
+    const { t: translate } = useTranslation();
 
     // NEW: get dashboard data for badge count
-    const { cash, announcements, schedules, activities } = useDashboardData();
+    const { cash, announcements, schedules, activities } = useDashboardData(0, currentUserId);
     const dashboardBadgeCount = cash.length + announcements.length + schedules.length + activities.length;
 
-    // Get current user
+    // Get current user and listen for auth changes; ensures listeners start only when user is available
     useEffect(() => {
-        const user = getCurrentUser();
-        if (user) setCurrentUserId(user.uid);
+        let mounted = true;
+        const unsubscribe = auth.onAuthStateChanged((user: any) => {
+            if (!mounted) return;
+            setCurrentUserId(user ? user.uid : null);
+        });
+        return () => { mounted = false; unsubscribe(); };
     }, []);
 
     // NEW: start notification service on mount (background listener)
     useEffect(() => {
-        // NOTE: Pastikan di dalam NotificationService.ts TIDAK ada logika yang mereset field readBy
+        // Start notification service only when user is available
+        if (!currentUserId) return;
         const cleanup = startNotificationListeners();
         return cleanup;
-    }, []);
+    }, [currentUserId]);
 
     // NEW: listen to notifications collection for unread count
     useEffect(() => {
@@ -62,7 +66,7 @@ export default function TabsLayout({ children }: { children: React.ReactNode }) 
     }, [currentUserId]); // Re-run when user ID changes
 
     const tabs = [
-        { id: 'dashboard', label: t('menu_dashboard'), icon: '🗂️', route: '/(tabs)/dashboard', badge: dashboardBadgeCount },
+        { id: 'dashboard', label: translate('menu_dashboard'), icon: '🗂️', route: '/(tabs)/dashboard', badge: dashboardBadgeCount },
         { id: 'home', label: 'Home', icon: '🏠', route: '/(tabs)' },
         { id: 'notifications', label: 'Notifikasi', icon: '🔔', route: '/(tabs)/notifications', badge: unreadCount },
         { id: 'profile', label: 'Akun', icon: '👤', route: '/(tabs)/profile' },
@@ -107,24 +111,33 @@ export default function TabsLayout({ children }: { children: React.ReactNode }) 
                     zIndex: 999,
                 }}
             >
-                {tabs.map((t) => {
-                    const active = isActive(t.route);
+                {tabs.map((tab) => {
+                    const active = isActive(tab.route);
                     return (
                         <TouchableOpacity
-                            key={t.id}
-                            onPress={() => router.push(t.route as any)}
+                            key={tab.id}
+                            onPress={() => router.push(tab.route as any)}
                             style={{ alignItems: 'center', justifyContent: 'center', flex: 1 }}
                             activeOpacity={0.8}
                         >
                             <View style={{ alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
-                                <Text style={{ fontSize: 20, lineHeight: 24 }}>{t.icon}</Text>
-                                {/* Badge for unread count */}
-                                {t.badge && t.badge > 0 && (
+                                {/* Icon: always render string icons inside Text to avoid raw text outside <Text> */}
+                                {typeof tab.icon === 'string' ? (
+                                    <Text style={{ fontSize: 20, lineHeight: 24 }}>{tab.icon}</Text>
+                                ) : React.isValidElement(tab.icon) ? (
+                                    tab.icon
+                                ) : (
+                                    // Fallback: render label first character as icon
+                                    <Text style={{ fontSize: 20, lineHeight: 24 }}>{String(tab.label).charAt(0)}</Text>
+                                )}
+
+                                {/* Badge: show small number bubble when > 0 */}
+                                {typeof tab.badge === 'number' && tab.badge > 0 && (
                                     <View style={{
                                         position: 'absolute',
-                                        top: -4,
-                                        right: -8,
-                                        backgroundColor: t.id === 'dashboard' ? '#6366f1' : '#EF4444',
+                                        top: -6,
+                                        right: -12,
+                                        backgroundColor: tab.id === 'dashboard' ? '#6366f1' : '#EF4444',
                                         borderRadius: 10,
                                         minWidth: 20,
                                         height: 20,
@@ -139,10 +152,11 @@ export default function TabsLayout({ children }: { children: React.ReactNode }) 
                                             fontSize: 11,
                                             fontWeight: '700',
                                         }}>
-                                            {t.badge > 99 ? '99+' : t.badge}
+                                            {tab.badge > 99 ? '99+' : String(tab.badge)}
                                         </Text>
                                     </View>
                                 )}
+
                                 <Text
                                     style={{
                                         fontSize: 12,
@@ -151,7 +165,7 @@ export default function TabsLayout({ children }: { children: React.ReactNode }) 
                                         fontWeight: active ? '700' : '500',
                                     }}
                                 >
-                                    {t.label}
+                                    {String(tab.label)}
                                 </Text>
                             </View>
                         </TouchableOpacity>

@@ -1,7 +1,6 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { doc, getDoc } from 'firebase/firestore';
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
     ActivityIndicator,
@@ -17,7 +16,6 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useToast } from '../src/contexts/ToastContext';
-import { db } from '../src/firebaseConfig';
 import { signIn } from '../src/services/authService';
 
 export default function LoginScreen() {
@@ -28,16 +26,8 @@ export default function LoginScreen() {
     const [password, setPassword] = useState('11111111');
     const [loading, setLoading] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
-    const [appName, setAppName] = useState<string | null>(null);
-
-    useEffect(() => {
-        getDoc(doc(db, 'settings', 'app')).then(snap => {
-            if (snap.exists()) {
-                const data = snap.data();
-                if (data?.appName) setAppName(data.appName);
-            }
-        }).catch(err => console.log('failed to load app name', err));
-    }, []);
+    // appName hardcoded as requested
+    const appName = 'Community App';
 
     async function handleLogin() {
         if (!email.trim() || !password.trim()) {
@@ -115,7 +105,7 @@ export default function LoginScreen() {
                                 />
                             </View>
                             <Text style={{ color: '#fff', fontSize: 28, fontWeight: '800', marginBottom: 6 }}>
-                                {appName || t('app_name', { defaultValue: 'Community App' })}
+                                Community App
                             </Text>
                             <Text style={{ color: 'rgba(255,255,255,0.9)', fontSize: 14, textAlign: 'center' }}>
                                 {t('manage_community_finances', { defaultValue: 'Manage your community finances' })}
@@ -263,7 +253,7 @@ export default function LoginScreen() {
                             textAlign: 'center',
                             marginTop: 20
                         }}>
-                            <Text>© {new Date().getFullYear()} {appName || t('app_name', { defaultValue: 'Community App' })}. All rights reserved.</Text>
+                            <Text>© {new Date().getFullYear()} Community App. All rights reserved.</Text>
                         </Text>
                     </ScrollView>
                 </KeyboardAvoidingView>

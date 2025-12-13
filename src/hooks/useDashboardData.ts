@@ -7,7 +7,7 @@ export type Announcement = { id: string; title: string; content: string; startDa
 export type Schedule = { id: string; activityName: string; time?: string; frequency?: string; days?: string[]; location?: string; description?: string; createdAt?: any };
 export type Activity = { id: string; title: string; location?: string; date?: string; time?: string; description?: string };
 
-export const useDashboardData = (refreshTrigger: number = 0) => {
+export const useDashboardData = (refreshTrigger: number = 0, currentUserId?: string | null) => {
     const [cash, setCash] = useState<CashItem[]>([]);
     const [announcements, setAnnouncements] = useState<Announcement[]>([]);
     const [schedules, setSchedules] = useState<Schedule[]>([]);
@@ -17,6 +17,15 @@ export const useDashboardData = (refreshTrigger: number = 0) => {
     const getTodayString = () => new Date().toISOString().split('T')[0];
 
     useEffect(() => {
+        if (!currentUserId) {
+            // If user is not authenticated, clear any data and don't start listeners.
+            setCash([]);
+            setAnnouncements([]);
+            setSchedules([]);
+            setActivities([]);
+            setLoading(false);
+            return;
+        }
         const subs: (() => void)[] = [];
         let loadedCount = 0;
         const totalSubs = 4;
@@ -44,7 +53,13 @@ export const useDashboardData = (refreshTrigger: number = 0) => {
                 }).filter(item => !item.deleted && item.date === todayStr);
                 setCash(rows);
                 checkLoaded();
-            }, err => { console.warn('cash_reports snapshot err', err); checkLoaded(); });
+            }, err => {
+                console.warn('cash_reports snapshot err', err);
+                if ((err as any)?.code === 'permission-denied') {
+                    console.warn('[useDashboardData] permission-denied reading cash_reports. Ensure user is authenticated and Firestore rules allow read for this user. For local testing you can temporarily loosen rules in Firebase console.');
+                }
+                checkLoaded();
+            });
             subs.push(unsubCash);
         } catch (e) { checkLoaded(); }
 
@@ -74,7 +89,13 @@ export const useDashboardData = (refreshTrigger: number = 0) => {
                 });
                 setAnnouncements(rows);
                 checkLoaded();
-            }, err => { console.warn('announcements snapshot err', err); checkLoaded(); });
+            }, err => {
+                console.warn('announcements snapshot err', err);
+                if ((err as any)?.code === 'permission-denied') {
+                    console.warn('[useDashboardData] permission-denied reading announcements. Ensure user is authenticated and Firestore rules allow read for this user.');
+                }
+                checkLoaded();
+            });
             subs.push(unsubAnn);
         } catch (e) { checkLoaded(); }
 
@@ -144,7 +165,13 @@ export const useDashboardData = (refreshTrigger: number = 0) => {
                 });
                 setSchedules(rows);
                 checkLoaded();
-            }, err => { console.warn('schedules snapshot err', err); checkLoaded(); });
+            }, err => {
+                console.warn('schedules snapshot err', err);
+                if ((err as any)?.code === 'permission-denied') {
+                    console.warn('[useDashboardData] permission-denied reading schedules. Ensure user is authenticated and Firestore rules allow read for this user.');
+                }
+                checkLoaded();
+            });
             subs.push(unsubSched);
         } catch (e) { checkLoaded(); }
 
@@ -165,12 +192,18 @@ export const useDashboardData = (refreshTrigger: number = 0) => {
                 }).filter(item => item.date === todayStr);
                 setActivities(rows);
                 checkLoaded();
-            }, err => { console.warn('activities snapshot err', err); checkLoaded(); });
+            }, err => {
+                console.warn('activities snapshot err', err);
+                if ((err as any)?.code === 'permission-denied') {
+                    console.warn('[useDashboardData] permission-denied reading activities. Ensure user is authenticated and Firestore rules allow read for this user.');
+                }
+                checkLoaded();
+            });
             subs.push(unsubAct);
         } catch (e) { checkLoaded(); }
 
         return () => subs.forEach(u => u());
-    }, [refreshTrigger]);
+    }, [refreshTrigger, currentUserId]);
 
     return { cash, announcements, schedules, activities, loading };
 };
