@@ -3,7 +3,7 @@ import { deleteObject, getStorage, ref as storageRef } from 'firebase/storage';
 // Helper to delete a Firebase Storage object by download URL, gs:// URL, or storage file path
 export async function deleteImageFromStorageByUrl(url: string | null | undefined): Promise<boolean> {
     try {
-        if (!url) return;
+        if (!url) return false;
         // Accepts a full download URL like https://firebasestorage.googleapis.com/v0/b/BUCKET/o/path%2Fto%2Ffile.jpg?alt=media...
         // gs://bucket/path or path like 'announcements/...'
         const m = (url || '').match(/\/o\/([^?]+)/);
@@ -18,7 +18,7 @@ export async function deleteImageFromStorageByUrl(url: string | null | undefined
             // assume it's already a storage path
             path = url;
         }
-        if (!path) return;
+        if (!path) return false;
         const storage = getStorage();
         const ref = storageRef(storage, path);
         console.log('Attempting to delete storage object at path:', path);

@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { Text, TextInput, TextInputProps, TouchableOpacity, View, ViewStyle } from 'react-native';
+import { StyleProp, Text, TextInput, TextInputProps, TextStyle, TouchableOpacity, View, ViewStyle } from 'react-native';
 
 type Props = {
     label: string;
@@ -9,10 +9,11 @@ type Props = {
     secureTextEntry?: boolean;
     keyboardType?: TextInputProps['keyboardType'];
     multiline?: boolean;
+    numberOfLines?: number;
     editable?: boolean;
     placeholder?: string;
-    containerStyle?: ViewStyle;
-    inputStyle?: ViewStyle;
+    containerStyle?: StyleProp<ViewStyle>;
+    inputStyle?: StyleProp<TextStyle>;
 };
 
 export default function FloatingLabelInput({
@@ -23,6 +24,7 @@ export default function FloatingLabelInput({
     secureTextEntry,
     keyboardType,
     multiline,
+    numberOfLines,
     editable = true,
     placeholder,
     containerStyle,
@@ -95,6 +97,7 @@ export default function FloatingLabelInput({
                     editable={editable}
                     placeholder={undefined}
                     multiline={multiline}
+                    numberOfLines={numberOfLines}
                     style={[
                         INPUT_BASE,
                         multiline ? INPUT_MULTILINE : null,

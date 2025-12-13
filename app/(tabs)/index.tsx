@@ -70,6 +70,7 @@ const MENU_ITEMS = [
     { id: 'prayer', labelKey: 'menu_prayer', icon: '🕋' },
     { id: 'feedback', labelKey: 'menu_feedback', icon: '💬' },
     { id: 'feedback_list', labelKey: 'menu_feedback_list', icon: '📋', adminOnly: true },
+    { id: 'broadcast', labelKey: 'menu_broadcast', icon: '🎙️', adminOnly: true },
     { id: 'developer', labelKey: 'menu_developer', icon: '🧑‍💻' },
 ];
 
@@ -302,6 +303,7 @@ export default function TabsIndex() {
             developer: '/(tabs)/developer',
             feedback: '/(tabs)/feedback',
             feedback_list: '/(tabs)/feedback_list',
+            broadcast: '/(tabs)/broadcast',
         };
         const route = map[id];
         if (route) router.push(route as any);

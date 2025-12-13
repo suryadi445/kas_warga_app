@@ -215,33 +215,110 @@ exports.dailyDashboardSummary = functions.pubsub
         return null;
     });
 
-// Callable function to send push notifications to all registered devices
-exports.sendPush = functions.https.onCall(async (data, context) => {
-    // Only allow authenticated callers
-    if (!context.auth) {
-        throw new functions.https.HttpsError('unauthenticated', 'Authentication required to send push notifications');
+// HTTP endpoint for sending push notifications (workaround for React Native auth issue)
+exports.sendPushHTTP = functions.https.onRequest(async (req, res) => {
+    // Set CORS headers
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+    // Handle preflight
+    if (req.method === 'OPTIONS') {
+        res.status(204).send('');
+        return;
     }
 
-    const title = String(data?.title || 'Notification');
-    const body = String(data?.body || '');
-    const payload = data?.data || {};
+    console.log('sendPush called via HTTP');
 
     try {
+        // Extract token from Authorization header
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            console.error('No Authorization header or invalid format');
+            res.status(401).json({ error: 'unauthenticated', message: 'Authentication required' });
+            return;
+        }
+
+        const idToken = authHeader.split('Bearer ')[1];
+
+        // Verify the ID token
+        let decodedToken;
+        try {
+            decodedToken = await admin.auth().verifyIdToken(idToken);
+            console.log('Token verified, uid:', decodedToken.uid);
+        } catch (err) {
+            console.error('Token verification failed:', err);
+            res.status(401).json({ error: 'unauthenticated', message: 'Invalid or expired token' });
+            return;
+        }
+
+        // Check if caller is admin
+        const callerSnap = await db.collection('users').doc(decodedToken.uid).get();
+        const callerData = callerSnap.data();
+        const role = callerData?.role || '';
+
+        if (role !== 'admin' && role !== 'Admin') {
+            console.error('User is not admin, role:', role);
+            res.status(403).json({ error: 'permission-denied', message: 'Only admins can send broadcast notifications' });
+            return;
+        }
+
+        console.log('Admin verified, proceeding with broadcast');
+
+        // Extract data from request body
+        const data = req.body.data || req.body;
+        const title = String(data?.title || 'Notification');
+        const body = String(data?.body || '');
+        const payload = data?.data || {};
+        const targetRole = data?.role || 'all'; // 'all', 'admin', 'member', 'staff'
+
+        let targetUids = null;
+        if (targetRole !== 'all') {
+            console.log(`Fetching users with role: ${targetRole}`);
+            const usersSnap = await db.collection('users').where('role', '==', targetRole).get();
+            targetUids = new Set(usersSnap.docs.map(d => d.id));
+            console.log(`Found ${targetUids.size} users with role ${targetRole}`);
+        }
+
         const tokensSnap = await db.collection('devices').get();
         const messages = [];
         tokensSnap.forEach(d => {
             const docData = d.data();
             if (docData && docData.token && String(docData.type || '').toLowerCase() === 'expo') {
-                messages.push({ to: docData.token, title, body, data: payload });
+                // If targeting all, or if device uid matches a target uid
+                if (targetUids === null || (docData.uid && targetUids.has(docData.uid))) {
+                    messages.push({ to: docData.token, title, body, data: payload });
+                }
             }
         });
 
-        if (messages.length === 0) return { sent: 0 };
+        console.log(`Prepared ${messages.length} messages for role ${targetRole}`);
+
+        if (messages.length === 0) {
+            res.status(200).json({ result: { sent: 0 } });
+            return;
+        }
 
         await sendExpoNotifications(messages);
-        return { sent: messages.length };
+
+        // Save to history
+        try {
+            await db.collection('broadcasts').add({
+                title,
+                body,
+                role: targetRole,
+                sentCount: messages.length,
+                createdAt: FieldValue.serverTimestamp(),
+                senderUid: decodedToken.uid
+            });
+        } catch (err) {
+            console.error('Failed to save broadcast history', err);
+            // Don't fail the function if history save fails, as notifications are already sent
+        }
+
+        res.status(200).json({ result: { sent: messages.length } });
     } catch (e) {
-        console.error('sendPush failed', e);
-        throw new functions.https.HttpsError('internal', 'Failed to send push notifications');
+        console.error('sendPush processing failed', e);
+        res.status(500).json({ error: 'internal', message: 'Failed to send push notifications' });
     }
 });

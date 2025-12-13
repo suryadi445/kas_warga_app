@@ -20,7 +20,10 @@ service cloud.firestore {
     // Helper function: check if the authenticated user has Admin role in Firestore
     function isAdmin() {
       return request.auth != null && 
-             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Admin';
+             (
+               get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Admin' ||
+               get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
+             );
     }
 
     // Helper function: check if user is authenticated
@@ -113,7 +116,13 @@ service cloud.firestore {
       allow write: if isAuthenticated() && isAdmin();
     }
 
-    // Deny everything else by default
+    // Broadcasts (read/create only for Admin)
+    match /broadcasts/{broadcastId} {
+      allow read: if isAuthenticated() && isAdmin();
+      allow create: if isAuthenticated() && isAdmin();
+    }
+    
+    // Default deny
     match /{document=**} {
       allow read, write: if false;
     }
