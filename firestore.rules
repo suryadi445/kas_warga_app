@@ -56,6 +56,15 @@ service cloud.firestore {
       allow update, delete: if request.auth != null && request.auth.token.role == 'Admin';
     }
 
+    // Devices: store push tokens for registered devices (created by authenticated clients)
+    match /devices/{deviceId} {
+      // Allow authenticated users to create their device token document
+      allow create: if request.auth != null;
+      // Allow reads only to authenticated users and restrict updates/deletes to Admin
+      allow read: if request.auth != null;
+      allow update, delete: if request.auth != null && request.auth.token.role == 'Admin';
+    }
+
     // Feedbacks: users may create/read their feedbacks; Admin may read all
     match /feedbacks/{docId} {
       allow create: if request.auth != null;

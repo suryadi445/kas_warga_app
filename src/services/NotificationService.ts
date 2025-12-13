@@ -1,15 +1,21 @@
 import { collection, doc, getDocs, limit, onSnapshot, orderBy, query, serverTimestamp, setDoc, Timestamp, where } from 'firebase/firestore';
 import { Platform } from 'react-native';
+import Constants from 'expo-constants';
 import { db } from '../firebaseConfig';
 
 // Lazy import expo-notifications to handle Expo Go limitations
 let Notifications: typeof import('expo-notifications') | null = null;
 
-// Try to import expo-notifications, but don't crash if it fails
+// In Expo Go, remote push features are limited/removed. Only import expo-notifications
+// when running in a development build / standalone app (appOwnership !== 'expo').
 try {
-    Notifications = require('expo-notifications');
+    if (!Constants || Constants.appOwnership !== 'expo') {
+        Notifications = require('expo-notifications');
+    } else {
+        console.log('[NotificationService] running inside Expo Go — skipping expo-notifications import (use a dev build for full push support)');
+    }
 } catch (e) {
-    console.warn('[NotificationService] expo-notifications not available:', e);
+    console.warn('[NotificationService] expo-notifications not available or failed to load:', e);
 }
 
 /**
@@ -24,11 +30,11 @@ if (Notifications) {
     try {
         Notifications.setNotificationHandler({
             handleNotification: async () => ({
-                shouldShowAlert: true,
-                shouldPlaySound: true,
-                shouldSetBadge: true,
+                // `shouldShowAlert` is deprecated — prefer `shouldShowBanner` / `shouldShowList`.
                 shouldShowBanner: true,
                 shouldShowList: true,
+                shouldPlaySound: true,
+                shouldSetBadge: true,
             }),
         });
     } catch (e) {
