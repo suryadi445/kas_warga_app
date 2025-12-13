@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+// removed Ionicons import (notification bell removed)
 import { LinearGradient } from 'expo-linear-gradient';
 import { doc, onSnapshot } from 'firebase/firestore';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
@@ -7,14 +7,12 @@ import { Dimensions, FlatList, Image, RefreshControl, StatusBar, Text, Touchable
 import { SafeAreaView } from 'react-native-safe-area-context';
 import ListCardWrapper from '../../src/components/ListCardWrapper';
 // ADDED: LoadMore footer component
-import { serverTimestamp, setDoc } from 'firebase/firestore';
 import LoadMore from '../../src/components/LoadMore';
 import { useToast } from '../../src/contexts/ToastContext';
 import { auth, db } from '../../src/firebaseConfig';
 import { Announcement, useDashboardData } from '../../src/hooks/useDashboardData';
 import { useRefresh } from '../../src/hooks/useRefresh';
 import { getCurrentUser } from '../../src/services/authService';
-import { sendLocalNotification } from '../../src/services/NotificationService';
 
 /**
  * Dashboard with tabs:
@@ -729,40 +727,7 @@ export default function DashboardPage() {
                             {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
                         </Text>
                     </View>
-                    <TouchableOpacity
-                        onPress={async () => {
-                            try {
-                                const todayStr = new Date().toISOString().split('T')[0];
-                                const total = cashTotalsFiltered.totalCount + announcementCounts.active + schedules.length + activityCounts.active;
-                                if (total <= 0) {
-                                    showToast(`No notifications for today`, 'info');
-                                    return;
-                                }
-                                const summaryId = `summary_${todayStr}`;
-                                await setDoc(doc(db, 'notifications', summaryId), {
-                                    title: `${total} Notifications for today`,
-                                    message: `You have ${total} items on the dashboard today.`,
-                                    type: 'summary',
-                                    date: todayStr,
-                                    createdAt: serverTimestamp(),
-                                    readBy: [],
-                                    category: 'summary',
-                                    sourceCollection: 'summary',
-                                    referenceId: null,
-                                    count: total
-                                }, { merge: true });
-                                // send local push
-                                try { await sendLocalNotification(`${total} Notifications for today`, `You have ${total} items on the dashboard today.`, { type: 'summary', count: total }); } catch (e) { }
-                                showToast(`Summary notification sent: ${total} items`, 'success');
-                            } catch (err) {
-                                console.warn('Dashboard test notification failed', err);
-                                showToast('Gagal kirim notifikasi uji', 'error');
-                            }
-                        }}
-                        style={{ backgroundColor: '#fff', padding: 8, borderRadius: 28, elevation: 1 }}
-                    >
-                        <Ionicons name="notifications-outline" size={18} color="#6366f1" />
-                    </TouchableOpacity>
+                    {/* notification icon removed */}
                 </View>
             </View>
 
