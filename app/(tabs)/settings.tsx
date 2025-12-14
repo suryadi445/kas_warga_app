@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { doc, getDoc, onSnapshot, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
 import { getDownloadURL, getStorage, ref as storageRef, uploadBytes } from 'firebase/storage';
@@ -5,9 +6,12 @@ import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
     ActivityIndicator,
+    Dimensions,
     Image,
+    KeyboardAvoidingView,
     Linking,
     Modal,
+    Platform,
     RefreshControl,
     ScrollView,
     StatusBar,
@@ -19,6 +23,7 @@ import MapView, { Marker } from 'react-native-maps';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import ConfirmDialog from '../../src/components/ConfirmDialog';
 import FloatingLabelInput from '../../src/components/FloatingLabelInput';
+import PrimaryButton from '../../src/components/ui/PrimaryButton';
 import { useToast } from '../../src/contexts/ToastContext';
 import { db } from '../../src/firebaseConfig';
 import { useRefresh } from '../../src/hooks/useRefresh';
@@ -529,30 +534,52 @@ export default function SettingsScreen() {
             </ScrollView>
 
             {/* Edit Settings Modal - Full form */}
-            <Modal visible={modalVisible} animationType="slide" transparent onRequestClose={() => setModalVisible(false)}>
-                <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.3)' }}>
-                    <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 16, maxHeight: '90%', flex: 1 }}>
-                        <ScrollView showsVerticalScrollIndicator={false}>
-                            <Text style={{ fontSize: 18, fontWeight: '700', marginBottom: 16 }}>{t('app_settings', { defaultValue: 'App Settings' })}</Text>
+            <Modal visible={modalVisible} animationType="slide" transparent={false} onRequestClose={() => setModalVisible(false)}>
+                <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
+                    <StatusBar barStyle="dark-content" backgroundColor="#fff" />
+                    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+                        <ScrollView
+                            style={{ flex: 1 }}
+                            showsVerticalScrollIndicator={true}
+                            keyboardShouldPersistTaps="handled"
+                            keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+                            nestedScrollEnabled={true}
+                            contentContainerStyle={{ padding: 16, paddingTop: 16, paddingBottom: 220, flexGrow: 1, minHeight: Dimensions.get('window').height + 1 }}
+                        >
+                            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                                <Text style={{ fontSize: 18, fontWeight: '700' }}>{t('app_settings', { defaultValue: 'App Settings' })}</Text>
+                                <TouchableOpacity onPress={() => !savingSettings && setModalVisible(false)} disabled={savingSettings} style={{ padding: 8 }}>
+                                    <Ionicons name="close" size={24} color="#6B7280" />
+                                </TouchableOpacity>
+                            </View>
 
-                            {/* App Image Section */}
-                            <View style={{ alignItems: 'center', marginBottom: 16 }}>
-                                <View style={{ width: 100, height: 100, borderRadius: 50, backgroundColor: '#F3F4F6', overflow: 'hidden', marginBottom: 12, borderWidth: 2, borderColor: '#6366f1' }}>
-                                    {appImage ? (
-                                        <Image source={{ uri: appImage }} style={{ width: '100%', height: '100%' }} />
-                                    ) : (
-                                        <Image source={require('../../assets/images/logo.png')} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
-                                    )}
-                                </View>
-                                <Text style={{ color: '#374151', marginBottom: 6, fontSize: 12 }}>{t('app_logo', { defaultValue: 'App Logo' })}</Text>
-                                <View style={{ flexDirection: 'row', gap: 8, justifyContent: 'center' }}>
-                                    <TouchableOpacity onPress={pickAppImage} style={{ backgroundColor: '#F3F4F6', padding: 8, borderRadius: 8 }}>
-                                        <Text style={{ color: '#374151', fontSize: 12 }}>{uploadingImage ? t('uploading', { defaultValue: 'Uploading...' }) : t('pick_image', { defaultValue: 'Pick Image' })}</Text>
-                                    </TouchableOpacity>
-                                    <TouchableOpacity onPress={() => setAppImage(undefined)} style={{ backgroundColor: '#FEF2F2', padding: 8, borderRadius: 8 }}>
-                                        <Text style={{ color: '#EF4444', fontSize: 12 }}>{t('clear', { defaultValue: 'Clear' })}</Text>
-                                    </TouchableOpacity>
-                                </View>
+                            {/* App Image Section using floating label */}
+                            <View style={{ marginTop: 4, position: 'relative', marginBottom: 8, alignItems: 'stretch', width: '100%' }}>
+                                <FloatingLabelInput
+                                    containerStyle={{ width: '100%' }}
+                                    label={t('app_logo', { defaultValue: 'App Logo' })}
+                                    value={appImage ? t('image_selected', { defaultValue: 'Image selected' }) : ''}
+                                    onChangeText={() => { }}
+                                    editable={false}
+                                    onPress={pickAppImage}
+                                    placeholder={t('pick_image', { defaultValue: 'Pick Image' })}
+                                    inputStyle={{ paddingRight: 56 }}
+                                />
+
+                                {uploadingImage ? (
+                                    <View style={{ position: 'absolute', right: 12, top: 14 }}>
+                                        <ActivityIndicator size="small" color="#3B82F6" />
+                                    </View>
+                                ) : null}
+
+                                {appImage ? (
+                                    <>
+                                        <TouchableOpacity onPress={() => setAppImage(undefined)} style={{ position: 'absolute', right: 12, top: 12, backgroundColor: '#FEF2F2', borderRadius: 16, width: 32, height: 32, alignItems: 'center', justifyContent: 'center' }}>
+                                            <Text style={{ color: '#EF4444', fontWeight: '700' }}>✕</Text>
+                                        </TouchableOpacity>
+                                        <Image source={{ uri: appImage }} style={{ width: '100%', height: 160, borderRadius: 8, marginTop: 12, marginBottom: 18 }} resizeMode="cover" />
+                                    </>
+                                ) : null}
                             </View>
 
                             <FloatingLabelInput
@@ -702,17 +729,17 @@ export default function SettingsScreen() {
                                 </View>
                             </View>
 
-                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 16, marginBottom: 30 }}>
-                                <TouchableOpacity onPress={() => setModalVisible(false)} disabled={savingSettings} style={{ padding: 10, opacity: savingSettings ? 0.6 : 1 }}>
-                                    <Text style={{ color: '#6B7280' }}>{t('cancel', { defaultValue: 'Cancel' })}</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity onPress={saveSettings} disabled={savingSettings} style={{ padding: 10 }}>
-                                    {savingSettings ? <ActivityIndicator size="small" color="#4fc3f7" /> : <Text style={{ color: '#4fc3f7', fontWeight: '700' }}>{t('save', { defaultValue: 'Save' })}</Text>}
-                                </TouchableOpacity>
+                            {/* Primary action inline and scrollable */}
+                            <View style={{ marginTop: 16, marginBottom: 30 }}>
+                                <PrimaryButton
+                                    label={t('save', { defaultValue: 'Save' })}
+                                    onPress={saveSettings}
+                                    loading={savingSettings}
+                                />
                             </View>
                         </ScrollView>
-                    </View>
-                </View>
+                    </KeyboardAvoidingView>
+                </SafeAreaView>
             </Modal>
 
             {/* Map picker modal */}
