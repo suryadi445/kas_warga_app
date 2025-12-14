@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -5,7 +6,7 @@ import { addDoc, collection, doc, getDoc, getDocs, orderBy, query, updateDoc } f
 import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ActivityIndicator, Dimensions, FlatList, Image, Modal, PermissionsAndroid, Platform, RefreshControl, ScrollView, StatusBar, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Dimensions, FlatList, Image, KeyboardAvoidingView, Modal, PermissionsAndroid, Platform, RefreshControl, ScrollView, StatusBar, Text, TouchableOpacity, View } from 'react-native';
 import DateTimePickerModal from 'react-native-modal-datetime-picker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import CardItem from '../../src/components/CardItem';
@@ -13,6 +14,7 @@ import ConfirmDialog from '../../src/components/ConfirmDialog';
 import FloatingLabelInput from '../../src/components/FloatingLabelInput';
 import ListLoadingState from '../../src/components/ListLoadingState';
 import SelectInput from '../../src/components/SelectInput';
+import PrimaryButton from '../../src/components/ui/PrimaryButton';
 import { useToast } from '../../src/contexts/ToastContext';
 import { db, storage } from '../../src/firebaseConfig';
 import { deleteImageFromStorageByUrl } from '../../src/utils/storage';
@@ -1195,14 +1197,21 @@ export default function CashReportsScreen() {
             </View>
 
             {/* Modal Form */}
-            <Modal visible={modalVisible} animationType="slide" transparent onRequestClose={() => setModalVisible(false)}>
-                <View className="flex-1 justify-end bg-black/30">
-                    <View className="bg-white rounded-t-3xl p-6" style={{ flex: 1 }}>
-                        <ScrollView scrollEnabled={!focusedField} showsVerticalScrollIndicator={false}>
-                            <Text className="text-xl font-semibold mb-4">{editingId ? t('edit_report', { defaultValue: 'Edit Report' }) : t('add_report', { defaultValue: 'Add Report' })}</Text>
+            <Modal visible={modalVisible} animationType="slide" transparent={false} onRequestClose={() => setModalVisible(false)}>
+                <SafeAreaView style={{ flex: 1, backgroundColor: '#F8FAFC' }}>
+                    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingTop: 8, paddingBottom: 1, marginBottom: 16 }}>
+                            <Text style={{ fontSize: 18, fontWeight: '700', paddingTop: 4 }}>{editingId ? t('edit_report', { defaultValue: 'Edit Report' }) : t('add_report', { defaultValue: 'Add Report' })}</Text>
+                            <TouchableOpacity onPress={() => setModalVisible(false)} style={{ padding: 8 }}>
+                                <Ionicons name="close" size={24} color="#6B7280" />
+                            </TouchableOpacity>
+                        </View>
+
+                        <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1, paddingHorizontal: 16 }} keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive" contentContainerStyle={{ paddingTop: 10, paddingBottom: 80 }}>
 
                             <SelectInput
                                 label={t('type', { defaultValue: 'Type' })}
+                                required
                                 value={type}
                                 options={[{ label: t('in', { defaultValue: 'In' }), value: 'in' }, { label: t('out', { defaultValue: 'Out' }), value: 'out' }]}
                                 onValueChange={(v: string) => setType(v as 'in' | 'out')}
@@ -1213,6 +1222,7 @@ export default function CashReportsScreen() {
 
                             <FloatingLabelInput
                                 label={t('date', { defaultValue: 'Date' })}
+                                required
                                 value={formatDateDisplay(date)}
                                 onChangeText={setDate}
                                 placeholder={t('date_placeholder', { defaultValue: '11-Nov-2025' })}
@@ -1227,6 +1237,7 @@ export default function CashReportsScreen() {
 
                             <FloatingLabelInput
                                 label={t('nominal', { defaultValue: 'Nominal' })}
+                                required
                                 value={amount}
                                 onChangeText={(v) => setAmount(formatCurrency(v))}
                                 placeholder={t('rp_0', { defaultValue: 'Rp 0' })}
@@ -1235,6 +1246,7 @@ export default function CashReportsScreen() {
 
                             <SelectInput
                                 label={t('category', { defaultValue: 'Category' })}
+                                required
                                 value={category}
                                 options={CATEGORIES.map(cat => ({ label: t(`category_${sanitizeCategoryKey(cat)}`, { defaultValue: cat }), value: cat }))}
                                 onValueChange={(v: string) => setCategory(v)}
@@ -1249,7 +1261,7 @@ export default function CashReportsScreen() {
                                 onChangeText={setDescription}
                                 placeholder={t('description_optional', { defaultValue: 'Description (optional)' })}
                                 multiline
-                                inputStyle={{ marginBottom: 12, minHeight: 100, paddingTop: 18 }}
+                                inputStyle={{ marginBottom: 1, minHeight: 100, paddingTop: 18 }}
                             />
 
                             {/* Image Upload & Thumbnails */}
@@ -1295,21 +1307,12 @@ export default function CashReportsScreen() {
                                 ) : null}
                             </View>
 
-                            <View className="flex-row justify-between mt-2" style={{ alignItems: 'center' }}>
-                                <TouchableOpacity onPress={() => !operationLoading && setModalVisible(false)} disabled={operationLoading} style={{ padding: 10, opacity: operationLoading ? 0.6 : 1 }}>
-                                    <Text style={{ color: '#6B7280' }}>{t('cancel', { defaultValue: 'Cancel' })}</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity disabled={operationLoading} onPress={save} style={{ padding: 10 }}>
-                                    {operationLoading ? (
-                                        <ActivityIndicator size="small" color="#4fc3f7" />
-                                    ) : (
-                                        <Text style={{ color: '#4fc3f7', fontWeight: '700' }}>{editingId ? t('save', { defaultValue: 'Save' }) : t('create', { defaultValue: 'Create' })}</Text>
-                                    )}
-                                </TouchableOpacity>
+                            <View style={{ marginTop: 12, marginBottom: 30 }}>
+                                <PrimaryButton label={editingId ? t('save', { defaultValue: 'Save' }) : t('create', { defaultValue: 'Create' })} loading={operationLoading} onPress={save} gradient style={{ width: '100%' }} />
                             </View>
                         </ScrollView>
-                    </View>
-                </View>
+                    </KeyboardAvoidingView>
+                </SafeAreaView>
             </Modal>
 
             {/* Date Picker Modal */}
