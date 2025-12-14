@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { addDoc, collection, deleteDoc, doc, getDoc, onSnapshot, orderBy, query, serverTimestamp, updateDoc } from 'firebase/firestore';
@@ -9,6 +10,7 @@ import {
     Dimensions,
     FlatList,
     Image,
+    KeyboardAvoidingView,
     Modal,
     Platform,
     RefreshControl,
@@ -25,6 +27,7 @@ import FloatingLabelInput from '../../src/components/FloatingLabelInput';
 import ListLoadingState from '../../src/components/ListLoadingState';
 import LoadMore from '../../src/components/LoadMore';
 import SelectInput from '../../src/components/SelectInput';
+import PrimaryButton from '../../src/components/ui/PrimaryButton';
 import { useToast } from '../../src/contexts/ToastContext';
 import { db, storage } from '../../src/firebaseConfig';
 import { useRefresh } from '../../src/hooks/useRefresh';
@@ -1021,12 +1024,25 @@ export default function SchedulerScreen() {
             </View>
 
             {/* Modal Form */}
-            <Modal visible={modalVisible} animationType="slide" transparent onRequestClose={() => setModalVisible(false)}>
-                <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.3)' }}>
-                    <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 16, maxHeight: '90%', flex: 1 }}>
+            <Modal visible={modalVisible} animationType="slide" transparent={false} onRequestClose={() => setModalVisible(false)}>
+                <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
+                    <StatusBar barStyle="dark-content" backgroundColor="#fff" />
+                    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
                         {/* disable parent scrolling while a dropdown list is open so child ScrollView can handle touch */}
-                        <ScrollView scrollEnabled={!selectedDaysOpen && !frequencyOpen} showsVerticalScrollIndicator={false}>
-                            <Text style={{ fontSize: 18, fontWeight: '700', marginBottom: 16 }}>{editingId ? t('edit_schedule', { defaultValue: 'Edit Schedule' }) : t('add_schedule', { defaultValue: 'Add Schedule' })}</Text>
+                        <ScrollView
+                            style={{ flex: 1 }}
+                            scrollEnabled={!selectedDaysOpen && !frequencyOpen}
+                            showsVerticalScrollIndicator={true}
+                            keyboardShouldPersistTaps="handled"
+                            keyboardDismissMode="on-drag"
+                            contentContainerStyle={{ padding: 16, paddingTop: 16, paddingBottom: 160, flexGrow: 1 }}
+                        >
+                            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                                <Text style={{ fontSize: 18, fontWeight: '700' }}>{editingId ? t('edit_schedule', { defaultValue: 'Edit Schedule' }) : t('add_schedule', { defaultValue: 'Add Schedule' })}</Text>
+                                <TouchableOpacity onPress={() => !operationLoading && setModalVisible(false)} disabled={operationLoading} style={{ padding: 8 }}>
+                                    <Ionicons name="close" size={24} color="#6B7280" />
+                                </TouchableOpacity>
+                            </View>
 
                             <FloatingLabelInput
                                 label={t('activity_name_label', { defaultValue: 'Activity Name' })}
@@ -1206,17 +1222,17 @@ export default function SchedulerScreen() {
                                 ) : null}
                             </View>
 
-                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 16 }}>
-                                <TouchableOpacity onPress={() => !operationLoading && setModalVisible(false)} disabled={operationLoading} style={{ padding: 10, opacity: operationLoading ? 0.6 : 1 }}>
-                                    <Text style={{ color: '#6B7280' }}>{t('cancel', { defaultValue: 'Cancel' })}</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity disabled={operationLoading} onPress={save} style={{ padding: 10 }}>
-                                    {operationLoading ? <ActivityIndicator size="small" color="#4fc3f7" /> : <Text style={{ color: '#4fc3f7', fontWeight: '700' }}>{editingId ? t('save', { defaultValue: 'Save' }) : t('create', { defaultValue: 'Create' })}</Text>}
-                                </TouchableOpacity>
+                            {/* Primary action inline and scrollable */}
+                            <View style={{ marginTop: 16 }}>
+                                <PrimaryButton
+                                    label={editingId ? t('save', { defaultValue: 'Save' }) : t('create', { defaultValue: 'Create' })}
+                                    onPress={save}
+                                    loading={operationLoading}
+                                />
                             </View>
                         </ScrollView>
-                    </View>
-                </View>
+                    </KeyboardAvoidingView>
+                </SafeAreaView>
             </Modal>
 
             <Modal visible={imageModalVisible} transparent animationType="fade" onRequestClose={() => setImageModalVisible(false)}>
