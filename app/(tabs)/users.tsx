@@ -10,6 +10,8 @@ import {
     ActivityIndicator,
     FlatList,
     Image,
+    Keyboard,
+    KeyboardAvoidingView,
     Modal,
     Platform,
     RefreshControl,
@@ -27,6 +29,7 @@ import FloatingLabelInput from '../../src/components/FloatingLabelInput';
 import ListLoadingState from '../../src/components/ListLoadingState';
 import LoadMore from '../../src/components/LoadMore';
 import SelectInput from '../../src/components/SelectInput';
+import PrimaryButton from '../../src/components/ui/PrimaryButton';
 import { useToast } from '../../src/contexts/ToastContext';
 import { db, storage } from '../../src/firebaseConfig';
 import { useRefresh } from '../../src/hooks/useRefresh';
@@ -51,6 +54,9 @@ const ROLES = ['Member', 'Staff', 'Admin'];
 export default function UsersScreen() {
     const insets = useSafeAreaInsets();
     const bottomInset = insets.bottom || 0;
+    // Modal padding constants
+    const MODAL_PADDING_BASE = 2; // small padding when modal first opens
+    const MODAL_PADDING_KEYBOARD = 2; // padding to keep inputs visible when keyboard opens
     const { showToast } = useToast();
     const { t } = useTranslation();
     const [users, setUsers] = useState<User[]>([]);
@@ -106,18 +112,6 @@ export default function UsersScreen() {
     const [genderOpen, setGenderOpen] = useState(false);
     const [religionOpen, setReligionOpen] = useState(false);
     const [maritalStatusOpen, setMaritalStatusOpen] = useState(false);
-
-    // NEW: shared input styles (outline purple style like provided image)
-    const INPUT_BASE: any = {
-        borderWidth: 2,
-        borderColor: '#7c3aed',
-
-        borderRadius: 12,
-        paddingVertical: 10,
-        paddingHorizontal: 12,
-        backgroundColor: '#fff',
-
-    };
 
     // NEW: saving state
     const [saving, setSaving] = useState(false);
@@ -429,6 +423,42 @@ export default function UsersScreen() {
     const [childDatePickerVisible, setChildDatePickerVisible] = useState(false);
     const [editingChildIndex, setEditingChildIndex] = useState<number | null>(null);
 
+    // Ref to modal ScrollView so we can scroll focused inputs into view
+    const scrollRef = React.useRef<ScrollView | null>(null);
+
+    // track keyboard visibility and height to adjust padding dynamically
+    const [keyboardVisible, setKeyboardVisible] = useState(false);
+    const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+    useEffect(() => {
+        const show = Keyboard.addListener('keyboardDidShow', (e: any) => {
+            setKeyboardVisible(true);
+            setKeyboardHeight(e.endCoordinates?.height || 300);
+        });
+        const hide = Keyboard.addListener('keyboardDidHide', () => {
+            setKeyboardVisible(false);
+            setKeyboardHeight(0);
+        });
+        return () => {
+            show.remove();
+            hide.remove();
+        };
+    }, []);
+
+    // Ensure modal opens scrolled to top (avoid leftover scroll position from previous opens)
+    useEffect(() => {
+        if (modalVisible) {
+            // Defer to next tick to let ScrollView mount
+            setTimeout(() => {
+                try {
+                    scrollRef.current?.scrollTo({ y: 0, animated: false });
+                } catch (e) {
+                    // ignore
+                }
+            }, 0);
+        }
+    }, [modalVisible]);
+
     // NEW: handler for child date picker
     function onChildDateConfirm(date: Date) {
         if (editingChildIndex !== null) {
@@ -449,17 +479,46 @@ export default function UsersScreen() {
             return;
         }
 
-        if (!name.trim() || !email.trim()) {
-            showToast(t('name_email_required', { defaultValue: 'Name and email are required' }), 'error');
-            return;
-        }
+        // Collect missing required fields and show a global validation alert
+        const missingFields: string[] = [];
+        const missingKeys: string[] = [];
 
-        // NEW: validation for creating user
+        if (!name.trim()) {
+            missingFields.push(t('full_name'));
+            missingKeys.push('name');
+        }
+        if (!email.trim()) {
+            missingFields.push(t('email'));
+            missingKeys.push('email');
+        }
+        if (!role || !role.trim()) {
+            missingFields.push(t('role'));
+            missingKeys.push('role');
+        }
         if (!editingId && !password.trim()) {
-            showToast(t('password_required_new', { defaultValue: 'Password is required for new users' }), 'error');
+            missingFields.push(t('password'));
+            missingKeys.push('password');
+        }
+
+        if (maritalStatus === 'married' && (!spouseName || !spouseName.trim())) {
+            missingFields.push(t('spouse_name'));
+            missingKeys.push('spouseName');
+        }
+
+        if (missingFields.length > 0) {
+            if (missingFields.length === 1) {
+                showToast(t('field_required', { field: missingFields[0] }), 'error');
+            } else {
+                showToast(t('please_fill_required'), 'error');
+            }
+            // focus first missing field
+            const first = missingKeys[0];
+            setFocusedField(first as any);
+            if (first === 'role') setRoleOpen(true);
             return;
         }
 
+        // NEW: validation for creating user - password length
         if (!editingId && password.trim().length < 6) {
             showToast(t('password_min_length_user', { defaultValue: 'Password must be at least 6 characters' }), 'error');
             return;
@@ -1499,12 +1558,24 @@ export default function UsersScreen() {
                 </View>
             </View>
 
-            {/* Modal Form - Create & Edit */}
-            <Modal visible={modalVisible} animationType="slide" transparent onRequestClose={() => setModalVisible(false)}>
-                <View className="flex-1 justify-end bg-black/30">
-                    <View className="bg-white rounded-t-3xl p-6" style={{ maxHeight: '90%' }}>
-                        <ScrollView showsVerticalScrollIndicator={false}>
-                            <Text className="text-xl font-semibold mb-4">{editingId ? t('edit_user', { defaultValue: 'Edit User' }) : t('create_user', { defaultValue: 'Create New User' })}</Text>
+            {/* Modal Form - Create & Edit (full screen) */}
+            <Modal visible={modalVisible} animationType="slide" transparent={false} onRequestClose={() => setModalVisible(false)}>
+                <SafeAreaView style={{ flex: 1, backgroundColor: '#F8FAFC' }}>
+                    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8 }}>
+                            <Text style={{ fontSize: 18, fontWeight: '700' }}>{editingId ? t('edit_user', { defaultValue: 'Edit User' }) : t('create_user', { defaultValue: 'Create New User' })}</Text>
+                            <TouchableOpacity onPress={() => setModalVisible(false)} style={{ padding: 8 }}>
+                                <Ionicons name="close" size={24} color="#6B7280" />
+                            </TouchableOpacity>
+                        </View>
+                        <ScrollView
+                            ref={scrollRef}
+                            style={{ flex: 1, paddingHorizontal: 16 }}
+                            showsVerticalScrollIndicator={false}
+                            keyboardShouldPersistTaps="handled"
+                            keyboardDismissMode="interactive"
+                            contentContainerStyle={{ paddingBottom: keyboardVisible ? (bottomInset + MODAL_PADDING_KEYBOARD) : (bottomInset + MODAL_PADDING_BASE) }}
+                        >
 
                             {/* Photo Upload */}
                             <View style={{ alignItems: 'center', marginBottom: 16 }}>
@@ -1552,14 +1623,16 @@ export default function UsersScreen() {
 
                             {/* Basic Info */}
                             <FloatingLabelInput
-                                label={`${t('full_name')} *`}
+                                label={t('full_name')}
+                                required
                                 value={name}
                                 onChangeText={setName}
                                 placeholder={t('full_name', { defaultValue: 'Full name' })}
                             />
 
                             <FloatingLabelInput
-                                label={`${t('email')} *`}
+                                label={t('email')}
+                                required
                                 value={email}
                                 onChangeText={setEmail}
                                 keyboardType="email-address"
@@ -1571,11 +1644,13 @@ export default function UsersScreen() {
 
                             {!editingId && (
                                 <FloatingLabelInput
-                                    label={`${t('password')} *`}
+                                    label={t('password')}
+                                    required
                                     value={password}
                                     onChangeText={setPassword}
                                     secureTextEntry
                                     placeholder={t('password_min_length', { defaultValue: 'Min. 6 characters' })}
+                                    onFocus={() => scrollRef.current?.scrollToEnd({ animated: true })}
                                 />
                             )}
 
@@ -1588,13 +1663,16 @@ export default function UsersScreen() {
                             />
 
                             <SelectInput
-                                label={`${t('role')} *`}
+                                label={t('role')}
+                                required
                                 value={role}
                                 options={ROLES.map(r => ({ label: t(`role_${r.toLowerCase()}`), value: r }))}
-                                onValueChange={(v) => setRole(v)}
+                                onValueChange={(v) => { setRole(v); setRoleOpen(false); }}
                                 placeholder={t('select_role', { defaultValue: 'Select role' })}
                                 onFocus={() => setFocusedField('role')}
                                 onBlur={() => setFocusedField(null)}
+                                open={roleOpen}
+                                onOpenChange={(v) => setRoleOpen(v)}
                             />
 
                             <SelectInput
@@ -1620,6 +1698,7 @@ export default function UsersScreen() {
                                         setFocusedField('birthday');
                                     }
                                 }}
+                                onFocus={() => scrollRef.current?.scrollToEnd({ animated: true })}
                             />
 
                             <SelectInput
@@ -1639,6 +1718,7 @@ export default function UsersScreen() {
                                 onChangeText={setAddress}
                                 multiline
                                 placeholder={t('full_address', { defaultValue: 'Full address' })}
+                                onFocus={() => scrollRef.current?.scrollToEnd({ animated: true })}
                             />
 
                             <SelectInput
@@ -1659,6 +1739,7 @@ export default function UsersScreen() {
                                         value={spouseName}
                                         onChangeText={setSpouseName}
                                         placeholder={t('spouse_name_placeholder', { defaultValue: 'Spouse full name' })}
+                                        onFocus={() => scrollRef.current?.scrollToEnd({ animated: true })}
                                     />
                                 </View>
                             )}
@@ -1681,6 +1762,7 @@ export default function UsersScreen() {
                                                 onChangeText={(v) => updateChild(idx, 'name', v)}
                                                 inputStyle={{ borderRadius: 6, padding: 8, marginTop: 4 }}
                                                 placeholder={t('child_name_placeholder', { defaultValue: 'Child name' })}
+                                                onFocus={() => scrollRef.current?.scrollToEnd({ animated: true })}
                                             />
 
                                             {/* Birth Date (label moved into FloatingLabelInput) */}
@@ -1697,6 +1779,7 @@ export default function UsersScreen() {
                                                         setChildDatePickerVisible(true);
                                                     }
                                                 }}
+                                                onFocus={() => scrollRef.current?.scrollToEnd({ animated: true })}
                                             />
 
                                             {/* Place of Birth (label moved into FloatingLabelInput) */}
@@ -1706,6 +1789,7 @@ export default function UsersScreen() {
                                                 onChangeText={(v) => updateChild(idx, 'placeOfBirth', v)}
                                                 inputStyle={{ borderRadius: 6, padding: 8, marginTop: 4 }}
                                                 placeholder={t('place_of_birth_placeholder', { defaultValue: 'City / Hospital' })}
+                                                onFocus={() => scrollRef.current?.scrollToEnd({ animated: true })}
                                             />
 
                                             <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 8 }}>
@@ -1718,21 +1802,12 @@ export default function UsersScreen() {
                                 </View>
                             )}
 
-                            <View className="flex-row justify-between mt-4">
-                                <TouchableOpacity onPress={() => !saving && setModalVisible(false)} disabled={saving} style={{ padding: 10, opacity: saving ? 0.6 : 1 }}>
-                                    <Text style={{ color: '#6B7280' }}>{t('cancel')}</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity disabled={saving} onPress={save} style={{ padding: 10, minWidth: 100, alignItems: 'center', justifyContent: 'center' }}>
-                                    {saving ? (
-                                        <ActivityIndicator size="small" color="#4fc3f7" />
-                                    ) : (
-                                        <Text style={{ color: '#4fc3f7', fontWeight: '700' }}>{editingId ? t('save', { defaultValue: 'Save' }) : t('create', { defaultValue: 'Create' })}</Text>
-                                    )}
-                                </TouchableOpacity>
+                            <View style={{ marginTop: 12, marginBottom: 30 }}>
+                                <PrimaryButton label={editingId ? t('save', { defaultValue: 'Save' }) : t('create', { defaultValue: 'Create' })} loading={saving} onPress={save} gradient />
                             </View>
                         </ScrollView>
-                    </View>
-                </View>
+                    </KeyboardAvoidingView>
+                </SafeAreaView>
             </Modal>
 
             {/* Date Picker Modal */}

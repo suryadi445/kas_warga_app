@@ -170,6 +170,8 @@
     "permission_denied_modify_user": "Permission Denied: Only admin can modify users",
     "name_email_required": "Name and email are required",
     "password_required_new": "Password is required for new users",
+    "field_required": "{{field}} is required",
+    "please_fill_required": "Please fill all required fields marked with *",
     "password_min_length_user": "Password must be at least 6 characters",
     "user_updated_success": "User updated successfully!",
     "user_created_success": "User {{name}} created successfully!",

@@ -26,6 +26,8 @@
     "password_min_length": "Min. 6 karakter",
     "add_child": "+ Tambah anak",
     "save": "Simpan",
+    "field_required": "{{field}} wajib diisi",
+    "please_fill_required": "Harap lengkapi semua kolom yang bertanda *",
     "create": "Simpan ",
     "delete_user_title": "Hapus pengguna",
     "delete_user_message": "Hapus pengguna ini? Tindakan ini tidak dapat dibatalkan.",

@@ -1,10 +1,14 @@
+import { Ionicons } from '@expo/vector-icons';
 import React, { useRef, useState } from 'react';
 import { StyleProp, Text, TextInput, TextInputProps, TextStyle, TouchableOpacity, View, ViewStyle } from 'react-native';
 
 type Props = {
-    label: string;
+    label: string | React.ReactNode;
+    required?: boolean;
     value: string;
     onChangeText?: (v: string) => void;
+    onFocus?: () => void;
+    onBlur?: () => void;
     onPress?: () => void;
     secureTextEntry?: boolean;
     keyboardType?: TextInputProps['keyboardType'];
@@ -18,8 +22,11 @@ type Props = {
 
 export default function FloatingLabelInput({
     label,
+    required = false,
     value,
     onChangeText,
+    onFocus,
+    onBlur,
     onPress,
     secureTextEntry,
     keyboardType,
@@ -32,6 +39,7 @@ export default function FloatingLabelInput({
 }: Props) {
     const [focused, setFocused] = useState(false);
     const ref = useRef<TextInput | null>(null);
+    const [showPassword, setShowPassword] = useState(false);
 
     const INPUT_BASE: any = {
         borderWidth: 2,
@@ -68,13 +76,19 @@ export default function FloatingLabelInput({
                     zIndex: 4,
                 }}
             >
-                {label}
+                <>
+                    {label}
+                    {/** required star in red */}
+                    {required ? (
+                        <Text style={{ color: '#EF4444' }}> *</Text>
+                    ) : null}
+                </>
             </Text>
 
             <TouchableOpacity
                 activeOpacity={1}
-                // use onPressIn so focus happens immediately (prevents keyboard from hiding when switching inputs)
-                onPressIn={() => {
+                // use onPress (not onPressIn) so quick scrolls/drags don't trigger button behavior
+                onPress={() => {
                     if (onPress) {
                         try {
                             onPress();
@@ -90,22 +104,34 @@ export default function FloatingLabelInput({
                     ref={ref}
                     value={value}
                     onChangeText={onChangeText}
-                    onFocus={() => setFocused(true)}
-                    onBlur={() => setFocused(false)}
-                    secureTextEntry={secureTextEntry}
+                    onFocus={() => { setFocused(true); if (onFocus) onFocus(); }}
+                    onBlur={() => { setFocused(false); if (onBlur) onBlur(); }}
+                    secureTextEntry={secureTextEntry && !showPassword}
                     keyboardType={keyboardType}
                     editable={editable}
                     placeholder={undefined}
                     multiline={multiline}
                     numberOfLines={numberOfLines}
+                    selectionColor="#111827"
                     style={[
                         INPUT_BASE,
                         multiline ? INPUT_MULTILINE : null,
                         focused ? INPUT_FOCUS : null,
-                        { paddingTop: 18 },
+                        { paddingTop: 18, color: '#111827', fontSize: 16 },
                         inputStyle,
                     ]}
                 />
+
+                {/* Password visibility toggle */}
+                {secureTextEntry && (
+                    <TouchableOpacity
+                        onPress={() => setShowPassword(s => !s)}
+                        style={{ position: 'absolute', right: 12, top: 16, zIndex: 6, padding: 6 }}
+                        activeOpacity={0.8}
+                    >
+                        <Ionicons name={showPassword ? 'eye-off' : 'eye'} size={18} color="#6B7280" />
+                    </TouchableOpacity>
+                )}
 
                 {/* custom placeholder overlay */}
                 {!value && placeholder && !focused && (

@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import React, { createContext, useContext, useRef, useState } from 'react';
-import { Animated, Easing, Platform, StatusBar, Text, View } from 'react-native';
+import { Animated, Easing, Modal, Platform, StatusBar, Text, View } from 'react-native';
 
 type ToastType = 'success' | 'error' | 'info';
 
@@ -58,42 +58,44 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         <ToastContext.Provider value={{ showToast }}>
             {children}
             {toast && (
-                <Animated.View
-                    pointerEvents="none"
-                    style={{
-                        position: 'absolute',
-                        top: Platform.OS === 'android' ? (StatusBar.currentHeight || 24) : 44,
-                        left: 16,
-                        right: 16,
-                        alignItems: 'center',
-                        opacity: toastAnim,
-                        transform: [{
-                            translateY: toastAnim.interpolate({
-                                inputRange: [0, 1],
-                                outputRange: [-8, 0]
-                            })
-                        }],
-                        zIndex: 9999,
-                    }}
-                >
-                    <View style={{
-                        backgroundColor: toast.type === 'success' ? '#16a34a' : toast.type === 'error' ? '#dc2626' : '#0ea5e9',
-                        paddingVertical: 12,
-                        paddingHorizontal: 16,
-                        borderRadius: 10,
-                        elevation: 6,
-                        shadowColor: '#000',
-                        shadowOffset: { width: 0, height: 2 },
-                        shadowOpacity: 0.25,
-                        shadowRadius: 3.84,
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        gap: 10,
-                    }}>
-                        <Ionicons name={getToastIcon(toast.type)} size={22} color="#fff" />
-                        <Text style={{ color: '#fff', fontWeight: '700', flex: 1 }}>{toast.msg}</Text>
-                    </View>
-                </Animated.View>
+                <Modal visible transparent statusBarTranslucent>
+                    <Animated.View
+                        pointerEvents="none"
+                        style={{
+                            position: 'absolute',
+                            top: Platform.OS === 'android' ? (StatusBar.currentHeight || 24) : 44,
+                            left: 16,
+                            right: 16,
+                            alignItems: 'center',
+                            opacity: toastAnim,
+                            transform: [{
+                                translateY: toastAnim.interpolate({
+                                    inputRange: [0, 1],
+                                    outputRange: [-8, 0]
+                                })
+                            }],
+                            zIndex: 9999,
+                        }}
+                    >
+                        <View style={{
+                            backgroundColor: toast.type === 'success' ? '#16a34a' : toast.type === 'error' ? '#dc2626' : '#0ea5e9',
+                            paddingVertical: 12,
+                            paddingHorizontal: 16,
+                            borderRadius: 10,
+                            elevation: 6,
+                            shadowColor: '#000',
+                            shadowOffset: { width: 0, height: 2 },
+                            shadowOpacity: 0.25,
+                            shadowRadius: 3.84,
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            gap: 10,
+                        }}>
+                            <Ionicons name={getToastIcon(toast.type)} size={22} color="#fff" />
+                            <Text style={{ color: '#fff', fontWeight: '700', flex: 1 }}>{toast.msg}</Text>
+                        </View>
+                    </Animated.View>
+                </Modal>
             )}
         </ToastContext.Provider>
     );

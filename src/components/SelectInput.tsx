@@ -19,6 +19,7 @@ type Option = { label: string; value: string } | string;
 
 type Props = {
     label: string;
+    required?: boolean;
     value: string;
     options: Option[];
     onValueChange: (v: string) => void;
@@ -27,10 +28,13 @@ type Props = {
     inputStyle?: StyleProp<ViewStyle>;
     onFocus?: () => void;
     onBlur?: () => void;
+    open?: boolean;
+    onOpenChange?: (open: boolean) => void;
 };
 
 export default function SelectInput({
     label,
+    required = false,
     value,
     options,
     onValueChange,
@@ -39,8 +43,11 @@ export default function SelectInput({
     inputStyle,
     onFocus,
     onBlur,
+    open,
+    onOpenChange,
 }: Props) {
-    const [open, setOpen] = useState(false);
+    const [openState, setOpenState] = useState<boolean>(false);
+    const openProp = open;
     const [searchQuery, setSearchQuery] = useState('');
 
     const PLACEHOLDER_COLOR = '#6B7280';
@@ -75,14 +82,21 @@ export default function SelectInput({
     const selectedLabel =
         normalized.find((o) => o.value === value)?.label ?? value;
 
+    // Sync controlled open prop if provided
+    React.useEffect(() => {
+        if (typeof openProp === 'boolean') setOpenState(openProp);
+    }, [openProp]);
+
     const handleOpen = () => {
-        setOpen(true);
+        setOpenState(true);
+        onOpenChange?.(true);
         setSearchQuery('');
         onFocus?.();
     };
 
     const handleClose = () => {
-        setOpen(false);
+        setOpenState(false);
+        onOpenChange?.(false);
         onBlur?.();
     };
 
@@ -101,14 +115,17 @@ export default function SelectInput({
                         left: 18,
                         top: -9,
                         fontSize: 12,
-                        color: open ? '#5b21b6' : PLACEHOLDER_COLOR,
+                        color: openState ? '#5b21b6' : PLACEHOLDER_COLOR,
                         backgroundColor: '#fff',
                         paddingHorizontal: 4,
                         fontWeight: '600',
                         zIndex: 4,
                     }}
                 >
-                    {label}
+                    <>
+                        {label}
+                        {required ? <Text style={{ color: '#EF4444' }}> *</Text> : null}
+                    </>
                 </Text>
 
                 {/* Trigger */}
@@ -116,7 +133,7 @@ export default function SelectInput({
                     activeOpacity={0.7}
                     style={[
                         INPUT_BASE,
-                        open ? INPUT_FOCUS : undefined,
+                        openState ? INPUT_FOCUS : undefined,
                         {
                             paddingTop: 18,
                             paddingBottom: 10,
@@ -144,7 +161,7 @@ export default function SelectInput({
 
                 {/* Modal Popup */}
                 <Modal
-                    visible={open}
+                    visible={openState}
                     transparent
                     animationType="slide"
                     onRequestClose={handleClose}
