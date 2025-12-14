@@ -6,6 +6,8 @@ import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
+    ActivityIndicator,
+    Dimensions,
     FlatList,
     Image,
     KeyboardAvoidingView,
@@ -56,6 +58,7 @@ export default function DocumentationScreen() {
     const [filterActivity, setFilterActivity] = useState<string | null>(null);
     const [filterActivityOpen, setFilterActivityOpen] = useState(false);
     const [images, setImages] = useState<string[]>([]);
+    const [imagesLoading, setImagesLoading] = useState(false);
     const [description, setDescription] = useState('');
     const [activityOpen, setActivityOpen] = useState(false);
 
@@ -173,23 +176,32 @@ export default function DocumentationScreen() {
     }
 
     async function pickImages() {
-        const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-        if (!permission.granted) {
-            showToast(t('allow_photos_access_to_upload_documentation'), 'error');
-            return;
-        }
+        setImagesLoading(true);
+        try {
+            const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+            if (!permission.granted) {
+                showToast(t('allow_photos_access_to_upload_documentation'), 'error');
+                return;
+            }
 
-        // Use new MediaType constant if available; otherwise omit mediaTypes to avoid deprecation warnings
-        const MEDIA_IMAGES = (ImagePicker as any)?.MediaType?.Images;
-        const result = await ImagePicker.launchImageLibraryAsync({
-            ...(MEDIA_IMAGES ? { mediaTypes: MEDIA_IMAGES } : {}),
-            allowsMultipleSelection: true,
-            quality: 0.8,
-        });
+            // Use new MediaType constant if available; otherwise omit mediaTypes to avoid deprecation warnings
+            const MEDIA_IMAGES = (ImagePicker as any)?.MediaType?.Images;
+            const result = await ImagePicker.launchImageLibraryAsync({
+                ...(MEDIA_IMAGES ? { mediaTypes: MEDIA_IMAGES } : {}),
+                allowsMultipleSelection: true,
+                quality: 0.8,
+            });
 
-        if (!result.canceled && result.assets) {
-            const uris = result.assets.map((a: any) => a.uri);
-            setImages((prev) => [...prev, ...uris]);
+            if (!result.canceled && result.assets) {
+                const uris = result.assets.map((a: any) => a.uri);
+                // add short delay so user can notice spinner on quick selection
+                await new Promise((resolve) => setTimeout(resolve, 250));
+                setImages((prev) => [...prev, ...uris]);
+            }
+        } catch (e) {
+            console.warn('Image picker error', e);
+        } finally {
+            setImagesLoading(false);
         }
     }
 
@@ -624,10 +636,11 @@ export default function DocumentationScreen() {
                         <ScrollView
                             style={{ flex: 1 }}
                             scrollEnabled={!activityOpen}
+                            nestedScrollEnabled={true}
                             showsVerticalScrollIndicator={true}
                             keyboardShouldPersistTaps="handled"
-                            keyboardDismissMode="on-drag"
-                            contentContainerStyle={{ padding: 16, paddingTop: 16, paddingBottom: 160, flexGrow: 1 }}
+                            keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+                            contentContainerStyle={{ padding: 16, paddingTop: 16, paddingBottom: 220, flexGrow: 1, minHeight: Dimensions.get('window').height + 1 }}
                         >
                             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
                                 <Text style={{ fontSize: 18, fontWeight: '700' }}>{editingId ? t('edit_documentation', { defaultValue: 'Edit Documentation' }) : t('add_documentation', { defaultValue: 'Add Documentation' })}</Text>
@@ -648,12 +661,22 @@ export default function DocumentationScreen() {
                                 placeholder={t('select_activity', { defaultValue: 'Select activity' })}
                             />
 
-                            <View style={{ marginTop: 4, marginBottom: 8 }}>
-                                <Text style={{ color: '#6B7280', fontSize: 12, marginBottom: 8 }}>{t('images_label', { defaultValue: 'Images' })} ({images.length})</Text>
+                            <View style={{ marginTop: 4, position: 'relative' }}>
+                                <FloatingLabelInput
+                                    label={t('images_label', { defaultValue: 'Images' })}
+                                    value={images.length ? t('image_count_label', { count: images.length, defaultValue: `image : ${images.length} (totalnya)` }) : ''}
+                                    onChangeText={() => { }}
+                                    editable={false}
+                                    onPress={pickImages}
+                                    placeholder={t('pick_images', { defaultValue: '📷 Pick Images' })}
+                                    inputStyle={{ paddingRight: 48 }}
+                                />
+                                {imagesLoading && (
+                                    <View style={{ position: 'absolute', right: 12, top: 14 }}>
+                                        <ActivityIndicator size="small" color="#3B82F6" />
+                                    </View>
+                                )}
                             </View>
-                            <TouchableOpacity onPress={pickImages} style={{ borderWidth: 2, borderColor: '#7c3aed', borderRadius: 12, padding: 14, alignItems: 'center', backgroundColor: '#fff', marginBottom: 12 }}>
-                                <Text style={{ color: '#06B6D4', fontWeight: '600' }}>{t('pick_images', { defaultValue: '📷 Pick Images' })}</Text>
-                            </TouchableOpacity>
 
                             {images.length > 0 && (
                                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8, marginBottom: 12 }}>
