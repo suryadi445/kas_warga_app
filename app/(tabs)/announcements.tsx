@@ -6,6 +6,7 @@ import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 import { db, storage } from '../../src/firebaseConfig';
 import { deleteImageFromStorageByUrl } from '../../src/utils/storage';
 // Image is imported below in the big import list
+import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -13,8 +14,10 @@ import {
     Dimensions,
     FlatList,
     Image,
+    KeyboardAvoidingView,
     Linking,
     Modal,
+    Platform,
     RefreshControl,
     ScrollView,
     StatusBar,
@@ -29,6 +32,7 @@ import FloatingLabelInput from '../../src/components/FloatingLabelInput';
 import ListLoadingState from '../../src/components/ListLoadingState';
 import LoadMore from '../../src/components/LoadMore';
 import SelectInput from '../../src/components/SelectInput';
+import PrimaryButton from '../../src/components/ui/PrimaryButton';
 import { useToast } from '../../src/contexts/ToastContext';
 import { useRefresh } from '../../src/hooks/useRefresh';
 import { getCurrentUser } from '../../src/services/authService';
@@ -1166,11 +1170,17 @@ export default function AnnouncementsScreen() {
                 </View>
             </View>
 
-            <Modal visible={modalVisible} animationType="slide" transparent onRequestClose={() => setModalVisible(false)}>
-                <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.3)' }}>
-                    <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 16, maxHeight: '90%', flex: 1 }}>
-                        <ScrollView scrollEnabled={!roleOpen} showsVerticalScrollIndicator={false}>
-                            <Text style={{ fontSize: 18, fontWeight: '700', marginBottom: 16 }}>{editingId ? t('edit_announcement', { defaultValue: 'Edit Announcement' }) : t('create_announcement', { defaultValue: 'Create Announcement' })}</Text>
+            <Modal visible={modalVisible} animationType="slide" transparent={false} onRequestClose={() => setModalVisible(false)}>
+                <SafeAreaView style={{ flex: 1, backgroundColor: '#F8FAFC' }}>
+                    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8 }}>
+                            <Text style={{ fontSize: 18, fontWeight: '700' }}>{editingId ? t('edit_announcement', { defaultValue: 'Edit Announcement' }) : t('create_announcement', { defaultValue: 'Create Announcement' })}</Text>
+                            <TouchableOpacity onPress={() => setModalVisible(false)} style={{ padding: 8 }}>
+                                <Ionicons name="close" size={24} color="#6B7280" />
+                            </TouchableOpacity>
+                        </View>
+
+                        <ScrollView scrollEnabled={!roleOpen} showsVerticalScrollIndicator={false} style={{ flex: 1, paddingHorizontal: 16 }} keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive" contentContainerStyle={{ paddingTop: 12, paddingBottom: 80 }}>
 
                             {/* Role - SelectInput */}
                             <SelectInput
@@ -1182,7 +1192,7 @@ export default function AnnouncementsScreen() {
                             />
 
                             {/* Start Date & Time (moved here to appear under Role) */}
-                            <View style={{ flexDirection: 'row', gap: 12, marginBottom: 12 }}>
+                            <View style={{ flexDirection: 'row', gap: 12, marginBottom: 1 }}>
                                 <View style={{ flex: 1 }}>
                                     <FloatingLabelInput
                                         label={t('start_date_label', { defaultValue: 'Start Date' })}
@@ -1206,7 +1216,7 @@ export default function AnnouncementsScreen() {
                             </View>
 
                             {/* End Date & Time (moved here to appear under Role) */}
-                            <View style={{ flexDirection: 'row', gap: 12, marginBottom: 12 }}>
+                            <View style={{ flexDirection: 'row', gap: 12, marginBottom: 1 }}>
                                 <View style={{ flex: 1 }}>
                                     <FloatingLabelInput
                                         label={t('end_date_label', { defaultValue: 'End Date' })}
@@ -1256,7 +1266,7 @@ export default function AnnouncementsScreen() {
                             />
 
                             {/* Attachments - Document Picker */}
-                            <View style={{ marginBottom: 12 }}>
+                            <View style={{ marginBottom: 1 }}>
                                 <View style={{ position: 'relative' }}>
                                     <FloatingLabelInput
                                         label={t('attachments_label', { defaultValue: '📎 Attachments' })}
@@ -1275,7 +1285,7 @@ export default function AnnouncementsScreen() {
 
                                 {/* Selected attachments list */}
                                 {attachments.length > 0 && (
-                                    <View style={{ marginTop: 8 }}>
+                                    <View style={{ marginTop: 1, marginBottom: 12 }}>
                                         {attachments.map((att, idx) => (
                                             <View key={idx} style={{
                                                 backgroundColor: '#fff',
@@ -1342,18 +1352,13 @@ export default function AnnouncementsScreen() {
                                 ) : null}
                             </View>
 
-                            {/* Buttons */}
-                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 16 }}>
-                                <TouchableOpacity onPress={() => !operationLoading && setModalVisible(false)} disabled={operationLoading} style={{ padding: 10, opacity: operationLoading ? 0.6 : 1 }}>
-                                    <Text style={{ color: '#6B7280', fontWeight: '600' }}>{t('cancel', { defaultValue: 'Cancel' })}</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity disabled={operationLoading} onPress={save} style={{ padding: 10 }}>
-                                    {operationLoading ? <ActivityIndicator size="small" color="#4fc3f7" /> : <Text style={{ color: '#4fc3f7', fontWeight: '700' }}>{editingId ? t('save', { defaultValue: 'Save' }) : t('create', { defaultValue: 'Create' })}</Text>}
-                                </TouchableOpacity>
+                            {/* Save button (full-width) */}
+                            <View style={{ marginTop: 10, marginBottom: 24 }}>
+                                <PrimaryButton label={editingId ? t('save', { defaultValue: 'Save' }) : t('create', { defaultValue: 'Create' })} loading={operationLoading} onPress={save} gradient style={{ width: '100%' }} />
                             </View>
                         </ScrollView>
-                    </View>
-                </View>
+                    </KeyboardAvoidingView>
+                </SafeAreaView>
             </Modal>
 
             {/* Start Date Picker */}
