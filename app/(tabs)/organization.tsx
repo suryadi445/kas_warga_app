@@ -6,9 +6,12 @@ import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
     ActivityIndicator,
+    Dimensions,
     FlatList,
     Image,
+    KeyboardAvoidingView,
     Modal,
+    Platform,
     RefreshControl,
     ScrollView,
     StatusBar,
@@ -20,8 +23,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import ConfirmDialog from '../../src/components/ConfirmDialog';
 import FloatingLabelInput from '../../src/components/FloatingLabelInput';
 // Removed redundant ListCardWrapper to avoid nested card duplication
+import { Ionicons } from '@expo/vector-icons';
 import ListLoadingState from '../../src/components/ListLoadingState';
 import LoadMore from '../../src/components/LoadMore';
+import PrimaryButton from '../../src/components/ui/PrimaryButton';
 import { useToast } from '../../src/contexts/ToastContext';
 import { db, storage } from '../../src/firebaseConfig';
 import { useRefresh } from '../../src/hooks/useRefresh';
@@ -55,6 +60,7 @@ export default function OrganizationScreen() {
     const [name, setName] = useState('');
     const [phone, setPhone] = useState('');
     const [image, setImage] = useState<string | undefined>(undefined);
+    const [imageLoading, setImageLoading] = useState(false);
     const [leader, setLeader] = useState(false);
 
     // delete confirm state
@@ -238,6 +244,7 @@ export default function OrganizationScreen() {
     }
 
     async function pickImageNative() {
+        setImageLoading(true);
         try {
             const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
             if (!perm.granted) {
@@ -250,8 +257,10 @@ export default function OrganizationScreen() {
                 revokePreviousImage();
                 setImage(uri);
             }
-        } catch {
-            // ignore
+        } catch (e) {
+            console.warn('pickImageNative error', e);
+        } finally {
+            setImageLoading(false);
         }
     }
 
@@ -731,11 +740,24 @@ export default function OrganizationScreen() {
                 </View>
             )}
 
-            <Modal visible={modalVisible} animationType="slide" transparent onRequestClose={() => setModalVisible(false)}>
-                <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.3)' }}>
-                    <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 16, maxHeight: '90%', flex: 1 }}>
-                        <ScrollView showsVerticalScrollIndicator={false}>
-                            <Text style={{ fontSize: 18, fontWeight: '700', marginBottom: 16 }}>{editingId ? t('edit_member', { defaultValue: 'Edit Member' }) : t('add_member', { defaultValue: 'Add Member' })}</Text>
+            <Modal visible={modalVisible} animationType="slide" transparent={false} onRequestClose={() => setModalVisible(false)}>
+                <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
+                    <StatusBar barStyle="dark-content" backgroundColor="#fff" />
+                    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+                        <ScrollView
+                            style={{ flex: 1 }}
+                            showsVerticalScrollIndicator={true}
+                            keyboardShouldPersistTaps="handled"
+                            keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+                            nestedScrollEnabled={true}
+                            contentContainerStyle={{ padding: 16, paddingTop: 22, paddingBottom: 220, flexGrow: 1, minHeight: Dimensions.get('window').height + 1 }}
+                        >
+                            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                                <Text style={{ fontSize: 18, fontWeight: '700' }}>{editingId ? t('edit_member', { defaultValue: 'Edit Member' }) : t('add_member', { defaultValue: 'Add Member' })}</Text>
+                                <TouchableOpacity onPress={() => !operationLoading && setModalVisible(false)} disabled={operationLoading} style={{ padding: 8 }}>
+                                    <Ionicons name="close" size={24} color="#6B7280" />
+                                </TouchableOpacity>
+                            </View>
 
                             <FloatingLabelInput
                                 label={t('position_label', { defaultValue: 'Title / Position' })}
@@ -759,16 +781,21 @@ export default function OrganizationScreen() {
                                 keyboardType="phone-pad"
                             />
 
-                            <View style={{ marginTop: 4, marginBottom: 8 }}>
-                                <Text style={{ color: '#6B7280', fontSize: 12, marginBottom: 8 }}>{t('profile_image_label', { defaultValue: 'Profile Image' })}</Text>
-                            </View>
-                            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
-                                <TouchableOpacity onPress={pickImageNative} style={{ flex: 1, borderWidth: 2, borderColor: '#7c3aed', borderRadius: 12, padding: 14, alignItems: 'center', backgroundColor: '#fff' }}>
-                                    <Text style={{ color: '#7c3aed', fontWeight: '600' }}>📷 {t('pick_image', { defaultValue: 'Pick Image' })}</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity onPress={() => { revokePreviousImage(); setImage(undefined); }} style={{ flex: 1, borderWidth: 2, borderColor: '#EF4444', borderRadius: 12, padding: 14, alignItems: 'center', backgroundColor: '#fff' }}>
-                                    <Text style={{ color: '#EF4444', fontWeight: '600' }}>✕ {t('clear', { defaultValue: 'Clear' })}</Text>
-                                </TouchableOpacity>
+                            <View style={{ marginTop: 4, position: 'relative' }}>
+                                <FloatingLabelInput
+                                    label={'📸 ' + t('profile_image_label', { defaultValue: 'Image' })}
+                                    value={image ? t('image_selected', { defaultValue: 'Image selected' }) : ''}
+                                    onChangeText={() => { }}
+                                    editable={false}
+                                    onPress={pickImageNative}
+                                    placeholder={t('pick_image', { defaultValue: '📷 Pick Image' })}
+                                    inputStyle={{ paddingRight: 48 }}
+                                />
+                                {imageLoading ? (
+                                    <View style={{ position: 'absolute', right: 12, top: 14 }}>
+                                        <ActivityIndicator size="small" color="#3B82F6" />
+                                    </View>
+                                ) : null}
                             </View>
 
                             {image ? <Image source={{ uri: image }} style={{ width: '100%', height: 160, borderRadius: 8, marginTop: 12 }} resizeMode="cover" /> : null}
@@ -782,18 +809,14 @@ export default function OrganizationScreen() {
                                 </TouchableOpacity>
                             </View>
 
-                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 16 }}>
-                                <TouchableOpacity onPress={() => !operationLoading && setModalVisible(false)} disabled={operationLoading} style={{ padding: 10, opacity: operationLoading ? 0.6 : 1 }}>
-                                    <Text style={{ color: '#6B7280' }}>{t('cancel', { defaultValue: 'Cancel' })}</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity disabled={operationLoading} onPress={save} style={{ padding: 10 }}>
-                                    {operationLoading ? <ActivityIndicator size="small" color="#4fc3f7" /> : <Text style={{ color: '#4fc3f7', fontWeight: '700' }}>{editingId ? t('save', { defaultValue: 'Save' }) : t('create', { defaultValue: 'Create' })}</Text>}
-                                </TouchableOpacity>
+                            {/* Primary action inline and scrollable */}
+                            <View style={{ marginTop: 16 }}>
+                                <PrimaryButton label={editingId ? t('save', { defaultValue: 'Save' }) : t('create', { defaultValue: 'Create' })} loading={operationLoading} onPress={save} />
                             </View>
 
                         </ScrollView>
-                    </View>
-                </View>
+                    </KeyboardAvoidingView>
+                </SafeAreaView>
             </Modal>
 
             <ConfirmDialog
