@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { addDoc, collection, deleteDoc, doc, getDoc, onSnapshot, orderBy, query, serverTimestamp, updateDoc } from 'firebase/firestore';
@@ -5,10 +6,11 @@ import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-    ActivityIndicator,
     FlatList,
     Image,
+    KeyboardAvoidingView,
     Modal,
+    Platform,
     RefreshControl,
     ScrollView,
     StatusBar,
@@ -22,6 +24,7 @@ import FloatingLabelInput from '../../src/components/FloatingLabelInput';
 import ListLoadingState from '../../src/components/ListLoadingState';
 import LoadMore from '../../src/components/LoadMore';
 import SelectInput from '../../src/components/SelectInput';
+import PrimaryButton from '../../src/components/ui/PrimaryButton';
 import { useToast } from '../../src/contexts/ToastContext';
 import { db, storage } from '../../src/firebaseConfig';
 import { useRefresh } from '../../src/hooks/useRefresh';
@@ -612,12 +615,26 @@ export default function DocumentationScreen() {
                 </View>
             </View>
 
+
             {/* Modal Form */}
-            <Modal visible={modalVisible} animationType="slide" transparent onRequestClose={() => setModalVisible(false)}>
-                <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.3)' }}>
-                    <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 16, maxHeight: '90%', flex: 1 }}>
-                        <ScrollView scrollEnabled={!activityOpen} showsVerticalScrollIndicator={false}>
-                            <Text style={{ fontSize: 18, fontWeight: '700', marginBottom: 16 }}>{editingId ? t('edit_documentation', { defaultValue: 'Edit Documentation' }) : t('add_documentation', { defaultValue: 'Add Documentation' })}</Text>
+            <Modal visible={modalVisible} animationType="slide" transparent={false} onRequestClose={() => setModalVisible(false)}>
+                <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
+                    <StatusBar barStyle="dark-content" backgroundColor="#fff" />
+                    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+                        <ScrollView
+                            style={{ flex: 1 }}
+                            scrollEnabled={!activityOpen}
+                            showsVerticalScrollIndicator={true}
+                            keyboardShouldPersistTaps="handled"
+                            keyboardDismissMode="on-drag"
+                            contentContainerStyle={{ padding: 16, paddingTop: 16, paddingBottom: 160, flexGrow: 1 }}
+                        >
+                            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                                <Text style={{ fontSize: 18, fontWeight: '700' }}>{editingId ? t('edit_documentation', { defaultValue: 'Edit Documentation' }) : t('add_documentation', { defaultValue: 'Add Documentation' })}</Text>
+                                <TouchableOpacity onPress={() => !operationLoading && setModalVisible(false)} disabled={operationLoading} style={{ padding: 8 }}>
+                                    <Ionicons name="close" size={24} color="#6B7280" />
+                                </TouchableOpacity>
+                            </View>
 
                             <SelectInput
                                 label={t('activity_label', { defaultValue: 'Activity' })}
@@ -660,26 +677,25 @@ export default function DocumentationScreen() {
                                 inputStyle={{ minHeight: 120, paddingTop: 18 }}
                             />
 
-                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 16, alignItems: 'center' }}>
-                                <TouchableOpacity onPress={() => !operationLoading && setModalVisible(false)} disabled={operationLoading} style={{ padding: 10, opacity: operationLoading ? 0.6 : 1 }}>
-                                    <Text style={{ color: '#6B7280' }}>{t('cancel', { defaultValue: 'Cancel' })}</Text>
-                                </TouchableOpacity>
+                            {/* Upload progress (if any) */}
+                            {uploadProgress ? (
+                                <View style={{ marginTop: 8, alignItems: 'center' }}>
+                                    <Text style={{ color: '#7c3aed', fontSize: 12, fontWeight: '600' }}>{uploadProgress}</Text>
+                                </View>
+                            ) : null}
 
-                                {/* Upload progress indicator */}
-                                {uploadProgress ? (
-                                    <View style={{ flex: 1, alignItems: 'center', marginHorizontal: 8 }}>
-                                        <Text style={{ color: '#7c3aed', fontSize: 12, fontWeight: '600' }}>{uploadProgress}</Text>
-                                    </View>
-                                ) : null}
-
-                                <TouchableOpacity disabled={operationLoading} onPress={save} style={{ padding: 10 }}>
-                                    {operationLoading ? <ActivityIndicator size="small" color="#7c3aed" /> : <Text style={{ color: '#7c3aed', fontWeight: '700' }}>{editingId ? t('save', { defaultValue: 'Save' }) : t('create', { defaultValue: 'Create' })}</Text>}
-                                </TouchableOpacity>
+                            {/* Primary action inline and scrollable */}
+                            <View style={{ marginTop: 16 }}>
+                                <PrimaryButton
+                                    label={editingId ? t('save', { defaultValue: 'Save' }) : t('create', { defaultValue: 'Create' })}
+                                    onPress={save}
+                                    loading={operationLoading}
+                                />
                             </View>
 
                         </ScrollView>
-                    </View>
-                </View>
+                    </KeyboardAvoidingView>
+                </SafeAreaView>
             </Modal>
 
             <ConfirmDialog
