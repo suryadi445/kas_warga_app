@@ -139,6 +139,7 @@
     "menu_organization": "Organisasi",
     "menu_settings": "Pengaturan",
     "menu_prayer": "Jadwal Sholat",
+    "prayer_times_unavailable": "Sedang gak bisa menampilkan prayer times",
     "menu_feedback": "Saran",
     "menu_feedback_list": "Daftar Saran",
     "menu_developer": "Developer",

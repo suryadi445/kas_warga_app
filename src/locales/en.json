@@ -83,6 +83,7 @@
     "menu_organization": "Organization",
     "menu_settings": "Settings",
     "menu_prayer": "Prayer Times",
+    "prayer_times_unavailable": "Unable to display prayer times right now",
     "menu_feedback": "Feedback",
     "menu_feedback_list": "Feedback List",
     "menu_developer": "Developer",

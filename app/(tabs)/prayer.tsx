@@ -135,7 +135,7 @@ export default function PrayerPage() {
         try {
             let { status } = await Location.requestForegroundPermissionsAsync();
             if (status !== 'granted') {
-                setError(t('location_permission_denied', { defaultValue: 'Permission to access location was denied' }));
+                setError(t('prayer_times_unavailable', { defaultValue: 'Sedang gak bisa menampilkan prayer times' }));
                 setLocationName(t('unknown_location', { defaultValue: 'Unknown Location' }));
                 setLoading(false);
                 return;
@@ -186,7 +186,7 @@ export default function PrayerPage() {
             setRefreshKey(prev => prev + 1);
         } catch (err) {
             setLoading(false);
-            setError(t('location_error', { defaultValue: 'Failed to get location' }));
+            setError(t('prayer_times_unavailable', { defaultValue: 'Sedang gak bisa menampilkan prayer times' }));
         }
     };
 
@@ -269,7 +269,7 @@ export default function PrayerPage() {
                         console.log('MyQuran search returned no results for:', cityKeyword);
                     }
                 } catch (err) {
-                    console.log('MyQuran API failed/timed out, falling back to Aladhan', err);
+                    console.log('MyQuran API failed/timed out', err);
                 }
             }
 
@@ -280,45 +280,15 @@ export default function PrayerPage() {
                 return;
             }
 
-            // 2. Fallback to Aladhan API
-            console.log('Fetching from Aladhan API...');
-            const aladhanController = new AbortController();
-            const aladhanTimeout = setTimeout(() => aladhanController.abort(), 10000); // 10s timeout
-
-            const timestamp = Math.floor(new Date(dateStr + 'T00:00:00').getTime() / 1000);
-            const url = `https://api.aladhan.com/v1/timings/${timestamp}?latitude=${lat}&longitude=${lon}&method=2`;
-
-            try {
-                const res = await fetch(url, { signal: aladhanController.signal });
-                clearTimeout(aladhanTimeout);
-
-                const json = await res.json();
-                if (fetchIdRef.current !== myId) return;
-
-                if (json?.code === 200 && json?.data?.timings) {
-                    setTimes(json.data.timings);
-                    const hij = json.data?.date?.hijri;
-                    if (hij) {
-                        const month = hij.month?.en ?? hij.month?.ar ?? '';
-                        setHijriDate(`${hij.day} ${month} ${hij.year}`);
-                    } else setHijriDate('');
-                    setSource('Aladhan');
-                } else {
-                    setError(t('failed_get_prayer_times', { defaultValue: 'Failed to get prayer times' }));
-                    setHijriDate('');
-                }
-            } catch (err: any) {
-                clearTimeout(aladhanTimeout);
-                throw err;
+            if (!myQuranSuccess) {
+                setError(t('prayer_times_unavailable', { defaultValue: 'Sedang gak bisa menampilkan prayer times' }));
+                setHijriDate('');
+                setSource('MyQuran');
             }
 
         } catch (err: any) {
             if (fetchIdRef.current !== myId) return;
-            if (err.name === 'AbortError') {
-                setError(t('request_timeout', { defaultValue: 'Request timed out. Please check your connection.' }));
-            } else {
-                setError(t('network_error', { defaultValue: 'Network error. Please try again.' }));
-            }
+            setError(t('prayer_times_unavailable', { defaultValue: 'Sedang gak bisa menampilkan prayer times' }));
             setHijriDate('');
         }
         finally {
@@ -855,7 +825,7 @@ export default function PrayerPage() {
                             </View>
                             {source ? (
                                 <Text style={{ color: '#9CA3AF', fontSize: 10, marginLeft: 8 }}>
-                                    {source === 'MyQuran' ? 'Powered by MyQuran.com' : t('powered_by_aladhan', { defaultValue: 'Powered by Aladhan API' })}
+                                    {'Powered by MyQuran.com'}
                                 </Text>
                             ) : null}
                         </View>
