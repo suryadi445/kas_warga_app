@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Image, LogBox, StatusBar, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import DashboardNotificationManager from '../src/components/DashboardNotificationManager';
+import UpdateChecker from '../src/components/UpdateChecker';
 import { ToastProvider } from '../src/contexts/ToastContext';
 import '../src/i18n';
 
@@ -80,6 +81,7 @@ export default function RootLayout() {
     return (
         <ToastProvider>
             <DashboardNotificationManager />
+            <UpdateChecker />
             <SafeAreaProvider onLayout={onLayoutRootView}>
                 {/* Global translucent status bar so app content can render under it */}
                 <StatusBar translucent backgroundColor="transparent" barStyle="dark-content" />
