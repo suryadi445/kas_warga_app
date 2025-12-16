@@ -66,7 +66,7 @@ const MENU_ITEMS = [
     { id: 'scheduler', labelKey: 'menu_scheduler', icon: '📅' },
     { id: 'documentation', labelKey: 'menu_documentation', icon: '📸' },
     { id: 'organization', labelKey: 'menu_organization', icon: '🏛️' },
-    { id: 'settings', labelKey: 'menu_settings', icon: '⚙️' },
+    { id: 'settings', labelKey: 'menu_settings', icon: '⚙️', adminOnly: true },
     { id: 'prayer', labelKey: 'menu_prayer', icon: '🕋' },
     { id: 'feedback', labelKey: 'menu_feedback', icon: '💬' },
     { id: 'feedback_list', labelKey: 'menu_feedback_list', icon: '📋', adminOnly: true },

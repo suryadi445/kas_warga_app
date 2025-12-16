@@ -640,37 +640,39 @@ export default function OrganizationScreen() {
                                         shadowRadius: 4,
                                         borderLeftWidth: 4,
                                         borderLeftColor: item.leader ? '#EC4899' : '#818CF8',
-                                        paddingRight: 110,
+                                        paddingRight: currentUserRole === 'Admin' ? 110 : 16,
                                     }}>
-                                        {/* Actions - positioned absolute center right */}
-                                        <View style={{ position: 'absolute', top: '50%', right: 12, zIndex: 5, flexDirection: 'column', gap: 8, transform: [{ translateY: -30 }] }}>
-                                            <TouchableOpacity
-                                                onPress={() => openEdit(item)}
-                                                disabled={operationLoading}
-                                                style={{
-                                                    backgroundColor: '#E0F2FE',
-                                                    paddingHorizontal: 12,
-                                                    paddingVertical: 6,
-                                                    borderRadius: 8,
-                                                    opacity: operationLoading ? 0.5 : 1
-                                                }}
-                                            >
-                                                <Text style={{ color: '#0369A1', fontWeight: '600', fontSize: 12 }}>{t('edit', { defaultValue: 'Edit' })}</Text>
-                                            </TouchableOpacity>
-                                            <TouchableOpacity
-                                                onPress={() => confirmRemove(item.id)}
-                                                disabled={operationLoading}
-                                                style={{
-                                                    backgroundColor: '#FEE2E2',
-                                                    paddingHorizontal: 12,
-                                                    paddingVertical: 6,
-                                                    borderRadius: 8,
-                                                    opacity: operationLoading ? 0.5 : 1
-                                                }}
-                                            >
-                                                <Text style={{ color: '#991B1B', fontWeight: '600', fontSize: 12 }}>{t('delete', { defaultValue: 'Delete' })}</Text>
-                                            </TouchableOpacity>
-                                        </View>
+                                        {/* Actions - positioned absolute center right (Admin only) */}
+                                        {currentUserRole === 'Admin' && (
+                                            <View style={{ position: 'absolute', top: '50%', right: 12, zIndex: 5, flexDirection: 'column', gap: 8, transform: [{ translateY: -30 }] }}>
+                                                <TouchableOpacity
+                                                    onPress={() => openEdit(item)}
+                                                    disabled={operationLoading}
+                                                    style={{
+                                                        backgroundColor: '#E0F2FE',
+                                                        paddingHorizontal: 12,
+                                                        paddingVertical: 6,
+                                                        borderRadius: 8,
+                                                        opacity: operationLoading ? 0.5 : 1
+                                                    }}
+                                                >
+                                                    <Text style={{ color: '#0369A1', fontWeight: '600', fontSize: 12 }}>{t('edit', { defaultValue: 'Edit' })}</Text>
+                                                </TouchableOpacity>
+                                                <TouchableOpacity
+                                                    onPress={() => confirmRemove(item.id)}
+                                                    disabled={operationLoading}
+                                                    style={{
+                                                        backgroundColor: '#FEE2E2',
+                                                        paddingHorizontal: 12,
+                                                        paddingVertical: 6,
+                                                        borderRadius: 8,
+                                                        opacity: operationLoading ? 0.5 : 1
+                                                    }}
+                                                >
+                                                    <Text style={{ color: '#991B1B', fontWeight: '600', fontSize: 12 }}>{t('delete', { defaultValue: 'Delete' })}</Text>
+                                                </TouchableOpacity>
+                                            </View>
+                                        )}
 
                                         {/* Leader/Member badge */}
                                         <View style={{
