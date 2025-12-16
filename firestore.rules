@@ -34,7 +34,7 @@ service cloud.firestore {
     // Users: owners or admins may update/delete, creation allowed for authenticated users
     match /users/{userId} {
       allow create: if isAuthenticated(); // allow sign-up to create their profile
-      allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+      allow read: if isAuthenticated();
       allow update, delete: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
     }
 

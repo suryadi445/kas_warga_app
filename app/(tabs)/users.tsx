@@ -141,8 +141,8 @@ export default function UsersScreen() {
 
     useFocusEffect(
         useCallback(() => {
-            if (canManageUsers) loadUsers();
-        }, [canManageUsers])
+            loadUsers();
+        }, [])
     );
 
     // Reset displayed count when users or filters change
@@ -168,7 +168,7 @@ export default function UsersScreen() {
             const currentUser = getCurrentUser();
             if (!currentUser) return;
 
-            // Prefer custom claims (role) if present; otherwise fallback to specific admin email for legacy support
+            // 1. Check custom claims
             try {
                 const idToken = await currentUser.getIdTokenResult(true);
                 const claims = (idToken && idToken.claims) ? (idToken.claims as any) : {};
@@ -176,11 +176,21 @@ export default function UsersScreen() {
                     setCanManageUsers(true);
                     return;
                 }
-            } catch (err) {
-                // ignore claim fetch errors and fall back to email check
-            }
+            } catch (err) { }
 
-            // Back-compat: allow specific owner email as admin
+            // 2. Check Firestore 'users' collection
+            try {
+                const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
+                if (userDoc.exists()) {
+                    const userData = userDoc.data();
+                    if (userData.role === 'Admin') {
+                        setCanManageUsers(true);
+                        return;
+                    }
+                }
+            } catch (err) { }
+
+            // 3. Back-compat: allow specific owner email as admin
             setCanManageUsers(currentUser.email === 'suryadi.hhb@gmail.com');
         } catch (error) {
             console.error('Failed to check permissions:', error);
@@ -850,6 +860,11 @@ export default function UsersScreen() {
     const filteredUsersBase = users
         .filter(u => (roleFilter ? u.role === roleFilter : true))
         .filter(u => {
+            // If NOT admin, force filtering to show ACTIVE users.
+            if (!canManageUsers) {
+                return (u.isActive === true || u.isActive === undefined) && u.rejected !== true;
+            }
+
             // 'all' should show everyone except rejected (include pending/new users)
             if (activeFilter === 'all') return u.rejected !== true;
             if (activeFilter === 'active') return u.isActive === true;
@@ -864,7 +879,7 @@ export default function UsersScreen() {
         });
 
     // if viewing All, show pending users first while preserving order within groups
-    const filteredUsers = (activeFilter === 'all')
+    const filteredUsers = (activeFilter === 'all' && canManageUsers)
         ? ([...filteredUsersBase.filter(isUserPending), ...filteredUsersBase.filter(u => !isUserPending(u))])
         : filteredUsersBase;
 
@@ -894,196 +909,99 @@ export default function UsersScreen() {
         // Mask phone number if user is not admin
         const displayPhone = canManageUsers ? item.phone : maskPhoneNumber(item.phone);
 
-        // Compute pending status (newly-registered within 7 days and not active/not rejected)
-        const now = Date.now();
-        const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
-        let createdDate: Date | null = null;
-        if (item.createdAt) {
-            if (typeof item.createdAt.toDate === 'function') createdDate = item.createdAt.toDate();
-            else if (item.createdAt.seconds) createdDate = new Date(item.createdAt.seconds * 1000);
-            else if (typeof item.createdAt === 'number') createdDate = new Date(item.createdAt);
-        }
-        const isPending = !!createdDate && (now - createdDate.getTime() <= sevenDaysMs) && item.isActive !== true && item.rejected !== true && item.approved !== true;
-
-        // Activation status indicator
-        const activationStatus = item.isActive === true ? 'Active' : 'Inactive';
-        const activationColor = item.isActive === true ? '#10B981' : '#EF4444';
-
         return (
-            <View style={{ marginHorizontal: 0, marginVertical: 8 }}>
+            <View style={{ marginVertical: 6 }}>
                 <View style={{
                     backgroundColor: '#fff',
-                    borderRadius: 12,
                     padding: 16,
+                    borderRadius: 12,
                     elevation: 2,
                     shadowColor: '#000',
                     shadowOffset: { width: 0, height: 1 },
                     shadowOpacity: 0.08,
                     shadowRadius: 4,
-                    borderLeftWidth: 4,
-                    borderLeftColor: item.isActive === true ? colors.border : '#9CA3AF',
-                    opacity: item.isActive === true ? 1 : 0.7
+                    flexDirection: 'row',
+                    alignItems: 'center'
                 }}>
-                    {/* Top row: badge + activation switch (admin only) */}
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    {/* Avatar */}
+                    <View style={{ marginRight: 12 }}>
+                        <TouchableOpacity onPress={item.photo ? () => { /* maybe view photo */ } : undefined} activeOpacity={0.9}>
+                            <View style={{
+                                width: 56, height: 56, borderRadius: 28, backgroundColor: '#F3F4F6',
+                                overflow: 'hidden', borderWidth: 1, borderColor: '#E5E7EB',
+                                alignItems: 'center', justifyContent: 'center'
+                            }}>
+                                {item.photo ? (
+                                    <Image source={{ uri: item.photo }} style={{ width: '100%', height: '100%' }} />
+                                ) : (
+                                    <Text style={{ fontSize: 24 }}>👤</Text>
+                                )}
+                            </View>
+                        </TouchableOpacity>
+                    </View>
+
+                    {/* Info */}
+                    <View style={{ flex: 1 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+                            <Text style={{ fontWeight: '700', fontSize: 16, color: '#111827', marginRight: 8 }}>
+                                {item.name}
+                            </Text>
+                            {/* Role Badge */}
                             <View style={{
                                 backgroundColor: colors.bg,
-                                paddingHorizontal: 10,
-                                paddingVertical: 4,
-                                borderRadius: 999,
-                                borderWidth: roleFilter === item.role ? 1 : 0,
-                                borderColor: roleFilter === item.role ? colors.border : undefined,
+                                paddingHorizontal: 6,
+                                paddingVertical: 2,
+                                borderRadius: 6,
+                                borderWidth: 1,
+                                borderColor: colors.border
                             }}>
-                                <Text style={{
-                                    color: colors.text,
-                                    fontWeight: '700',
-                                    fontSize: 11,
-                                }}>
-                                    {item.role}
+                                <Text style={{ color: colors.text, fontSize: 10, fontWeight: '700' }}>
+                                    {item.role === 'Admin' ? '👑 ADMIN' : item.role.toUpperCase()}
                                 </Text>
                             </View>
+                        </View>
 
-                            {/* Move Approve/Reject inline next to role badge for pending users */}
-                            {isPending && canManageUsers && (
-                                <View style={{ flexDirection: 'row', marginLeft: 8, gap: 8 }}>
-                                    <TouchableOpacity
-                                        onPress={() => { if (!isProcessing(item.id)) toggleUserActivation(item.id, item.isActive); }}
-                                        disabled={isProcessing(item.id)}
-                                        style={{
-                                            backgroundColor: '#DCFCE7',
-                                            paddingHorizontal: 8,
-                                            paddingVertical: 6,
-                                            borderRadius: 8,
-                                            opacity: isProcessing(item.id) ? 0.6 : 1,
-                                        }}
-                                    >
-                                        {isProcessing(item.id) ? (
-                                            <ActivityIndicator size="small" color="#065F46" />
-                                        ) : (
-                                            <Text style={{ color: '#065F46', fontWeight: '700', fontSize: 11 }}>Approve</Text>
-                                        )}
-                                    </TouchableOpacity>
+                        <Text style={{ color: '#6B7280', fontSize: 13, marginBottom: 2 }}>{item.email}</Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                            <Text style={{ color: '#4B5563', fontSize: 13, fontWeight: '500' }}>📞 {displayPhone}</Text>
+                        </View>
 
-                                    <TouchableOpacity
-                                        onPress={() => {
-                                            if (isProcessing(item.id)) return;
-                                            setItemToReject(item.id);
-                                            setRejectConfirmVisible(true);
-                                        }}
-                                        disabled={isProcessing(item.id)}
-                                        style={{
-                                            backgroundColor: '#FEE2E2',
-                                            paddingHorizontal: 8,
-                                            paddingVertical: 6,
-                                            borderRadius: 8,
-                                            opacity: isProcessing(item.id) ? 0.6 : 1,
-                                        }}
-                                    >
-                                        {isProcessing(item.id) ? (
-                                            <ActivityIndicator size="small" color="#991B1B" />
-                                        ) : (
-                                            <Text style={{ color: '#991B1B', fontWeight: '700', fontSize: 11 }}>Reject</Text>
-                                        )}
-                                    </TouchableOpacity>
+                        {/* Status Badges */}
+                        <View style={{ flexDirection: 'row', gap: 6, marginTop: 6 }}>
+                            {canManageUsers && isUserPending(item) && (
+                                <View style={{ backgroundColor: '#FEF3C7', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                                    <Text style={{ color: '#D97706', fontSize: 10, fontWeight: '700' }}>⏳ PENDING</Text>
+                                </View>
+                            )}
+                            {item.rejected && (
+                                <View style={{ backgroundColor: '#FEE2E2', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                                    <Text style={{ color: '#991B1B', fontSize: 10, fontWeight: '700' }}>❌ REJECTED</Text>
+                                </View>
+                            )}
+                            {!item.isActive && !item.rejected && !isUserPending(item) && (
+                                <View style={{ backgroundColor: '#F3F4F6', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                                    <Text style={{ color: '#6B7280', fontSize: 10, fontWeight: '700' }}>💤 INACTIVE</Text>
                                 </View>
                             )}
                         </View>
-
-                        {/* Activation Switch - Admin Only */}
-                        {canManageUsers && (
-                            // If user is pending, do not show activation switch here (Approve/Reject shown in actions)
-                            (() => {
-                                const isProtected = item.email === 'suryadi.hhb@gmail.com';
-                                if (isPending || activeFilter === 'rejected' || item.rejected === true) {
-                                    // For pending users or when viewing rejected users we hide the activation switch area entirely.
-                                    // Approve/Reject buttons are shown inline for pending users; Restore button shown in Rejected view.
-                                    return null;
-                                }
-
-                                return (
-                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                                        <Text style={{
-                                            fontSize: 11,
-                                            fontWeight: '600',
-                                            color: activationColor
-                                        }}>
-                                            {activationStatus}
-                                        </Text>
-                                        {isProcessing(item.id) ? (
-                                            <ActivityIndicator size="small" color="#6366f1" />
-                                        ) : (
-                                            <Switch
-                                                value={item.isActive === true}
-                                                onValueChange={() => {
-                                                    if (isProtected) {
-                                                        showToast(t('cannot_toggle_master', { defaultValue: 'This account cannot be toggled' }), 'error');
-                                                        return;
-                                                    }
-                                                    toggleUserActivation(item.id, item.isActive);
-                                                }}
-                                                trackColor={{ false: '#E5E7EB', true: '#86EFAC' }}
-                                                thumbColor={item.isActive === true ? '#10B981' : '#9CA3AF'}
-                                                ios_backgroundColor="#E5E7EB"
-                                            />
-                                        )}
-                                    </View>
-                                );
-                            })()
-                        )}
                     </View>
 
-                    {/* Main content row: icon + title/subtitle + actions */}
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                        <View style={{ flex: 1, flexDirection: 'row', alignItems: 'flex-start' }}>
-                            {/* User Photo */}
-                            <View style={{
-                                width: 48,
-                                height: 48,
-                                borderRadius: 24,
-                                backgroundColor: '#F3F4F6',
-                                marginRight: 12,
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                overflow: 'hidden',
-                                borderWidth: 2,
-                                borderColor: item.isActive ? colors.border : '#D1D5DB'
-                            }}>
-                                {item.photo ? (
-                                    <Image source={{ uri: item.photo }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
-                                ) : (
-                                    <Ionicons name="person" size={24} color="#9CA3AF" />
-                                )}
-                            </View>
-
-                            <View style={{ flex: 1 }}>
-                                <Text style={{
-                                    fontWeight: '800',
-                                    color: '#111827',
-                                    fontSize: 18,
-                                    marginBottom: 4,
-                                    letterSpacing: -0.5,
-                                }}>
-                                    {item.name}
-                                </Text>
-
-                                <Text style={{ color: '#6B7280', fontSize: 12, marginBottom: 4 }}>
-                                    {item.email}
-                                </Text>
-
-                                {displayPhone && (
-                                    <Text numberOfLines={2} style={{ color: '#6B7280', fontSize: 13, marginTop: 4, lineHeight: 18 }}>
-                                        {displayPhone}
-                                    </Text>
-                                )}
-                            </View>
-                        </View>
-
-                        {/* Right: action buttons stacked */}
+                    {/* Action Buttons (Admin Only) */}
+                    <View style={{ marginLeft: 8 }}>
                         {canManageUsers && (
-                            <View style={{ marginLeft: 12, alignItems: 'flex-end', justifyContent: 'flex-start' }}>
-                                {/* If viewing rejected list, show Restore action in actions column */}
-                                {activeFilter === 'rejected' ? (
+                            <View style={{ alignItems: 'flex-end', gap: 8 }}>
+                                {/* Activation Switch */}
+                                <Switch
+                                    trackColor={{ false: '#9CA3AF', true: '#818CF8' }}
+                                    thumbColor={item.isActive ? '#4F46E5' : '#F3F4F6'}
+                                    ios_backgroundColor="#3e3e3e"
+                                    onValueChange={() => toggleUserActivation(item.id, item.isActive)}
+                                    value={!!item.isActive}
+                                    disabled={isProcessing(item.id)}
+                                    style={{ transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }] }}
+                                />
+
+                                {item.rejected ? (
                                     <TouchableOpacity
                                         onPress={() => {
                                             if (isProcessing(item.id)) return;
@@ -1349,77 +1267,79 @@ export default function UsersScreen() {
             </View>
 
             {/* NEW: Activation Status Filter (All/Active/Inactive) with Rejected separated to the right */}
-            <View style={{ paddingHorizontal: 20, marginTop: 12, marginBottom: 12, flexDirection: 'row', gap: 10, alignItems: 'center' }}>
-                <View style={{ flex: 1, flexDirection: 'row', backgroundColor: '#fff', borderRadius: 10, padding: 4 }}>
-                    <TouchableOpacity
-                        onPress={() => setActiveFilter('all')}
-                        style={{
-                            flex: 1,
-                            paddingVertical: 8,
-                            borderRadius: 8,
-                            alignItems: 'center',
-                            backgroundColor: activeFilter === 'all' ? '#6D28D9' : 'transparent'
-                        }}
-                    >
-                        <Text style={{ fontSize: 14, fontWeight: '600', color: activeFilter === 'all' ? '#FFFFFF' : '#1F2937' }}>All</Text>
-                    </TouchableOpacity>
+            {canManageUsers && (
+                <View style={{ paddingHorizontal: 20, marginTop: 12, marginBottom: 12, flexDirection: 'row', gap: 10, alignItems: 'center' }}>
+                    <View style={{ flex: 1, flexDirection: 'row', backgroundColor: '#fff', borderRadius: 10, padding: 4 }}>
+                        <TouchableOpacity
+                            onPress={() => setActiveFilter('all')}
+                            style={{
+                                flex: 1,
+                                paddingVertical: 8,
+                                borderRadius: 8,
+                                alignItems: 'center',
+                                backgroundColor: activeFilter === 'all' ? '#6D28D9' : 'transparent'
+                            }}
+                        >
+                            <Text style={{ fontSize: 14, fontWeight: '600', color: activeFilter === 'all' ? '#FFFFFF' : '#1F2937' }}>All</Text>
+                        </TouchableOpacity>
 
-                    <TouchableOpacity
-                        onPress={() => setActiveFilter('active')}
-                        style={{
-                            flex: 1,
-                            paddingVertical: 8,
-                            borderRadius: 8,
-                            alignItems: 'center',
-                            backgroundColor: activeFilter === 'active' ? '#6D28D9' : 'transparent'
-                        }}
-                    >
-                        <Text style={{ fontSize: 14, fontWeight: '600', color: activeFilter === 'active' ? '#FFFFFF' : '#1F2937' }}>✓ Active</Text>
-                    </TouchableOpacity>
+                        <TouchableOpacity
+                            onPress={() => setActiveFilter('active')}
+                            style={{
+                                flex: 1,
+                                paddingVertical: 8,
+                                borderRadius: 8,
+                                alignItems: 'center',
+                                backgroundColor: activeFilter === 'active' ? '#6D28D9' : 'transparent'
+                            }}
+                        >
+                            <Text style={{ fontSize: 14, fontWeight: '600', color: activeFilter === 'active' ? '#FFFFFF' : '#1F2937' }}>✓ Active</Text>
+                        </TouchableOpacity>
 
-                    <TouchableOpacity
-                        onPress={() => setActiveFilter('inactive')}
-                        style={{
-                            flex: 1,
-                            paddingVertical: 8,
-                            borderRadius: 8,
-                            alignItems: 'center',
-                            backgroundColor: activeFilter === 'inactive' ? '#6D28D9' : 'transparent'
-                        }}
-                    >
-                        <Text style={{ fontSize: 14, fontWeight: '600', color: activeFilter === 'inactive' ? '#FFFFFF' : '#1F2937' }}>⏳ Inactive</Text>
-                    </TouchableOpacity>
-                </View>
-
-                {/* Rejected button separated on the right, circular like Feedback List's mark button */}
-                <TouchableOpacity
-                    onPress={() => setActiveFilter('rejected')}
-                    style={{
-                        width: 44,
-                        height: 44,
-                        backgroundColor: activeFilter === 'rejected' ? '#6D28D9' : '#d72d27',
-                        borderRadius: 12,
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        borderWidth: activeFilter === 'rejected' ? 0 : 1,
-                        borderColor: '#d72d27'
-                    }}
-                >
-                    <View
-                        style={{
-                            width: 24,
-                            height: 24,
-                            borderRadius: 12,
-                            backgroundColor: activeFilter === 'rejected' ? '#FFF' : '#FFF',
-                            alignItems: 'center',
-                            justifyContent: 'center'
-                        }}
-                    >
-                        <Ionicons name="trash" size={18} color={activeFilter === 'rejected' ? '#6D28D9' : '#d72d27'} />
+                        <TouchableOpacity
+                            onPress={() => setActiveFilter('inactive')}
+                            style={{
+                                flex: 1,
+                                paddingVertical: 8,
+                                borderRadius: 8,
+                                alignItems: 'center',
+                                backgroundColor: activeFilter === 'inactive' ? '#6D28D9' : 'transparent'
+                            }}
+                        >
+                            <Text style={{ fontSize: 14, fontWeight: '600', color: activeFilter === 'inactive' ? '#FFFFFF' : '#1F2937' }}>⏳ Inactive</Text>
+                        </TouchableOpacity>
                     </View>
-                </TouchableOpacity>
 
-            </View>
+                    {/* Rejected button separated on the right, circular like Feedback List's mark button */}
+                    <TouchableOpacity
+                        onPress={() => setActiveFilter('rejected')}
+                        style={{
+                            width: 44,
+                            height: 44,
+                            backgroundColor: activeFilter === 'rejected' ? '#6D28D9' : '#d72d27',
+                            borderRadius: 12,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            borderWidth: activeFilter === 'rejected' ? 0 : 1,
+                            borderColor: '#d72d27'
+                        }}
+                    >
+                        <View
+                            style={{
+                                width: 24,
+                                height: 24,
+                                borderRadius: 12,
+                                backgroundColor: activeFilter === 'rejected' ? '#FFF' : '#FFF',
+                                alignItems: 'center',
+                                justifyContent: 'center'
+                            }}
+                        >
+                            <Ionicons name="trash" size={18} color={activeFilter === 'rejected' ? '#6D28D9' : '#d72d27'} />
+                        </View>
+                    </TouchableOpacity>
+
+                </View>
+            )}
 
             {/* Info/Warning banner */}
             {!canManageUsers && (
@@ -1443,37 +1363,37 @@ export default function UsersScreen() {
                 </View>
             )}
 
-            {/* NEW: Add User Button - only for super admin */}
-            {canManageUsers && (
-                <View style={{ paddingHorizontal: 20, marginBottom: 16 }}>
-                    <View style={{
-                        backgroundColor: 'rgba(255, 255, 255, 0.95)',
-                        borderRadius: 20,
-                        paddingHorizontal: 16,
-                        paddingVertical: 12,
-                        shadowColor: '#000',
-                        shadowOffset: { width: 0, height: 8 },
-                        shadowOpacity: 0.15,
-                        shadowRadius: 20,
-                        elevation: 8,
-                        borderWidth: 1,
-                        borderColor: 'rgba(255, 255, 255, 0.3)',
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        gap: 12
-                    }}>
-                        {/* Left: search (60%) */}
-                        <View style={{ flex: 1.5 }}>
-                            <FloatingLabelInput
-                                label={t('search')}
-                                value={searchQuery}
-                                onChangeText={setSearchQuery}
-                                placeholder={t('search_placeholder', { defaultValue: 'Search...' })}
-                                containerStyle={{ marginBottom: 0 }}
-                            />
-                        </View>
+            {/* Search and Add Button Area */}
+            <View style={{ paddingHorizontal: 20, marginBottom: 16 }}>
+                <View style={{
+                    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                    borderRadius: 20,
+                    paddingHorizontal: 16,
+                    paddingVertical: 12,
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: 8 },
+                    shadowOpacity: 0.15,
+                    shadowRadius: 20,
+                    elevation: 8,
+                    borderWidth: 1,
+                    borderColor: 'rgba(255, 255, 255, 0.3)',
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 12
+                }}>
+                    {/* Search Input - Full width if not admin */}
+                    <View style={{ flex: canManageUsers ? 1.5 : 1 }}>
+                        <FloatingLabelInput
+                            label={t('search')}
+                            value={searchQuery}
+                            onChangeText={setSearchQuery}
+                            placeholder={t('search_placeholder', { defaultValue: 'Search...' })}
+                            containerStyle={{ marginBottom: 0 }}
+                        />
+                    </View>
 
-                        {/* Right: create button (40%) */}
+                    {/* Add Button - Admin Only */}
+                    {canManageUsers && (
                         <View style={{ flex: 1 }}>
                             <TouchableOpacity onPress={openAdd} activeOpacity={0.9} style={{ width: '100%' }}>
                                 <LinearGradient
@@ -1497,9 +1417,9 @@ export default function UsersScreen() {
                                 </LinearGradient>
                             </TouchableOpacity>
                         </View>
-                    </View>
+                    )}
                 </View>
-            )}
+            </View>
 
             {/* List with pagination */}
             <View style={{ flex: 1, paddingHorizontal: 20 }}>
